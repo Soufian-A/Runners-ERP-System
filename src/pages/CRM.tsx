@@ -1,18 +1,33 @@
 import { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import Layout from '@/components/Layout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Users, Plus, Copy } from 'lucide-react';
+import { Users, Plus, Copy, Pencil, Trash2 } from 'lucide-react';
 import CreateClientDialog from '@/components/clients/CreateClientDialog';
+import EditClientDialog from '@/components/clients/EditClientDialog';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { useToast } from '@/hooks/use-toast';
 
 const CRM = () => {
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [selectedClient, setSelectedClient] = useState<any>(null);
+  const [deleteClientId, setDeleteClientId] = useState<string | null>(null);
   const { toast } = useToast();
+  const queryClient = useQueryClient();
   
   const { data: clients, isLoading } = useQuery({
     queryKey: ['clients'],
@@ -23,6 +38,32 @@ const CRM = () => {
         .order('name');
       if (error) throw error;
       return data;
+    },
+  });
+
+  const deleteClientMutation = useMutation({
+    mutationFn: async (clientId: string) => {
+      const { error } = await supabase
+        .from('clients')
+        .delete()
+        .eq('id', clientId);
+      
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['clients'] });
+      toast({
+        title: "Client Deleted",
+        description: "The client has been deleted successfully.",
+      });
+      setDeleteClientId(null);
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive",
+      });
     },
   });
 
@@ -45,6 +86,15 @@ Fee Rule: ${client.client_rules?.[0]?.fee_rule || 'N/A'}
       title: "Copied!",
       description: "Client information copied to clipboard",
     });
+  };
+
+  const handleEdit = (client: any) => {
+    setSelectedClient(client);
+    setIsEditDialogOpen(true);
+  };
+
+  const handleDelete = (clientId: string) => {
+    setDeleteClientId(clientId);
   };
 
   return (
@@ -100,13 +150,29 @@ Fee Rule: ${client.client_rules?.[0]?.fee_rule || 'N/A'}
                         {client.client_rules?.[0]?.fee_rule || 'N/A'}
                       </TableCell>
                       <TableCell>
-                        <Button 
-                          variant="ghost" 
-                          size="sm"
-                          onClick={() => copyClientInfo(client)}
-                        >
-                          <Copy className="h-4 w-4" />
-                        </Button>
+                        <div className="flex gap-1">
+                          <Button 
+                            variant="ghost" 
+                            size="sm"
+                            onClick={() => copyClientInfo(client)}
+                          >
+                            <Copy className="h-4 w-4" />
+                          </Button>
+                          <Button 
+                            variant="ghost" 
+                            size="sm"
+                            onClick={() => handleEdit(client)}
+                          >
+                            <Pencil className="h-4 w-4" />
+                          </Button>
+                          <Button 
+                            variant="ghost" 
+                            size="sm"
+                            onClick={() => handleDelete(client.id)}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
                       </TableCell>
                     </TableRow>
                   ))
@@ -125,6 +191,33 @@ Fee Rule: ${client.client_rules?.[0]?.fee_rule || 'N/A'}
         open={isCreateDialogOpen}
         onOpenChange={setIsCreateDialogOpen}
       />
+
+      {selectedClient && (
+        <EditClientDialog
+          open={isEditDialogOpen}
+          onOpenChange={setIsEditDialogOpen}
+          client={selectedClient}
+        />
+      )}
+
+      <AlertDialog open={!!deleteClientId} onOpenChange={() => setDeleteClientId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Client</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete this client? This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => deleteClientId && deleteClientMutation.mutate(deleteClientId)}
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Layout>
   );
 };
