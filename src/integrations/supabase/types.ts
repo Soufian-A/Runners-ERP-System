@@ -198,6 +198,30 @@ export type Database = {
         }
         Relationships: []
       }
+      customers: {
+        Row: {
+          address: string | null
+          created_at: string | null
+          id: string
+          name: string | null
+          phone: string
+        }
+        Insert: {
+          address?: string | null
+          created_at?: string | null
+          id?: string
+          name?: string | null
+          phone: string
+        }
+        Update: {
+          address?: string | null
+          created_at?: string | null
+          id?: string
+          name?: string | null
+          phone?: string
+        }
+        Relationships: []
+      }
       driver_transactions: {
         Row: {
           amount_lbp: number | null
@@ -272,12 +296,14 @@ export type Database = {
       orders: {
         Row: {
           address: string
+          amount_due_to_client_usd: number | null
           client_fee_rule: Database["public"]["Enums"]["fee_rule_type"]
           client_id: string
           client_type: Database["public"]["Enums"]["client_type"]
           collected_amount_lbp: number | null
           collected_amount_usd: number | null
           created_at: string | null
+          customer_id: string | null
           delivered_at: string | null
           delivery_fee_lbp: number | null
           delivery_fee_usd: number | null
@@ -297,6 +323,8 @@ export type Database = {
           order_amount_lbp: number | null
           order_amount_usd: number | null
           order_id: string
+          order_type: Database["public"]["Enums"]["order_type"] | null
+          prepaid_by_company: boolean | null
           prepaid_by_runners: boolean | null
           prepay_amount_lbp: number | null
           prepay_amount_usd: number | null
@@ -306,12 +334,14 @@ export type Database = {
         }
         Insert: {
           address: string
+          amount_due_to_client_usd?: number | null
           client_fee_rule: Database["public"]["Enums"]["fee_rule_type"]
           client_id: string
           client_type: Database["public"]["Enums"]["client_type"]
           collected_amount_lbp?: number | null
           collected_amount_usd?: number | null
           created_at?: string | null
+          customer_id?: string | null
           delivered_at?: string | null
           delivery_fee_lbp?: number | null
           delivery_fee_usd?: number | null
@@ -331,6 +361,8 @@ export type Database = {
           order_amount_lbp?: number | null
           order_amount_usd?: number | null
           order_id: string
+          order_type?: Database["public"]["Enums"]["order_type"] | null
+          prepaid_by_company?: boolean | null
           prepaid_by_runners?: boolean | null
           prepay_amount_lbp?: number | null
           prepay_amount_usd?: number | null
@@ -340,12 +372,14 @@ export type Database = {
         }
         Update: {
           address?: string
+          amount_due_to_client_usd?: number | null
           client_fee_rule?: Database["public"]["Enums"]["fee_rule_type"]
           client_id?: string
           client_type?: Database["public"]["Enums"]["client_type"]
           collected_amount_lbp?: number | null
           collected_amount_usd?: number | null
           created_at?: string | null
+          customer_id?: string | null
           delivered_at?: string | null
           delivery_fee_lbp?: number | null
           delivery_fee_usd?: number | null
@@ -365,6 +399,8 @@ export type Database = {
           order_amount_lbp?: number | null
           order_amount_usd?: number | null
           order_id?: string
+          order_type?: Database["public"]["Enums"]["order_type"] | null
+          prepaid_by_company?: boolean | null
           prepaid_by_runners?: boolean | null
           prepay_amount_lbp?: number | null
           prepay_amount_usd?: number | null
@@ -378,6 +414,13 @@ export type Database = {
             columns: ["client_id"]
             isOneToOne: false
             referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "orders_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "customers"
             referencedColumns: ["id"]
           },
           {
@@ -520,6 +563,7 @@ export type Database = {
         | "Delivered"
         | "Returned"
         | "Cancelled"
+      order_type: "ecom" | "instant" | "errand"
       remit_status: "Pending" | "Collected"
       third_party_status: "New" | "With3P" | "Delivered" | "Paid"
       transaction_type: "Credit" | "Debit"
@@ -670,6 +714,7 @@ export const Constants = {
         "Returned",
         "Cancelled",
       ],
+      order_type: ["ecom", "instant", "errand"],
       remit_status: ["Pending", "Collected"],
       third_party_status: ["New", "With3P", "Delivered", "Paid"],
       transaction_type: ["Credit", "Debit"],
