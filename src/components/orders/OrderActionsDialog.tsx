@@ -48,6 +48,15 @@ const OrderActionsDialog = ({ order, open, onOpenChange }: OrderActionsDialogPro
     buy_cost_lbp: 0,
   });
 
+  const [editData, setEditData] = useState({
+    address: order?.address || '',
+    order_amount_usd: order?.order_amount_usd || 0,
+    order_amount_lbp: order?.order_amount_lbp || 0,
+    delivery_fee_usd: order?.delivery_fee_usd || 0,
+    delivery_fee_lbp: order?.delivery_fee_lbp || 0,
+    notes: order?.notes || '',
+  });
+
   const updateStatusMutation = useMutation({
     mutationFn: async (data: any) => {
       const updateData: any = {
@@ -374,6 +383,39 @@ const OrderActionsDialog = ({ order, open, onOpenChange }: OrderActionsDialogPro
     },
   });
 
+  const editOrderMutation = useMutation({
+    mutationFn: async (data: any) => {
+      const { error } = await supabase
+        .from('orders')
+        .update({
+          address: data.address,
+          order_amount_usd: data.order_amount_usd,
+          order_amount_lbp: data.order_amount_lbp,
+          delivery_fee_usd: data.delivery_fee_usd,
+          delivery_fee_lbp: data.delivery_fee_lbp,
+          notes: data.notes,
+        })
+        .eq('id', order.id);
+
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['orders'] });
+      toast({
+        title: "Order Updated",
+        description: "Order details have been updated successfully.",
+      });
+      onOpenChange(false);
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
@@ -390,8 +432,9 @@ const OrderActionsDialog = ({ order, open, onOpenChange }: OrderActionsDialogPro
           <p><strong>Delivery Fee:</strong> ${Number(order?.delivery_fee_usd).toFixed(2)} / {Number(order?.delivery_fee_lbp).toLocaleString()} LBP</p>
         </div>
 
-        <Tabs defaultValue="status" className="w-full">
-          <TabsList className="grid w-full grid-cols-4">
+        <Tabs defaultValue="edit" className="w-full">
+          <TabsList className="grid w-full grid-cols-5">
+            <TabsTrigger value="edit">Edit</TabsTrigger>
             <TabsTrigger value="status">Status</TabsTrigger>
             <TabsTrigger value="prepay">Prepay</TabsTrigger>
             <TabsTrigger value="driver-paid">Driver Paid</TabsTrigger>
@@ -399,6 +442,93 @@ const OrderActionsDialog = ({ order, open, onOpenChange }: OrderActionsDialogPro
               <TabsTrigger value="third-party">3rd Party</TabsTrigger>
             )}
           </TabsList>
+
+          <TabsContent value="edit" className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="edit_address">Delivery Address</Label>
+              <Input
+                id="edit_address"
+                value={editData.address}
+                onChange={(e) => setEditData({ ...editData, address: e.target.value })}
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="edit_amount_usd">Order Amount (USD)</Label>
+                <Input
+                  id="edit_amount_usd"
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={editData.order_amount_usd}
+                  onChange={(e) =>
+                    setEditData({ ...editData, order_amount_usd: parseFloat(e.target.value) || 0 })
+                  }
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="edit_amount_lbp">Order Amount (LBP)</Label>
+                <Input
+                  id="edit_amount_lbp"
+                  type="number"
+                  step="1"
+                  min="0"
+                  value={editData.order_amount_lbp}
+                  onChange={(e) =>
+                    setEditData({ ...editData, order_amount_lbp: parseInt(e.target.value) || 0 })
+                  }
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="edit_fee_usd">Delivery Fee (USD)</Label>
+                <Input
+                  id="edit_fee_usd"
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={editData.delivery_fee_usd}
+                  onChange={(e) =>
+                    setEditData({ ...editData, delivery_fee_usd: parseFloat(e.target.value) || 0 })
+                  }
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="edit_fee_lbp">Delivery Fee (LBP)</Label>
+                <Input
+                  id="edit_fee_lbp"
+                  type="number"
+                  step="1"
+                  min="0"
+                  value={editData.delivery_fee_lbp}
+                  onChange={(e) =>
+                    setEditData({ ...editData, delivery_fee_lbp: parseInt(e.target.value) || 0 })
+                  }
+                />
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="edit_notes">Notes</Label>
+              <Textarea
+                id="edit_notes"
+                value={editData.notes}
+                onChange={(e) => setEditData({ ...editData, notes: e.target.value })}
+                rows={3}
+              />
+            </div>
+
+            <Button
+              onClick={() => editOrderMutation.mutate(editData)}
+              disabled={editOrderMutation.isPending}
+              className="w-full"
+            >
+              {editOrderMutation.isPending ? 'Saving...' : 'Save Changes'}
+            </Button>
+          </TabsContent>
 
           <TabsContent value="status" className="space-y-4">
             <div className="space-y-2">
