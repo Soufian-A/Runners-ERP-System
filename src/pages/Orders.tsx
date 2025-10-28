@@ -4,13 +4,16 @@ import { supabase } from "@/integrations/supabase/client";
 import Layout from "@/components/Layout";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import OrderActionsDialog from "@/components/orders/OrderActionsDialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { EcomOrderForm } from "@/components/orders/EcomOrderForm";
 import { InstantOrderForm } from "@/components/orders/InstantOrderForm";
 import { BulkActionsBar } from "@/components/orders/BulkActionsBar";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Button } from "@/components/ui/button";
+import { LayoutGrid, List } from "lucide-react";
+import EditOrderDialog from "@/components/orders/EditOrderDialog";
+import CreateOrderDialog from "@/components/orders/CreateOrderDialog";
 
 interface Order {
   id: string;
@@ -36,6 +39,8 @@ const Orders = () => {
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [viewMode, setViewMode] = useState<"quick" | "form">("quick");
+  const [createDialogOpen, setCreateDialogOpen] = useState(false);
 
   // Fetch all orders
   const { data: orders, isLoading } = useQuery({
@@ -92,7 +97,19 @@ const Orders = () => {
   return (
     <Layout>
       <div className="space-y-6">
-        <h1 className="text-3xl font-bold">Orders</h1>
+        <div className="flex justify-between items-center">
+          <h1 className="text-3xl font-bold">Orders</h1>
+          <div className="flex gap-2">
+            <Button variant={viewMode === "quick" ? "default" : "outline"} size="sm" onClick={() => setViewMode("quick")}>
+              <List className="h-4 w-4 mr-2" />
+              Quick Entry
+            </Button>
+            <Button variant={viewMode === "form" ? "default" : "outline"} size="sm" onClick={() => setViewMode("form")}>
+              <LayoutGrid className="h-4 w-4 mr-2" />
+              Form Entry
+            </Button>
+          </div>
+        </div>
 
         <Tabs defaultValue="ecom" className="w-full">
           <TabsList className="grid w-full grid-cols-2">
@@ -101,7 +118,13 @@ const Orders = () => {
           </TabsList>
 
           <TabsContent value="ecom" className="space-y-4">
-            <EcomOrderForm />
+            {viewMode === "quick" ? (
+              <EcomOrderForm />
+            ) : (
+              <div className="flex justify-end">
+                <Button onClick={() => setCreateDialogOpen(true)}>Create E-commerce Order</Button>
+              </div>
+            )}
 
             <Card>
               <CardContent className="p-6">
@@ -168,7 +191,13 @@ const Orders = () => {
           </TabsContent>
 
           <TabsContent value="instant" className="space-y-4">
-            <InstantOrderForm />
+            {viewMode === "quick" ? (
+              <InstantOrderForm />
+            ) : (
+              <div className="flex justify-end">
+                <Button onClick={() => setCreateDialogOpen(true)}>Create Instant Order</Button>
+              </div>
+            )}
 
             <Card>
               <CardContent className="p-6">
@@ -229,7 +258,7 @@ const Orders = () => {
         <BulkActionsBar selectedIds={selectedIds} onClearSelection={() => setSelectedIds([])} />
 
         {selectedOrder && (
-          <OrderActionsDialog
+          <EditOrderDialog
             order={selectedOrder}
             open={dialogOpen}
             onOpenChange={(open) => {
@@ -238,6 +267,8 @@ const Orders = () => {
             }}
           />
         )}
+
+        {createDialogOpen && <CreateOrderDialog open={createDialogOpen} onOpenChange={setCreateDialogOpen} />}
       </div>
     </Layout>
   );
