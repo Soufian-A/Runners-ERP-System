@@ -6,26 +6,34 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Check, ChevronsUpDown } from "lucide-react";
+import { Check, ChevronsUpDown, Plus } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { Label } from "@/components/ui/label";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+
+type NewOrderRow = {
+  id: string;
+  client_id: string;
+  address: string;
+  driver_id: string;
+  order_amount_usd: string;
+  delivery_fee_usd: string;
+  notes: string;
+};
 
 export function InstantOrderForm() {
   const queryClient = useQueryClient();
-  const [formData, setFormData] = useState({
-    client_id: "",
-    address: "",
-    driver_id: "",
-    order_amount_usd: "",
-    delivery_fee_usd: "",
-    notes: "",
-  });
+  const [newRows, setNewRows] = useState<NewOrderRow[]>([
+    {
+      id: `new-${Date.now()}`,
+      client_id: "",
+      address: "",
+      driver_id: "",
+      order_amount_usd: "",
+      delivery_fee_usd: "",
+      notes: "",
+    },
+  ]);
 
-  const [openClient, setOpenClient] = useState(false);
-  const [openAddress, setOpenAddress] = useState(false);
-  const [openDriver, setOpenDriver] = useState(false);
-
-  // Fetch clients
   const { data: clients = [] } = useQuery({
     queryKey: ["clients"],
     queryFn: async () => {
@@ -35,7 +43,6 @@ export function InstantOrderForm() {
     },
   });
 
-  // Fetch drivers
   const { data: drivers = [] } = useQuery({
     queryKey: ["drivers-active"],
     queryFn: async () => {
@@ -45,228 +52,227 @@ export function InstantOrderForm() {
     },
   });
 
-  // Fetch addresses from customers for autofill
   const { data: addresses = [] } = useQuery({
     queryKey: ["customer-addresses"],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("customers")
-        .select("address")
-        .not("address", "is", null)
-        .order("address");
+      const { data, error } = await supabase.from("customers").select("address").not("address", "is", null).order("address");
       if (error) throw error;
       return [...new Set(data.map((c) => c.address))].filter(Boolean);
     },
   });
 
-  // Create order mutation
-  const createOrderMutation = useMutation({
-    mutationFn: async () => {
-      // Get client info
-      const { data: client } = await supabase
-        .from("clients")
-        .select("*, client_rules(*)")
-        .eq("id", formData.client_id)
-        .single();
-
-      if (!client) throw new Error("Client not found");
-
-      // Generate order_id
-      const prefix = client.name.substring(0, 3).toUpperCase();
-      const timestamp = Date.now().toString().slice(-6);
-      const order_id = `${prefix}-${timestamp}`;
-
-      // Create order
-      const { error } = await supabase.from("orders").insert({
-        order_id,
-        order_type: "instant",
-        client_id: formData.client_id,
-        client_type: client.type,
-        fulfillment: "InHouse",
-        driver_id: formData.driver_id || null,
-        order_amount_usd: parseFloat(formData.order_amount_usd) || 0,
-        delivery_fee_usd: parseFloat(formData.delivery_fee_usd) || 0,
-        client_fee_rule: client.client_rules?.[0]?.fee_rule || "ADD_ON",
-        status: "New",
-        address: formData.address,
-        notes: formData.notes || null,
-      });
-
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["orders"] });
-      toast.success("Instant order created");
-      setFormData({
+  const addNewRow = () => {
+    setNewRows([
+      ...newRows,
+      {
+        id: `new-${Date.now()}`,
         client_id: "",
         address: "",
         driver_id: "",
         order_amount_usd: "",
         delivery_fee_usd: "",
         notes: "",
+      },
+    ]);
+  };
+
+  const updateRow = (id: string, field: keyof NewOrderRow, value: any) => {
+    setNewRows(newRows.map((row) => (row.id === id ? { ...row, [field]: value } : row)));
+  };
+
+  const createOrderMutation = useMutation({
+    mutationFn: async (rowData: NewOrderRow) => {
+      const { data: client } = await supabase.from("clients").select("*, client_rules(*)").eq("id", rowData.client_id).single();
+      if (!client) throw new Error("Client not found");
+
+      const prefix = client.name.substring(0, 3).toUpperCase();
+      const timestamp = Date.now().toString().slice(-6);
+      const order_id = `${prefix}-${timestamp}`;
+
+      const { error } = await supabase.from("orders").insert({
+        order_id,
+        order_type: "instant",
+        client_id: rowData.client_id,
+        client_type: client.type,
+        fulfillment: "InHouse",
+        driver_id: rowData.driver_id || null,
+        order_amount_usd: parseFloat(rowData.order_amount_usd) || 0,
+        delivery_fee_usd: parseFloat(rowData.delivery_fee_usd) || 0,
+        client_fee_rule: client.client_rules?.[0]?.fee_rule || "ADD_ON",
+        status: "New",
+        address: rowData.address,
+        notes: rowData.notes || null,
       });
+
+      if (error) throw error;
+      return rowData.id;
+    },
+    onSuccess: (rowId) => {
+      queryClient.invalidateQueries({ queryKey: ["orders"] });
+      toast.success("Order created");
+      setNewRows(newRows.filter((r) => r.id !== rowId));
+      if (newRows.length === 1) addNewRow();
     },
     onError: (error: Error) => {
       toast.error(error.message);
     },
   });
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    createOrderMutation.mutate();
-  };
+  const ComboboxField = ({
+    value,
+    onSelect,
+    items,
+    placeholder,
+  }: {
+    value: string;
+    onSelect: (id: string) => void;
+    items: any[];
+    placeholder: string;
+  }) => {
+    const [open, setOpen] = useState(false);
+    const selected = items.find((item) => item.id === value);
 
-  const selectedClient = clients.find((c) => c.id === formData.client_id);
-  const selectedDriver = drivers.find((d) => d.id === formData.driver_id);
-
-  return (
-    <form onSubmit={handleSubmit} className="space-y-4 p-4 border rounded-lg">
-      <div className="space-y-2">
-        <Label>Client Name *</Label>
-        <Popover open={openClient} onOpenChange={setOpenClient}>
-          <PopoverTrigger asChild>
-            <Button variant="outline" className="w-full justify-between">
-              {selectedClient?.name || "Select client..."}
-              <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-            </Button>
-          </PopoverTrigger>
-          <PopoverContent className="w-full p-0 bg-popover">
-            <Command>
-              <CommandInput placeholder="Search client..." />
-              <CommandList>
-                <CommandEmpty>No client found.</CommandEmpty>
-                <CommandGroup>
-                  {clients.map((client) => (
-                    <CommandItem
-                      key={client.id}
-                      onSelect={() => {
-                        setFormData({ ...formData, client_id: client.id });
-                        setOpenClient(false);
-                      }}
-                    >
-                      <Check className={cn("mr-2 h-4 w-4", formData.client_id === client.id ? "opacity-100" : "opacity-0")} />
-                      {client.name}
-                    </CommandItem>
-                  ))}
-                </CommandGroup>
-              </CommandList>
-            </Command>
-          </PopoverContent>
-        </Popover>
-      </div>
-
-      <div className="space-y-2">
-        <Label>Address *</Label>
-        <Popover open={openAddress} onOpenChange={setOpenAddress}>
-          <PopoverTrigger asChild>
-            <Button variant="outline" className="w-full justify-between">
-              {formData.address || "Select or enter address..."}
-              <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-            </Button>
-          </PopoverTrigger>
-          <PopoverContent className="w-full p-0 bg-popover">
-            <Command>
-              <CommandInput
-                placeholder="Search or type address..."
-                value={formData.address}
-                onValueChange={(value) => setFormData({ ...formData, address: value })}
-              />
-              <CommandList>
-                <CommandEmpty>
-                  <Button
-                    variant="ghost"
-                    className="w-full"
-                    onClick={() => {
-                      setOpenAddress(false);
+    return (
+      <Popover open={open} onOpenChange={setOpen}>
+        <PopoverTrigger asChild>
+          <Button variant="outline" className="w-full justify-between h-8 text-xs">
+            {selected?.name || placeholder}
+            <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+          </Button>
+        </PopoverTrigger>
+        <PopoverContent className="w-[200px] p-0 bg-popover">
+          <Command>
+            <CommandInput placeholder="Search..." />
+            <CommandList>
+              <CommandEmpty>No results found.</CommandEmpty>
+              <CommandGroup>
+                {items.map((item) => (
+                  <CommandItem
+                    key={item.id}
+                    onSelect={() => {
+                      onSelect(item.id);
+                      setOpen(false);
                     }}
                   >
-                    Use "{formData.address}"
+                    <Check className={cn("mr-2 h-4 w-4", value === item.id ? "opacity-100" : "opacity-0")} />
+                    {item.name}
+                  </CommandItem>
+                ))}
+              </CommandGroup>
+            </CommandList>
+          </Command>
+        </PopoverContent>
+      </Popover>
+    );
+  };
+
+  const AddressField = ({ row }: { row: NewOrderRow }) => {
+    const [open, setOpen] = useState(false);
+
+    return (
+      <Popover open={open} onOpenChange={setOpen}>
+        <PopoverTrigger asChild>
+          <Button variant="outline" className="w-full justify-between h-8 text-xs">
+            {row.address || "Address..."}
+            <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+          </Button>
+        </PopoverTrigger>
+        <PopoverContent className="w-[200px] p-0 bg-popover">
+          <Command>
+            <CommandInput placeholder="Type address..." value={row.address} onValueChange={(value) => updateRow(row.id, "address", value)} />
+            <CommandList>
+              <CommandEmpty>
+                <Button variant="ghost" className="w-full text-xs" onClick={() => setOpen(false)}>
+                  Use "{row.address}"
+                </Button>
+              </CommandEmpty>
+              <CommandGroup>
+                {addresses.map((address, idx) => (
+                  <CommandItem
+                    key={idx}
+                    onSelect={() => {
+                      updateRow(row.id, "address", address as string);
+                      setOpen(false);
+                    }}
+                  >
+                    <Check className={cn("mr-2 h-4 w-4", row.address === address ? "opacity-100" : "opacity-0")} />
+                    {address}
+                  </CommandItem>
+                ))}
+              </CommandGroup>
+            </CommandList>
+          </Command>
+        </PopoverContent>
+      </Popover>
+    );
+  };
+
+  return (
+    <div className="space-y-2">
+      <div className="flex justify-between items-center">
+        <h3 className="text-sm font-semibold">Quick Instant Order Entry</h3>
+        <Button onClick={addNewRow} size="sm" variant="outline">
+          <Plus className="h-4 w-4 mr-1" />
+          Add Row
+        </Button>
+      </div>
+
+      <div className="border rounded-lg overflow-x-auto">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead className="w-[150px]">Client</TableHead>
+              <TableHead className="w-[180px]">Address</TableHead>
+              <TableHead className="w-[150px]">Driver</TableHead>
+              <TableHead className="w-[100px]">Amount USD</TableHead>
+              <TableHead className="w-[90px]">Fee USD</TableHead>
+              <TableHead className="w-[150px]">Notes</TableHead>
+              <TableHead className="w-[80px]">Action</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {newRows.map((row) => (
+              <TableRow key={row.id} className="bg-accent/20">
+                <TableCell>
+                  <ComboboxField value={row.client_id} onSelect={(id) => updateRow(row.id, "client_id", id)} items={clients} placeholder="Client" />
+                </TableCell>
+                <TableCell>
+                  <AddressField row={row} />
+                </TableCell>
+                <TableCell>
+                  <ComboboxField value={row.driver_id} onSelect={(id) => updateRow(row.id, "driver_id", id)} items={drivers} placeholder="Driver" />
+                </TableCell>
+                <TableCell>
+                  <Input
+                    type="number"
+                    step="0.01"
+                    value={row.order_amount_usd}
+                    onChange={(e) => updateRow(row.id, "order_amount_usd", e.target.value)}
+                    className="h-8 text-xs"
+                  />
+                </TableCell>
+                <TableCell>
+                  <Input
+                    type="number"
+                    step="0.01"
+                    value={row.delivery_fee_usd}
+                    onChange={(e) => updateRow(row.id, "delivery_fee_usd", e.target.value)}
+                    className="h-8 text-xs"
+                  />
+                </TableCell>
+                <TableCell>
+                  <Input value={row.notes} onChange={(e) => updateRow(row.id, "notes", e.target.value)} className="h-8 text-xs" />
+                </TableCell>
+                <TableCell>
+                  <Button size="sm" onClick={() => createOrderMutation.mutate(row)} disabled={!row.client_id || !row.address} className="h-8 text-xs">
+                    Save
                   </Button>
-                </CommandEmpty>
-                <CommandGroup>
-                  {addresses.map((address, idx) => (
-                    <CommandItem
-                      key={idx}
-                      onSelect={() => {
-                        setFormData({ ...formData, address: address as string });
-                        setOpenAddress(false);
-                      }}
-                    >
-                      <Check className={cn("mr-2 h-4 w-4", formData.address === address ? "opacity-100" : "opacity-0")} />
-                      {address}
-                    </CommandItem>
-                  ))}
-                </CommandGroup>
-              </CommandList>
-            </Command>
-          </PopoverContent>
-        </Popover>
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
       </div>
-
-      <div className="space-y-2">
-        <Label>Driver</Label>
-        <Popover open={openDriver} onOpenChange={setOpenDriver}>
-          <PopoverTrigger asChild>
-            <Button variant="outline" className="w-full justify-between">
-              {selectedDriver?.name || "Select driver..."}
-              <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-            </Button>
-          </PopoverTrigger>
-          <PopoverContent className="w-full p-0 bg-popover">
-            <Command>
-              <CommandInput placeholder="Search driver..." />
-              <CommandList>
-                <CommandEmpty>No driver found.</CommandEmpty>
-                <CommandGroup>
-                  {drivers.map((driver) => (
-                    <CommandItem
-                      key={driver.id}
-                      onSelect={() => {
-                        setFormData({ ...formData, driver_id: driver.id });
-                        setOpenDriver(false);
-                      }}
-                    >
-                      <Check className={cn("mr-2 h-4 w-4", formData.driver_id === driver.id ? "opacity-100" : "opacity-0")} />
-                      {driver.name}
-                    </CommandItem>
-                  ))}
-                </CommandGroup>
-              </CommandList>
-            </Command>
-          </PopoverContent>
-        </Popover>
-      </div>
-
-      <div className="grid grid-cols-2 gap-4">
-        <div className="space-y-2">
-          <Label>Order Amount (USD) *</Label>
-          <Input
-            type="number"
-            step="0.01"
-            value={formData.order_amount_usd}
-            onChange={(e) => setFormData({ ...formData, order_amount_usd: e.target.value })}
-          />
-        </div>
-
-        <div className="space-y-2">
-          <Label>Delivery Fee (USD)</Label>
-          <Input
-            type="number"
-            step="0.01"
-            value={formData.delivery_fee_usd}
-            onChange={(e) => setFormData({ ...formData, delivery_fee_usd: e.target.value })}
-          />
-        </div>
-      </div>
-
-      <div className="space-y-2">
-        <Label>Notes</Label>
-        <Input value={formData.notes} onChange={(e) => setFormData({ ...formData, notes: e.target.value })} />
-      </div>
-
-      <Button type="submit" className="w-full" disabled={createOrderMutation.isPending}>
-        {createOrderMutation.isPending ? "Creating..." : "Create Instant Order"}
-      </Button>
-    </form>
+    </div>
   );
 }

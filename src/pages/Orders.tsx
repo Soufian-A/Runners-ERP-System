@@ -9,6 +9,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { EcomOrderForm } from "@/components/orders/EcomOrderForm";
 import { InstantOrderForm } from "@/components/orders/InstantOrderForm";
+import { BulkActionsBar } from "@/components/orders/BulkActionsBar";
+import { Checkbox } from "@/components/ui/checkbox";
 
 interface Order {
   id: string;
@@ -33,6 +35,7 @@ interface Order {
 const Orders = () => {
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
 
   // Fetch all orders
   const { data: orders, isLoading } = useQuery({
@@ -69,6 +72,23 @@ const Orders = () => {
   const ecomOrders = orders?.filter((o) => o.order_type === "ecom") || [];
   const instantOrders = orders?.filter((o) => o.order_type === "instant" || o.order_type === "errand") || [];
 
+  const toggleSelectAll = (orderList: Order[]) => {
+    const allIds = orderList.map((o) => o.id);
+    if (allIds.every((id) => selectedIds.includes(id))) {
+      setSelectedIds(selectedIds.filter((id) => !allIds.includes(id)));
+    } else {
+      setSelectedIds([...new Set([...selectedIds, ...allIds])]);
+    }
+  };
+
+  const toggleSelect = (id: string) => {
+    if (selectedIds.includes(id)) {
+      setSelectedIds(selectedIds.filter((selectedId) => selectedId !== id));
+    } else {
+      setSelectedIds([...selectedIds, id]);
+    }
+  };
+
   return (
     <Layout>
       <div className="space-y-6">
@@ -85,31 +105,44 @@ const Orders = () => {
 
             <Card>
               <CardContent className="p-6">
-                <h3 className="text-lg font-semibold mb-4">E-commerce Orders</h3>
+                <div className="flex justify-between items-center mb-4">
+                  <h3 className="text-lg font-semibold">E-commerce Orders</h3>
+                  {ecomOrders.length > 0 && (
+                    <Checkbox
+                      checked={ecomOrders.every((o) => selectedIds.includes(o.id))}
+                      onCheckedChange={() => toggleSelectAll(ecomOrders)}
+                    />
+                  )}
+                </div>
                 <Table>
                   <TableHeader>
                     <TableRow>
+                      <TableHead className="w-[50px]"></TableHead>
                       <TableHead>Order ID</TableHead>
                       <TableHead>Voucher</TableHead>
                       <TableHead>Client</TableHead>
                       <TableHead>Customer</TableHead>
                       <TableHead>Address</TableHead>
-                      <TableHead>Amount (USD)</TableHead>
+                      <TableHead>Amount</TableHead>
                       <TableHead>Status</TableHead>
                       <TableHead>Date</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {ecomOrders.map((order) => (
-                      <TableRow
-                        key={order.id}
-                        className="cursor-pointer hover:bg-muted/50"
-                        onClick={() => {
-                          setSelectedOrder(order);
-                          setDialogOpen(true);
-                        }}
-                      >
-                        <TableCell className="font-medium">{order.order_id}</TableCell>
+                      <TableRow key={order.id} className="hover:bg-muted/50">
+                        <TableCell onClick={(e) => e.stopPropagation()}>
+                          <Checkbox checked={selectedIds.includes(order.id)} onCheckedChange={() => toggleSelect(order.id)} />
+                        </TableCell>
+                        <TableCell
+                          className="font-medium cursor-pointer"
+                          onClick={() => {
+                            setSelectedOrder(order);
+                            setDialogOpen(true);
+                          }}
+                        >
+                          {order.order_id}
+                        </TableCell>
                         <TableCell>{order.voucher_no || "-"}</TableCell>
                         <TableCell>{order.clients?.name}</TableCell>
                         <TableCell>
@@ -139,15 +172,24 @@ const Orders = () => {
 
             <Card>
               <CardContent className="p-6">
-                <h3 className="text-lg font-semibold mb-4">Instant Orders</h3>
+                <div className="flex justify-between items-center mb-4">
+                  <h3 className="text-lg font-semibold">Instant Orders</h3>
+                  {instantOrders.length > 0 && (
+                    <Checkbox
+                      checked={instantOrders.every((o) => selectedIds.includes(o.id))}
+                      onCheckedChange={() => toggleSelectAll(instantOrders)}
+                    />
+                  )}
+                </div>
                 <Table>
                   <TableHeader>
                     <TableRow>
+                      <TableHead className="w-[50px]"></TableHead>
                       <TableHead>Order ID</TableHead>
                       <TableHead>Client</TableHead>
                       <TableHead>Driver</TableHead>
                       <TableHead>Address</TableHead>
-                      <TableHead>Amount (USD)</TableHead>
+                      <TableHead>Amount</TableHead>
                       <TableHead>Notes</TableHead>
                       <TableHead>Status</TableHead>
                       <TableHead>Date</TableHead>
@@ -155,15 +197,19 @@ const Orders = () => {
                   </TableHeader>
                   <TableBody>
                     {instantOrders.map((order) => (
-                      <TableRow
-                        key={order.id}
-                        className="cursor-pointer hover:bg-muted/50"
-                        onClick={() => {
-                          setSelectedOrder(order);
-                          setDialogOpen(true);
-                        }}
-                      >
-                        <TableCell className="font-medium">{order.order_id}</TableCell>
+                      <TableRow key={order.id} className="hover:bg-muted/50">
+                        <TableCell onClick={(e) => e.stopPropagation()}>
+                          <Checkbox checked={selectedIds.includes(order.id)} onCheckedChange={() => toggleSelect(order.id)} />
+                        </TableCell>
+                        <TableCell
+                          className="font-medium cursor-pointer"
+                          onClick={() => {
+                            setSelectedOrder(order);
+                            setDialogOpen(true);
+                          }}
+                        >
+                          {order.order_id}
+                        </TableCell>
                         <TableCell>{order.clients?.name}</TableCell>
                         <TableCell>{order.drivers?.name || "-"}</TableCell>
                         <TableCell className="max-w-[200px] truncate">{order.address}</TableCell>
@@ -179,6 +225,8 @@ const Orders = () => {
             </Card>
           </TabsContent>
         </Tabs>
+
+        <BulkActionsBar selectedIds={selectedIds} onClearSelection={() => setSelectedIds([])} />
 
         {selectedOrder && (
           <OrderActionsDialog
@@ -196,3 +244,4 @@ const Orders = () => {
 };
 
 export default Orders;
+
