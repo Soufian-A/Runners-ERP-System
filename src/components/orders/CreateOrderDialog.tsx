@@ -12,9 +12,11 @@ import { z } from 'zod';
 
 const orderSchema = z.object({
   client_id: z.string().min(1, "Client is required"),
-  address: z.string().min(1, "Address is required"),
+  address: z.string().min(1, "Address is required").max(255),
   order_amount_usd: z.number().min(0),
   order_amount_lbp: z.number().min(0),
+  delivery_fee_usd: z.number().min(0),
+  delivery_fee_lbp: z.number().min(0),
   fulfillment: z.enum(['InHouse', 'ThirdParty']),
 });
 
@@ -29,12 +31,16 @@ const CreateOrderDialog = ({ open, onOpenChange }: CreateOrderDialogProps) => {
   const queryClient = useQueryClient();
   const [formData, setFormData] = useState({
     client_id: '',
+    voucher_no: '',
     address: '',
     order_amount_usd: 0,
     order_amount_lbp: 0,
+    delivery_fee_usd: 0,
+    delivery_fee_lbp: 0,
     fulfillment: 'InHouse' as 'InHouse' | 'ThirdParty',
     driver_id: '',
     third_party_id: '',
+    notes: '',
   });
 
   const { data: clients } = useQuery({
@@ -74,7 +80,7 @@ const CreateOrderDialog = ({ open, onOpenChange }: CreateOrderDialogProps) => {
 
   const createOrderMutation = useMutation({
     mutationFn: async (data: any) => {
-      // Get client rules
+      // Get client and rules
       const { data: clientData, error: clientError } = await supabase
         .from('clients')
         .select('*, client_rules(*)')
@@ -84,24 +90,41 @@ const CreateOrderDialog = ({ open, onOpenChange }: CreateOrderDialogProps) => {
       if (clientError) throw clientError;
 
       const clientRule = clientData.client_rules?.[0];
-      const orderIdPrefix = clientData.type === 'Individual' ? 'INST' : clientData.type === 'Ecom' ? 'EC' : 'REST';
+      
+      // Generate OrderID based on client type
+      const orderIdPrefix = 
+        clientData.type === 'Individual' ? 'INST' : 
+        clientData.type === 'Ecom' ? 'EC' : 
+        'REST';
       const orderId = `${orderIdPrefix}-${Date.now()}`;
+
+      // Use provided delivery fee or default from client rules
+      const deliveryFeeUSD = data.delivery_fee_usd || clientRule?.default_fee_usd || 0;
+      const deliveryFeeLBP = data.delivery_fee_lbp || clientRule?.default_fee_lbp || 0;
 
       const orderData = {
         order_id: orderId,
+        voucher_no: data.voucher_no || null,
         client_id: data.client_id,
         client_type: clientData.type,
         address: data.address,
         order_amount_usd: data.order_amount_usd,
         order_amount_lbp: data.order_amount_lbp,
-        delivery_fee_usd: clientRule?.default_fee_usd || 0,
-        delivery_fee_lbp: clientRule?.default_fee_lbp || 0,
+        delivery_fee_usd: deliveryFeeUSD,
+        delivery_fee_lbp: deliveryFeeLBP,
         client_fee_rule: clientRule?.fee_rule || 'ADD_ON',
         fulfillment: data.fulfillment,
-        driver_id: data.fulfillment === 'InHouse' ? data.driver_id : null,
-        third_party_id: data.fulfillment === 'ThirdParty' ? data.third_party_id : null,
+        driver_id: data.fulfillment === 'InHouse' ? (data.driver_id || null) : null,
+        third_party_id: data.fulfillment === 'ThirdParty' ? (data.third_party_id || null) : null,
         status: 'New' as const,
         entered_by: user?.id,
+        notes: data.notes || null,
+        prepaid_by_runners: false,
+        driver_paid_for_client: false,
+        prepay_amount_usd: 0,
+        prepay_amount_lbp: 0,
+        driver_paid_amount_usd: 0,
+        driver_paid_amount_lbp: 0,
       };
 
       const { data: newOrder, error } = await supabase
@@ -122,12 +145,16 @@ const CreateOrderDialog = ({ open, onOpenChange }: CreateOrderDialogProps) => {
       onOpenChange(false);
       setFormData({
         client_id: '',
+        voucher_no: '',
         address: '',
         order_amount_usd: 0,
         order_amount_lbp: 0,
+        delivery_fee_usd: 0,
+        delivery_fee_lbp: 0,
         fulfillment: 'InHouse',
         driver_id: '',
         third_party_id: '',
+        notes: '',
       });
     },
     onError: (error: any) => {
@@ -165,13 +192,25 @@ const CreateOrderDialog = ({ open, onOpenChange }: CreateOrderDialogProps) => {
                 <SelectContent>
                   {clients?.map((client) => (
                     <SelectItem key={client.id} value={client.id}>
-                      {client.name}
+                      {client.name} ({client.type})
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
 
+            <div className="space-y-2">
+              <Label htmlFor="voucher_no">Voucher No</Label>
+              <Input
+                id="voucher_no"
+                value={formData.voucher_no}
+                onChange={(e) => setFormData({ ...formData, voucher_no: e.target.value })}
+                placeholder="For Ecom orders"
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label htmlFor="fulfillment">Fulfillment *</Label>
               <Select
@@ -190,49 +229,49 @@ const CreateOrderDialog = ({ open, onOpenChange }: CreateOrderDialogProps) => {
                 </SelectContent>
               </Select>
             </div>
+
+            {formData.fulfillment === 'InHouse' && (
+              <div className="space-y-2">
+                <Label htmlFor="driver">Driver</Label>
+                <Select
+                  value={formData.driver_id}
+                  onValueChange={(value) => setFormData({ ...formData, driver_id: value })}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select driver (optional)" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {drivers?.map((driver) => (
+                      <SelectItem key={driver.id} value={driver.id}>
+                        {driver.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+
+            {formData.fulfillment === 'ThirdParty' && (
+              <div className="space-y-2">
+                <Label htmlFor="third_party">Third Party</Label>
+                <Select
+                  value={formData.third_party_id}
+                  onValueChange={(value) => setFormData({ ...formData, third_party_id: value })}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select third party (optional)" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {thirdParties?.map((tp) => (
+                      <SelectItem key={tp.id} value={tp.id}>
+                        {tp.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
           </div>
-
-          {formData.fulfillment === 'InHouse' && (
-            <div className="space-y-2">
-              <Label htmlFor="driver">Driver</Label>
-              <Select
-                value={formData.driver_id}
-                onValueChange={(value) => setFormData({ ...formData, driver_id: value })}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select driver" />
-                </SelectTrigger>
-                <SelectContent>
-                  {drivers?.map((driver) => (
-                    <SelectItem key={driver.id} value={driver.id}>
-                      {driver.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          )}
-
-          {formData.fulfillment === 'ThirdParty' && (
-            <div className="space-y-2">
-              <Label htmlFor="third_party">Third Party</Label>
-              <Select
-                value={formData.third_party_id}
-                onValueChange={(value) => setFormData({ ...formData, third_party_id: value })}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select third party" />
-                </SelectTrigger>
-                <SelectContent>
-                  {thirdParties?.map((tp) => (
-                    <SelectItem key={tp.id} value={tp.id}>
-                      {tp.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          )}
 
           <div className="space-y-2">
             <Label htmlFor="address">Delivery Address *</Label>
@@ -245,34 +284,80 @@ const CreateOrderDialog = ({ open, onOpenChange }: CreateOrderDialogProps) => {
             />
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="amount_usd">Order Amount (USD)</Label>
-              <Input
-                id="amount_usd"
-                type="number"
-                step="0.01"
-                min="0"
-                value={formData.order_amount_usd}
-                onChange={(e) =>
-                  setFormData({ ...formData, order_amount_usd: parseFloat(e.target.value) || 0 })
-                }
-              />
-            </div>
+          <div className="space-y-4 rounded-md border p-4">
+            <h3 className="font-medium">Order Amounts (enter in one or both currencies)</h3>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="amount_usd">Order Amount (USD)</Label>
+                <Input
+                  id="amount_usd"
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={formData.order_amount_usd}
+                  onChange={(e) =>
+                    setFormData({ ...formData, order_amount_usd: parseFloat(e.target.value) || 0 })
+                  }
+                />
+              </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="amount_lbp">Order Amount (LBP)</Label>
-              <Input
-                id="amount_lbp"
-                type="number"
-                step="1"
-                min="0"
-                value={formData.order_amount_lbp}
-                onChange={(e) =>
-                  setFormData({ ...formData, order_amount_lbp: parseInt(e.target.value) || 0 })
-                }
-              />
+              <div className="space-y-2">
+                <Label htmlFor="amount_lbp">Order Amount (LBP)</Label>
+                <Input
+                  id="amount_lbp"
+                  type="number"
+                  step="1"
+                  min="0"
+                  value={formData.order_amount_lbp}
+                  onChange={(e) =>
+                    setFormData({ ...formData, order_amount_lbp: parseInt(e.target.value) || 0 })
+                  }
+                />
+              </div>
             </div>
+          </div>
+
+          <div className="space-y-4 rounded-md border p-4">
+            <h3 className="font-medium">Delivery Fee (will use client default if left at 0)</h3>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="fee_usd">Delivery Fee (USD)</Label>
+                <Input
+                  id="fee_usd"
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={formData.delivery_fee_usd}
+                  onChange={(e) =>
+                    setFormData({ ...formData, delivery_fee_usd: parseFloat(e.target.value) || 0 })
+                  }
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="fee_lbp">Delivery Fee (LBP)</Label>
+                <Input
+                  id="fee_lbp"
+                  type="number"
+                  step="1"
+                  min="0"
+                  value={formData.delivery_fee_lbp}
+                  onChange={(e) =>
+                    setFormData({ ...formData, delivery_fee_lbp: parseInt(e.target.value) || 0 })
+                  }
+                />
+              </div>
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="notes">Notes</Label>
+            <Input
+              id="notes"
+              value={formData.notes}
+              onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
+              placeholder="Optional notes"
+            />
           </div>
 
           <div className="flex justify-end gap-2">
