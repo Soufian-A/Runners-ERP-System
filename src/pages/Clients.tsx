@@ -1,12 +1,16 @@
+import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import Layout from '@/components/Layout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { Users } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Users, Plus } from 'lucide-react';
+import CreateClientDialog from '@/components/clients/CreateClientDialog';
 
 const Clients = () => {
+  const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const { data: clients, isLoading } = useQuery({
     queryKey: ['clients'],
     queryFn: async () => {
@@ -22,9 +26,15 @@ const Clients = () => {
   return (
     <Layout>
       <div className="space-y-6">
-        <div>
-          <h1 className="text-3xl font-bold">Clients</h1>
-          <p className="text-muted-foreground mt-1">Manage client accounts and fee rules</p>
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-3xl font-bold">Clients</h1>
+            <p className="text-muted-foreground mt-1">Manage client accounts and fee rules</p>
+          </div>
+          <Button onClick={() => setIsCreateDialogOpen(true)}>
+            <Plus className="mr-2 h-4 w-4" />
+            Add Client
+          </Button>
         </div>
 
         <Card>
@@ -76,6 +86,11 @@ const Clients = () => {
           </CardContent>
         </Card>
       </div>
+
+      <CreateClientDialog
+        open={isCreateDialogOpen}
+        onOpenChange={setIsCreateDialogOpen}
+      />
     </Layout>
   );
 };

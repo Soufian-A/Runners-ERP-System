@@ -1,12 +1,18 @@
+import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import Layout from '@/components/Layout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { Truck } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Truck, Plus, DollarSign } from 'lucide-react';
+import CreateDriverDialog from '@/components/drivers/CreateDriverDialog';
+import DriverRemittanceDialog from '@/components/drivers/DriverRemittanceDialog';
 
 const Drivers = () => {
+  const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
+  const [selectedDriver, setSelectedDriver] = useState<any>(null);
   const { data: drivers, isLoading } = useQuery({
     queryKey: ['drivers'],
     queryFn: async () => {
@@ -22,9 +28,15 @@ const Drivers = () => {
   return (
     <Layout>
       <div className="space-y-6">
-        <div>
-          <h1 className="text-3xl font-bold">Drivers</h1>
-          <p className="text-muted-foreground mt-1">Manage delivery drivers and wallets</p>
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-3xl font-bold">Drivers</h1>
+            <p className="text-muted-foreground mt-1">Manage delivery drivers and wallets</p>
+          </div>
+          <Button onClick={() => setIsCreateDialogOpen(true)}>
+            <Plus className="mr-2 h-4 w-4" />
+            Add Driver
+          </Button>
         </div>
 
         <Card>
@@ -43,30 +55,45 @@ const Drivers = () => {
                   <TableHead>Wallet USD</TableHead>
                   <TableHead>Wallet LBP</TableHead>
                   <TableHead>Status</TableHead>
+                  <TableHead>Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {isLoading ? (
                   <TableRow>
-                    <TableCell colSpan={5} className="text-center">Loading...</TableCell>
+                    <TableCell colSpan={6} className="text-center">Loading...</TableCell>
                   </TableRow>
                 ) : drivers && drivers.length > 0 ? (
                   drivers.map((driver) => (
                     <TableRow key={driver.id}>
                       <TableCell className="font-medium">{driver.name}</TableCell>
                       <TableCell>{driver.phone}</TableCell>
-                      <TableCell>${Number(driver.wallet_usd).toFixed(2)}</TableCell>
-                      <TableCell>{Number(driver.wallet_lbp).toLocaleString()} LBP</TableCell>
+                      <TableCell className={Number(driver.wallet_usd) < 0 ? 'text-red-600' : ''}>
+                        ${Number(driver.wallet_usd).toFixed(2)}
+                      </TableCell>
+                      <TableCell className={Number(driver.wallet_lbp) < 0 ? 'text-red-600' : ''}>
+                        {Number(driver.wallet_lbp).toLocaleString()} LBP
+                      </TableCell>
                       <TableCell>
                         <Badge variant={driver.active ? 'default' : 'secondary'}>
                           {driver.active ? 'Active' : 'Inactive'}
                         </Badge>
                       </TableCell>
+                      <TableCell>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => setSelectedDriver(driver)}
+                        >
+                          <DollarSign className="mr-1 h-3 w-3" />
+                          Remit
+                        </Button>
+                      </TableCell>
                     </TableRow>
                   ))
                 ) : (
                   <TableRow>
-                    <TableCell colSpan={5} className="text-center">No drivers found</TableCell>
+                    <TableCell colSpan={6} className="text-center">No drivers found</TableCell>
                   </TableRow>
                 )}
               </TableBody>
@@ -74,6 +101,19 @@ const Drivers = () => {
           </CardContent>
         </Card>
       </div>
+
+      <CreateDriverDialog
+        open={isCreateDialogOpen}
+        onOpenChange={setIsCreateDialogOpen}
+      />
+
+      {selectedDriver && (
+        <DriverRemittanceDialog
+          driver={selectedDriver}
+          open={!!selectedDriver}
+          onOpenChange={(open) => !open && setSelectedDriver(null)}
+        />
+      )}
     </Layout>
   );
 };

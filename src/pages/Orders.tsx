@@ -11,12 +11,14 @@ import { Badge } from '@/components/ui/badge';
 import { Plus, Search } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import CreateOrderDialog from '@/components/orders/CreateOrderDialog';
+import OrderActionsDialog from '@/components/orders/OrderActionsDialog';
 import { format } from 'date-fns';
 
 const Orders = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
+  const [selectedOrder, setSelectedOrder] = useState<any>(null);
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -124,7 +126,11 @@ const Orders = () => {
                     </TableRow>
                   ) : orders && orders.length > 0 ? (
                     orders.map((order: any) => (
-                      <TableRow key={order.id}>
+                      <TableRow 
+                        key={order.id} 
+                        className="cursor-pointer hover:bg-muted/50"
+                        onClick={() => setSelectedOrder(order)}
+                      >
                         <TableCell className="font-medium">{order.order_id}</TableCell>
                         <TableCell>{order.clients?.name}</TableCell>
                         <TableCell>{order.drivers?.name || order.third_parties?.name || '-'}</TableCell>
@@ -156,6 +162,14 @@ const Orders = () => {
         open={isCreateDialogOpen} 
         onOpenChange={setIsCreateDialogOpen}
       />
+
+      {selectedOrder && (
+        <OrderActionsDialog
+          order={selectedOrder}
+          open={!!selectedOrder}
+          onOpenChange={(open) => !open && setSelectedOrder(null)}
+        />
+      )}
     </Layout>
   );
 };
