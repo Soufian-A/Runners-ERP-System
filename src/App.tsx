@@ -7,7 +7,7 @@ import Index from "./pages/Index";
 import Auth from "./pages/Auth";
 import Orders from "./pages/Orders";
 import Drivers from "./pages/Drivers";
-import Clients from "./pages/Clients";
+import CRM from "./pages/CRM";
 import Cashbox from "./pages/Cashbox";
 import Reports from "./pages/Reports";
 import NotFound from "./pages/NotFound";
@@ -25,7 +25,7 @@ const App = () => (
           <Route path="/auth" element={<Auth />} />
           <Route path="/orders" element={<Orders />} />
           <Route path="/drivers" element={<Drivers />} />
-          <Route path="/clients" element={<Clients />} />
+          <Route path="/clients" element={<CRM />} />
           <Route path="/cashbox" element={<Cashbox />} />
           <Route path="/reports" element={<Reports />} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}

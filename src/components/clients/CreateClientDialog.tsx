@@ -20,10 +20,9 @@ const clientSchema = z.object({
   contact_name: z.string().max(100),
   phone: z.string().max(20),
   address: z.string().max(255),
+  location_link: z.string().max(500).optional(),
   default_currency: z.enum(['USD', 'LBP']),
   fee_rule: z.enum(['ADD_ON', 'DEDUCT', 'INCLUDED']),
-  default_fee_usd: z.number().min(0),
-  default_fee_lbp: z.number().min(0),
 });
 
 interface CreateClientDialogProps {
@@ -40,10 +39,9 @@ const CreateClientDialog = ({ open, onOpenChange }: CreateClientDialogProps) => 
     contact_name: '',
     phone: '',
     address: '',
+    location_link: '',
     default_currency: 'USD' as 'USD' | 'LBP',
     fee_rule: 'ADD_ON' as 'ADD_ON' | 'DEDUCT' | 'INCLUDED',
-    default_fee_usd: 0,
-    default_fee_lbp: 0,
   });
 
   const createClientMutation = useMutation({
@@ -57,6 +55,7 @@ const CreateClientDialog = ({ open, onOpenChange }: CreateClientDialogProps) => 
           contact_name: data.contact_name,
           phone: data.phone,
           address: data.address,
+          location_link: data.location_link,
           default_currency: data.default_currency,
         }])
         .select()
@@ -70,8 +69,8 @@ const CreateClientDialog = ({ open, onOpenChange }: CreateClientDialogProps) => 
         .insert([{
           client_id: newClient.id,
           fee_rule: data.fee_rule,
-          default_fee_usd: data.default_fee_usd,
-          default_fee_lbp: data.default_fee_lbp,
+          default_fee_usd: 0,
+          default_fee_lbp: 0,
           allow_override: true,
         }]);
 
@@ -91,10 +90,9 @@ const CreateClientDialog = ({ open, onOpenChange }: CreateClientDialogProps) => 
         contact_name: '',
         phone: '',
         address: '',
+        location_link: '',
         default_currency: 'USD',
         fee_rule: 'ADD_ON',
-        default_fee_usd: 0,
-        default_fee_lbp: 0,
       });
     },
     onError: (error: any) => {
@@ -190,6 +188,16 @@ const CreateClientDialog = ({ open, onOpenChange }: CreateClientDialogProps) => 
             />
           </div>
 
+          <div className="space-y-2">
+            <Label htmlFor="location_link">Google Maps Link</Label>
+            <Input
+              id="location_link"
+              value={formData.location_link}
+              onChange={(e) => setFormData({ ...formData, location_link: e.target.value })}
+              placeholder="https://maps.google.com/..."
+            />
+          </div>
+
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label htmlFor="currency">Default Currency *</Label>
@@ -227,35 +235,6 @@ const CreateClientDialog = ({ open, onOpenChange }: CreateClientDialogProps) => 
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="fee_usd">Default Fee (USD)</Label>
-              <Input
-                id="fee_usd"
-                type="number"
-                step="0.01"
-                min="0"
-                value={formData.default_fee_usd}
-                onChange={(e) =>
-                  setFormData({ ...formData, default_fee_usd: parseFloat(e.target.value) || 0 })
-                }
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="fee_lbp">Default Fee (LBP)</Label>
-              <Input
-                id="fee_lbp"
-                type="number"
-                step="1"
-                min="0"
-                value={formData.default_fee_lbp}
-                onChange={(e) =>
-                  setFormData({ ...formData, default_fee_lbp: parseInt(e.target.value) || 0 })
-                }
-              />
-            </div>
-          </div>
 
           <div className="flex justify-end gap-2">
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>

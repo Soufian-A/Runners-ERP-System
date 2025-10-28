@@ -169,6 +169,7 @@ export type Database = {
           created_at: string | null
           default_currency: Database["public"]["Enums"]["currency_type"] | null
           id: string
+          location_link: string | null
           name: string
           phone: string | null
           type: Database["public"]["Enums"]["client_type"]
@@ -179,6 +180,7 @@ export type Database = {
           created_at?: string | null
           default_currency?: Database["public"]["Enums"]["currency_type"] | null
           id?: string
+          location_link?: string | null
           name: string
           phone?: string | null
           type: Database["public"]["Enums"]["client_type"]
@@ -189,6 +191,7 @@ export type Database = {
           created_at?: string | null
           default_currency?: Database["public"]["Enums"]["currency_type"] | null
           id?: string
+          location_link?: string | null
           name?: string
           phone?: string | null
           type?: Database["public"]["Enums"]["client_type"]
