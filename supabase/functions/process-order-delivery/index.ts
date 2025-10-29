@@ -173,7 +173,7 @@ Deno.serve(async (req) => {
       const { error: incomeError } = await supabaseClient
         .from('accounting_entries')
         .insert({
-          category: 'Income',
+          category: 'DeliveryIncome',
           amount_usd: order.delivery_fee_usd,
           amount_lbp: order.delivery_fee_lbp,
           order_ref: order.order_id,
