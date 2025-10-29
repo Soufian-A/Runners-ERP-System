@@ -94,6 +94,61 @@ const Drivers = () => {
     );
   };
 
+  const cleanUpOrphanedTransactions = async () => {
+    try {
+      // Get all driver transactions
+      const { data: allTransactions, error: txError } = await supabase
+        .from('driver_transactions')
+        .select('id, order_ref');
+      
+      if (txError) throw txError;
+      
+      // Get all existing order_ids
+      const { data: existingOrders, error: ordersError } = await supabase
+        .from('orders')
+        .select('order_id');
+      
+      if (ordersError) throw ordersError;
+      
+      const existingOrderIds = new Set(existingOrders?.map(o => o.order_id) || []);
+      
+      // Find orphaned transactions
+      const orphanedIds = allTransactions
+        ?.filter(tx => tx.order_ref && !existingOrderIds.has(tx.order_ref))
+        .map(tx => tx.id) || [];
+      
+      if (orphanedIds.length > 0) {
+        // Delete orphaned transactions
+        const { error: deleteError } = await supabase
+          .from('driver_transactions')
+          .delete()
+          .in('id', orphanedIds);
+        
+        if (deleteError) throw deleteError;
+      }
+      
+      // Reset all driver wallets to zero
+      const { error: resetError } = await supabase
+        .from('drivers')
+        .update({ wallet_usd: 0, wallet_lbp: 0 });
+      
+      if (resetError) throw resetError;
+      
+      toast({ 
+        title: "Cleanup Complete", 
+        description: `Removed ${orphanedIds.length} orphaned transactions and reset all wallets to zero.` 
+      });
+      
+      refetch();
+    } catch (error: any) {
+      toast({ 
+        title: "Cleanup Failed", 
+        description: error.message, 
+        variant: "destructive" 
+      });
+    }
+  };
+
   const statementTotals = calculateStatementTotals();
 
   return (
@@ -105,6 +160,9 @@ const Drivers = () => {
             <p className="text-muted-foreground mt-1">Manage delivery drivers, wallets, and statements</p>
           </div>
           <div className="flex gap-2">
+            <Button variant="outline" size="sm" onClick={cleanUpOrphanedTransactions}>
+              Clean Up Accounting
+            </Button>
             <Button onClick={() => setIsCreateDialogOpen(true)}>
               <Plus className="mr-2 h-4 w-4" />
               Add Driver
