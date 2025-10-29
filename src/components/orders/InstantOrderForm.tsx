@@ -178,7 +178,7 @@ export function InstantOrderForm() {
             <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
           </Button>
         </PopoverTrigger>
-        <PopoverContent className="w-[200px] p-0 bg-popover z-50" onOpenAutoFocus={(e) => e.preventDefault()}>
+        <PopoverContent className="w-[200px] p-0 bg-popover z-50">
           <Command shouldFilter={false}>
             <CommandInput 
               placeholder="Search..." 
@@ -257,7 +257,7 @@ export function InstantOrderForm() {
             <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
           </Button>
         </PopoverTrigger>
-        <PopoverContent className="w-[200px] p-0 bg-popover z-50" onOpenAutoFocus={(e) => e.preventDefault()}>
+        <PopoverContent className="w-[200px] p-0 bg-popover z-50">
           <Command shouldFilter={false}>
             <CommandInput 
               placeholder="Type address..." 
