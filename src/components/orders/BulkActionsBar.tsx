@@ -46,6 +46,8 @@ export function BulkActionsBar({ selectedIds, onClearSelection }: BulkActionsBar
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["orders"] });
+      queryClient.invalidateQueries({ queryKey: ["instant-orders"] });
+      queryClient.invalidateQueries({ queryKey: ["ecom-orders"] });
       toast.success(`Driver assigned to ${selectedIds.length} orders`);
       onClearSelection();
     },
@@ -62,6 +64,7 @@ export function BulkActionsBar({ selectedIds, onClearSelection }: BulkActionsBar
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["orders"] });
       queryClient.invalidateQueries({ queryKey: ["instant-orders"] });
+      queryClient.invalidateQueries({ queryKey: ["ecom-orders"] });
       toast.success(`Status updated for ${selectedIds.length} orders`);
       onClearSelection();
     },
@@ -77,6 +80,8 @@ export function BulkActionsBar({ selectedIds, onClearSelection }: BulkActionsBar
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["orders"] });
+      queryClient.invalidateQueries({ queryKey: ["instant-orders"] });
+      queryClient.invalidateQueries({ queryKey: ["ecom-orders"] });
       toast.success(`${selectedIds.length} orders deleted`);
       onClearSelection();
       setDeleteDialogOpen(false);

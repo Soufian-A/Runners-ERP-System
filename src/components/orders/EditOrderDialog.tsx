@@ -125,6 +125,7 @@ export default function EditOrderDialog({ order, open, onOpenChange }: EditOrder
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["orders"] });
       queryClient.invalidateQueries({ queryKey: ["instant-orders"] });
+      queryClient.invalidateQueries({ queryKey: ["ecom-orders"] });
       queryClient.invalidateQueries({ queryKey: ["drivers"] });
       toast({ title: "Order updated successfully" });
       onOpenChange(false);
@@ -141,6 +142,8 @@ export default function EditOrderDialog({ order, open, onOpenChange }: EditOrder
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["orders"] });
+      queryClient.invalidateQueries({ queryKey: ["instant-orders"] });
+      queryClient.invalidateQueries({ queryKey: ["ecom-orders"] });
       toast({ title: "Order deleted successfully" });
       setDeleteDialogOpen(false);
       onOpenChange(false);
