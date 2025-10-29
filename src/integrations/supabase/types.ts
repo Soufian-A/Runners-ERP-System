@@ -44,6 +44,24 @@ export type Database = {
         }
         Relationships: []
       }
+      address_areas: {
+        Row: {
+          created_at: string
+          id: string
+          name: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          name: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          name?: string
+        }
+        Relationships: []
+      }
       cashbox_daily: {
         Row: {
           cash_in_lbp: number | null
