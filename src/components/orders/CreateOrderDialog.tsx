@@ -23,9 +23,10 @@ const orderSchema = z.object({
 interface CreateOrderDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  orderType?: "ecom" | "instant";
 }
 
-const CreateOrderDialog = ({ open, onOpenChange }: CreateOrderDialogProps) => {
+const CreateOrderDialog = ({ open, onOpenChange, orderType }: CreateOrderDialogProps) => {
   const { user } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();

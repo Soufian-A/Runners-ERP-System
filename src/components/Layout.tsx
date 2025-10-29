@@ -2,7 +2,7 @@ import { ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
-import { Package, LogOut, Home, FileText, Truck, Users, DollarSign, BarChart3 } from 'lucide-react';
+import { Package, LogOut, Home, FileText, Truck, Users, DollarSign, BarChart3, ChevronDown } from 'lucide-react';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -10,6 +10,9 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
+  DropdownMenuSub,
+  DropdownMenuSubTrigger,
+  DropdownMenuSubContent,
 } from '@/components/ui/dropdown-menu';
 
 interface LayoutProps {
@@ -22,11 +25,15 @@ const Layout = ({ children }: LayoutProps) => {
 
   const navItems = [
     { icon: Home, label: 'Dashboard', path: '/' },
-    { icon: FileText, label: 'Orders', path: '/orders' },
     { icon: Truck, label: 'Drivers', path: '/drivers' },
     { icon: Users, label: 'Clients', path: '/clients' },
     { icon: DollarSign, label: 'Cashbox', path: '/cashbox' },
     { icon: BarChart3, label: 'Reports', path: '/reports' },
+  ];
+
+  const orderItems = [
+    { label: 'E-commerce Orders', path: '/orders/ecom' },
+    { label: 'Instant Orders', path: '/orders/instant' },
   ];
 
   return (
@@ -56,6 +63,22 @@ const Layout = ({ children }: LayoutProps) => {
                   </Button>
                 );
               })}
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" size="sm" className="gap-2">
+                    <FileText className="h-4 w-4" />
+                    Orders
+                    <ChevronDown className="h-3 w-3" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent className="bg-popover">
+                  {orderItems.map((item) => (
+                    <DropdownMenuItem key={item.path} onClick={() => navigate(item.path)}>
+                      {item.label}
+                    </DropdownMenuItem>
+                  ))}
+                </DropdownMenuContent>
+              </DropdownMenu>
             </nav>
           </div>
           
