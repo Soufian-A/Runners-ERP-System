@@ -9,11 +9,12 @@ import { Button } from '@/components/ui/button';
 import { Truck, Plus, DollarSign } from 'lucide-react';
 import CreateDriverDialog from '@/components/drivers/CreateDriverDialog';
 import DriverRemittanceDialog from '@/components/drivers/DriverRemittanceDialog';
+import { toast } from '@/hooks/use-toast';
 
 const Drivers = () => {
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [selectedDriver, setSelectedDriver] = useState<any>(null);
-  const { data: drivers, isLoading } = useQuery({
+  const { data: drivers, isLoading, refetch } = useQuery({
     queryKey: ['drivers'],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -25,6 +26,27 @@ const Drivers = () => {
     },
   });
 
+  const processDeliveredOrders = async () => {
+    const { data: deliveredOrders } = await supabase
+      .from('orders')
+      .select('id')
+      .eq('status', 'Delivered');
+    
+    if (deliveredOrders) {
+      for (const order of deliveredOrders) {
+        try {
+          await supabase.functions.invoke('process-order-delivery', {
+            body: { orderId: order.id }
+          });
+        } catch (error) {
+          console.error('Error processing order:', order.id, error);
+        }
+      }
+      toast({ title: "Reprocessed all delivered orders" });
+      refetch();
+    }
+  };
+
   return (
     <Layout>
       <div className="space-y-6">
@@ -33,10 +55,15 @@ const Drivers = () => {
             <h1 className="text-3xl font-bold">Drivers</h1>
             <p className="text-muted-foreground mt-1">Manage delivery drivers and wallets</p>
           </div>
-          <Button onClick={() => setIsCreateDialogOpen(true)}>
-            <Plus className="mr-2 h-4 w-4" />
-            Add Driver
-          </Button>
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={processDeliveredOrders}>
+              Reprocess Delivered Orders
+            </Button>
+            <Button onClick={() => setIsCreateDialogOpen(true)}>
+              <Plus className="mr-2 h-4 w-4" />
+              Add Driver
+            </Button>
+          </div>
         </div>
 
         <Card>
