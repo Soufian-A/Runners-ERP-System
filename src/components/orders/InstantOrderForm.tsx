@@ -166,10 +166,13 @@ export function InstantOrderForm() {
             variant="outline" 
             className="w-full justify-between h-8 text-xs"
             tabIndex={tabIndex}
+            onFocus={() => setOpen(true)}
             onKeyDown={(e) => {
               if (e.key === 'Enter') {
                 e.preventDefault();
-                setOpen(!open);
+              } else if (e.key.length === 1 || e.key === 'Backspace') {
+                // Open dropdown and let the key be captured by the input
+                setOpen(true);
               }
             }}
           >
@@ -251,10 +254,13 @@ export function InstantOrderForm() {
             variant="outline" 
             className="w-full justify-between h-8 text-xs"
             tabIndex={tabIndex}
+            onFocus={() => setOpen(true)}
             onKeyDown={(e) => {
               if (e.key === 'Enter') {
                 e.preventDefault();
-                setOpen(!open);
+              } else if (e.key.length === 1 || e.key === 'Backspace') {
+                // Open dropdown and let the key be captured by the input
+                setOpen(true);
               }
             }}
           >
