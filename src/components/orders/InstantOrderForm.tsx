@@ -150,6 +150,16 @@ export function InstantOrderForm() {
       item.name.toLowerCase().includes(searchTerm.toLowerCase())
     );
 
+    const handleTabSelect = () => {
+      if (filteredItems.length > 0) {
+        onSelect(filteredItems[0].id);
+        setOpen(false);
+        setSearchTerm("");
+        return true;
+      }
+      return false;
+    };
+
     return (
       <Popover open={open} onOpenChange={setOpen}>
         <PopoverTrigger asChild>
@@ -168,23 +178,18 @@ export function InstantOrderForm() {
             <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
           </Button>
         </PopoverTrigger>
-        <PopoverContent className="w-[200px] p-0 bg-popover z-50">
+        <PopoverContent className="w-[200px] p-0 bg-popover z-50" onOpenAutoFocus={(e) => e.preventDefault()}>
           <Command shouldFilter={false}>
             <CommandInput 
               placeholder="Search..." 
               value={searchTerm}
               onValueChange={setSearchTerm}
               onKeyDown={(e) => {
-                if (e.key === 'Tab' && filteredItems.length > 0) {
-                  e.preventDefault();
-                  onSelect(filteredItems[0].id);
-                  setOpen(false);
-                  setSearchTerm("");
-                  // Let tab continue to next field
-                  setTimeout(() => {
-                    const nextElement = document.activeElement?.closest('tr')?.querySelector(`[tabindex="${(tabIndex || 0) + 1}"]`) as HTMLElement;
-                    nextElement?.focus();
-                  }, 0);
+                if (e.key === 'Tab') {
+                  if (handleTabSelect()) {
+                    // Item selected, let tab naturally move to next field
+                    return;
+                  }
                 }
               }}
             />
@@ -220,6 +225,20 @@ export function InstantOrderForm() {
       (addr as string).toLowerCase().includes(searchValue.toLowerCase())
     );
 
+    const handleTabSelect = () => {
+      const addressToUse = filteredAddresses.length > 0 
+        ? filteredAddresses[0] as string 
+        : searchValue;
+      
+      if (addressToUse) {
+        updateRow(row.id, "address", addressToUse);
+        setOpen(false);
+        setSearchValue("");
+        return true;
+      }
+      return false;
+    };
+
     return (
       <Popover open={open} onOpenChange={setOpen}>
         <PopoverTrigger asChild>
@@ -238,7 +257,7 @@ export function InstantOrderForm() {
             <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
           </Button>
         </PopoverTrigger>
-        <PopoverContent className="w-[200px] p-0 bg-popover z-50">
+        <PopoverContent className="w-[200px] p-0 bg-popover z-50" onOpenAutoFocus={(e) => e.preventDefault()}>
           <Command shouldFilter={false}>
             <CommandInput 
               placeholder="Type address..." 
@@ -246,20 +265,9 @@ export function InstantOrderForm() {
               onValueChange={setSearchValue}
               onKeyDown={(e) => {
                 if (e.key === 'Tab') {
-                  e.preventDefault();
-                  const addressToUse = filteredAddresses.length > 0 
-                    ? filteredAddresses[0] as string 
-                    : searchValue;
-                  
-                  if (addressToUse) {
-                    updateRow(row.id, "address", addressToUse);
-                    setOpen(false);
-                    setSearchValue("");
-                    // Let tab continue to next field
-                    setTimeout(() => {
-                      const nextElement = document.activeElement?.closest('tr')?.querySelector(`[tabindex="${(tabIndex || 0) + 1}"]`) as HTMLElement;
-                      nextElement?.focus();
-                    }, 0);
+                  if (handleTabSelect()) {
+                    // Address selected, let tab naturally move to next field
+                    return;
                   }
                 }
               }}
