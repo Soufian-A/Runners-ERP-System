@@ -153,7 +153,6 @@ export function InstantOrderForm() {
     const handleTabSelect = () => {
       if (filteredItems.length > 0) {
         onSelect(filteredItems[0].id);
-        setOpen(false);
         setSearchTerm("");
         return true;
       }
@@ -178,7 +177,14 @@ export function InstantOrderForm() {
             <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
           </Button>
         </PopoverTrigger>
-        <PopoverContent className="w-[200px] p-0 bg-popover z-50">
+        <PopoverContent className="w-[200px] p-0 bg-popover z-50" onOpenAutoFocus={(e) => {
+          e.preventDefault();
+          // Focus the input after a brief delay to ensure it's rendered
+          setTimeout(() => {
+            const input = document.querySelector('[cmdk-input]') as HTMLInputElement;
+            if (input) input.focus();
+          }, 0);
+        }}>
           <Command shouldFilter={false}>
             <CommandInput 
               placeholder="Search..." 
@@ -186,9 +192,9 @@ export function InstantOrderForm() {
               onValueChange={setSearchTerm}
               onKeyDown={(e) => {
                 if (e.key === 'Tab') {
+                  e.preventDefault();
                   if (handleTabSelect()) {
-                    // Item selected, let tab naturally move to next field
-                    return;
+                    setOpen(false);
                   }
                 }
               }}
@@ -232,7 +238,6 @@ export function InstantOrderForm() {
       
       if (addressToUse) {
         updateRow(row.id, "address", addressToUse);
-        setOpen(false);
         setSearchValue("");
         return true;
       }
@@ -257,7 +262,14 @@ export function InstantOrderForm() {
             <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
           </Button>
         </PopoverTrigger>
-        <PopoverContent className="w-[200px] p-0 bg-popover z-50">
+        <PopoverContent className="w-[200px] p-0 bg-popover z-50" onOpenAutoFocus={(e) => {
+          e.preventDefault();
+          // Focus the input after a brief delay to ensure it's rendered
+          setTimeout(() => {
+            const input = document.querySelector('[cmdk-input]') as HTMLInputElement;
+            if (input) input.focus();
+          }, 0);
+        }}>
           <Command shouldFilter={false}>
             <CommandInput 
               placeholder="Type address..." 
@@ -265,9 +277,9 @@ export function InstantOrderForm() {
               onValueChange={setSearchValue}
               onKeyDown={(e) => {
                 if (e.key === 'Tab') {
+                  e.preventDefault();
                   if (handleTabSelect()) {
-                    // Address selected, let tab naturally move to next field
-                    return;
+                    setOpen(false);
                   }
                 }
               }}
