@@ -168,6 +168,7 @@ const InstantOrders = () => {
                   <TableHead>Delivery USD</TableHead>
                   <TableHead>Notes</TableHead>
                   <TableHead>Status</TableHead>
+                  <TableHead>Created</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -190,6 +191,9 @@ const InstantOrders = () => {
                     <TableCell>${order.delivery_fee_usd?.toFixed(2) || "0.00"}</TableCell>
                     <TableCell className="max-w-[150px] truncate">{order.notes || "-"}</TableCell>
                     <TableCell onClick={(e) => e.stopPropagation()}>{getStatusBadge(order.status)}</TableCell>
+                    <TableCell className="text-xs whitespace-nowrap">
+                      {new Date(order.created_at).toLocaleDateString()} {new Date(order.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                    </TableCell>
                   </TableRow>
                 ))}
               </TableBody>
