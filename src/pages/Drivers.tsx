@@ -75,27 +75,6 @@ const Drivers = () => {
     enabled: !!viewStatementDriver?.id,
   });
 
-  const processDeliveredOrders = async () => {
-    const { data: deliveredOrders } = await supabase
-      .from('orders')
-      .select('id')
-      .eq('status', 'Delivered');
-    
-    if (deliveredOrders) {
-      for (const order of deliveredOrders) {
-        try {
-          await supabase.functions.invoke('process-order-delivery', {
-            body: { orderId: order.id }
-          });
-        } catch (error) {
-          console.error('Error processing order:', order.id, error);
-        }
-      }
-      toast({ title: "Reprocessed all delivered orders" });
-      refetch();
-    }
-  };
-
   const calculateStatementTotals = () => {
     if (!statementData) return { usd: 0, lbp: 0 };
     
@@ -122,9 +101,6 @@ const Drivers = () => {
             <p className="text-muted-foreground mt-1">Manage delivery drivers, wallets, and statements</p>
           </div>
           <div className="flex gap-2">
-            <Button variant="outline" onClick={processDeliveredOrders}>
-              Reprocess Delivered Orders
-            </Button>
             <Button onClick={() => setIsCreateDialogOpen(true)}>
               <Plus className="mr-2 h-4 w-4" />
               Add Driver
