@@ -89,6 +89,8 @@ export default function EditOrderDialog({ order, open, onOpenChange }: EditOrder
 
   const updateOrderMutation = useMutation({
     mutationFn: async () => {
+      const previousStatus = order.status;
+      
       const { error } = await supabase
         .from("orders")
         .update({
@@ -106,9 +108,24 @@ export default function EditOrderDialog({ order, open, onOpenChange }: EditOrder
         .eq("id", order.id);
 
       if (error) throw error;
+
+      // If status changed to Delivered, process the accounting
+      if (previousStatus !== 'Delivered' && formData.status === 'Delivered') {
+        console.log('Order marked as delivered, processing accounting...');
+        const { error: functionError } = await supabase.functions.invoke('process-order-delivery', {
+          body: { orderId: order.id }
+        });
+        
+        if (functionError) {
+          console.error('Error processing delivery:', functionError);
+          throw new Error('Order updated but accounting failed: ' + functionError.message);
+        }
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["orders"] });
+      queryClient.invalidateQueries({ queryKey: ["instant-orders"] });
+      queryClient.invalidateQueries({ queryKey: ["drivers"] });
       toast({ title: "Order updated successfully" });
       onOpenChange(false);
     },
