@@ -128,11 +128,21 @@ const Drivers = () => {
       }
       
       // Reset all driver wallets to zero
-      const { error: resetError } = await supabase
+      const { data: allDrivers, error: driversError } = await supabase
         .from('drivers')
-        .update({ wallet_usd: 0, wallet_lbp: 0 });
+        .select('id');
       
-      if (resetError) throw resetError;
+      if (driversError) throw driversError;
+      
+      if (allDrivers && allDrivers.length > 0) {
+        const driverIds = allDrivers.map(d => d.id);
+        const { error: resetError } = await supabase
+          .from('drivers')
+          .update({ wallet_usd: 0, wallet_lbp: 0 })
+          .in('id', driverIds);
+        
+        if (resetError) throw resetError;
+      }
       
       toast({ 
         title: "Cleanup Complete", 
