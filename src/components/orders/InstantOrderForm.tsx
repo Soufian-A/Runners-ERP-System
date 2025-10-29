@@ -16,7 +16,9 @@ type NewOrderRow = {
   address: string;
   driver_id: string;
   order_amount_usd: string;
+  order_amount_lbp: string;
   delivery_fee_usd: string;
+  delivery_fee_lbp: string;
   notes: string;
 };
 
@@ -29,7 +31,9 @@ export function InstantOrderForm() {
       address: "",
       driver_id: "",
       order_amount_usd: "",
+      order_amount_lbp: "",
       delivery_fee_usd: "",
+      delivery_fee_lbp: "",
       notes: "",
     },
   ]);
@@ -70,7 +74,9 @@ export function InstantOrderForm() {
         address: "",
         driver_id: "",
         order_amount_usd: "",
+        order_amount_lbp: "",
         delivery_fee_usd: "",
+        delivery_fee_lbp: "",
         notes: "",
       },
     ]);
@@ -97,7 +103,9 @@ export function InstantOrderForm() {
         fulfillment: "InHouse",
         driver_id: rowData.driver_id || null,
         order_amount_usd: parseFloat(rowData.order_amount_usd) || 0,
+        order_amount_lbp: parseFloat(rowData.order_amount_lbp) || 0,
         delivery_fee_usd: parseFloat(rowData.delivery_fee_usd) || 0,
+        delivery_fee_lbp: parseFloat(rowData.delivery_fee_lbp) || 0,
         client_fee_rule: client.client_rules?.[0]?.fee_rule || "ADD_ON",
         status: "New",
         address: rowData.address,
@@ -123,11 +131,13 @@ export function InstantOrderForm() {
     onSelect,
     items,
     placeholder,
+    tabIndex,
   }: {
     value: string;
     onSelect: (id: string) => void;
     items: any[];
     placeholder: string;
+    tabIndex?: number;
   }) => {
     const [open, setOpen] = useState(false);
     const selected = items.find((item) => item.id === value);
@@ -135,12 +145,22 @@ export function InstantOrderForm() {
     return (
       <Popover open={open} onOpenChange={setOpen}>
         <PopoverTrigger asChild>
-          <Button variant="outline" className="w-full justify-between h-8 text-xs">
+          <Button 
+            variant="outline" 
+            className="w-full justify-between h-8 text-xs"
+            tabIndex={tabIndex}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                e.preventDefault();
+                setOpen(!open);
+              }
+            }}
+          >
             {selected?.name || placeholder}
             <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
           </Button>
         </PopoverTrigger>
-        <PopoverContent className="w-[200px] p-0 bg-popover">
+        <PopoverContent className="w-[200px] p-0 bg-popover z-50">
           <Command>
             <CommandInput placeholder="Search..." />
             <CommandList>
@@ -166,14 +186,24 @@ export function InstantOrderForm() {
     );
   };
 
-  const AddressField = ({ row }: { row: NewOrderRow }) => {
+  const AddressField = ({ row, tabIndex }: { row: NewOrderRow; tabIndex?: number }) => {
     const [open, setOpen] = useState(false);
     const [searchValue, setSearchValue] = useState("");
 
     return (
       <Popover open={open} onOpenChange={setOpen}>
         <PopoverTrigger asChild>
-          <Button variant="outline" className="w-full justify-between h-8 text-xs">
+          <Button 
+            variant="outline" 
+            className="w-full justify-between h-8 text-xs"
+            tabIndex={tabIndex}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                e.preventDefault();
+                setOpen(!open);
+              }
+            }}
+          >
             {row.address || "Address..."}
             <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
           </Button>
@@ -229,7 +259,7 @@ export function InstantOrderForm() {
     <div className="space-y-2">
       <div className="flex justify-between items-center">
         <h3 className="text-sm font-semibold">Quick Instant Order Entry</h3>
-        <Button onClick={addNewRow} size="sm" variant="outline">
+        <Button onClick={addNewRow} size="sm" variant="outline" tabIndex={-1}>
           <Plus className="h-4 w-4 mr-1" />
           Add Row
         </Button>
@@ -243,51 +273,101 @@ export function InstantOrderForm() {
               <TableHead className="w-[180px]">Address</TableHead>
               <TableHead className="w-[150px]">Driver</TableHead>
               <TableHead className="w-[100px]">Amount USD</TableHead>
+              <TableHead className="w-[100px]">Amount LBP</TableHead>
               <TableHead className="w-[90px]">Fee USD</TableHead>
+              <TableHead className="w-[90px]">Fee LBP</TableHead>
               <TableHead className="w-[150px]">Notes</TableHead>
               <TableHead className="w-[80px]">Action</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
-            {newRows.map((row) => (
-              <TableRow key={row.id} className="bg-accent/20">
-                <TableCell>
-                  <ComboboxField value={row.client_id} onSelect={(id) => updateRow(row.id, "client_id", id)} items={clients} placeholder="Client" />
-                </TableCell>
-                <TableCell>
-                  <AddressField row={row} />
-                </TableCell>
-                <TableCell>
-                  <ComboboxField value={row.driver_id} onSelect={(id) => updateRow(row.id, "driver_id", id)} items={drivers} placeholder="Driver" />
-                </TableCell>
-                <TableCell>
-                  <Input
-                    type="number"
-                    step="0.01"
-                    value={row.order_amount_usd}
-                    onChange={(e) => updateRow(row.id, "order_amount_usd", e.target.value)}
-                    className="h-8 text-xs"
-                  />
-                </TableCell>
-                <TableCell>
-                  <Input
-                    type="number"
-                    step="0.01"
-                    value={row.delivery_fee_usd}
-                    onChange={(e) => updateRow(row.id, "delivery_fee_usd", e.target.value)}
-                    className="h-8 text-xs"
-                  />
-                </TableCell>
-                <TableCell>
-                  <Input value={row.notes} onChange={(e) => updateRow(row.id, "notes", e.target.value)} className="h-8 text-xs" />
-                </TableCell>
-                <TableCell>
-                  <Button size="sm" onClick={() => createOrderMutation.mutate(row)} disabled={!row.client_id || !row.address} className="h-8 text-xs">
-                    Save
-                  </Button>
-                </TableCell>
-              </TableRow>
-            ))}
+            {newRows.map((row, rowIndex) => {
+              const baseTabIndex = rowIndex * 100;
+              return (
+                <TableRow key={row.id} className="bg-accent/20">
+                  <TableCell>
+                    <ComboboxField 
+                      value={row.client_id} 
+                      onSelect={(id) => updateRow(row.id, "client_id", id)} 
+                      items={clients} 
+                      placeholder="Client"
+                      tabIndex={baseTabIndex + 1}
+                    />
+                  </TableCell>
+                  <TableCell>
+                    <AddressField row={row} tabIndex={baseTabIndex + 2} />
+                  </TableCell>
+                  <TableCell>
+                    <ComboboxField 
+                      value={row.driver_id} 
+                      onSelect={(id) => updateRow(row.id, "driver_id", id)} 
+                      items={drivers} 
+                      placeholder="Driver"
+                      tabIndex={baseTabIndex + 3}
+                    />
+                  </TableCell>
+                  <TableCell>
+                    <Input
+                      type="number"
+                      step="0.01"
+                      value={row.order_amount_usd}
+                      onChange={(e) => updateRow(row.id, "order_amount_usd", e.target.value)}
+                      className="h-8 text-xs"
+                      tabIndex={baseTabIndex + 4}
+                    />
+                  </TableCell>
+                  <TableCell>
+                    <Input
+                      type="number"
+                      step="1"
+                      value={row.order_amount_lbp}
+                      onChange={(e) => updateRow(row.id, "order_amount_lbp", e.target.value)}
+                      className="h-8 text-xs"
+                      tabIndex={baseTabIndex + 5}
+                    />
+                  </TableCell>
+                  <TableCell>
+                    <Input
+                      type="number"
+                      step="0.01"
+                      value={row.delivery_fee_usd}
+                      onChange={(e) => updateRow(row.id, "delivery_fee_usd", e.target.value)}
+                      className="h-8 text-xs"
+                      tabIndex={baseTabIndex + 6}
+                    />
+                  </TableCell>
+                  <TableCell>
+                    <Input
+                      type="number"
+                      step="1"
+                      value={row.delivery_fee_lbp}
+                      onChange={(e) => updateRow(row.id, "delivery_fee_lbp", e.target.value)}
+                      className="h-8 text-xs"
+                      tabIndex={baseTabIndex + 7}
+                    />
+                  </TableCell>
+                  <TableCell>
+                    <Input 
+                      value={row.notes} 
+                      onChange={(e) => updateRow(row.id, "notes", e.target.value)} 
+                      className="h-8 text-xs"
+                      tabIndex={baseTabIndex + 8}
+                    />
+                  </TableCell>
+                  <TableCell>
+                    <Button 
+                      size="sm" 
+                      onClick={() => createOrderMutation.mutate(row)} 
+                      disabled={!row.client_id || !row.address} 
+                      className="h-8 text-xs"
+                      tabIndex={baseTabIndex + 9}
+                    >
+                      Save
+                    </Button>
+                  </TableCell>
+                </TableRow>
+              );
+            })}
           </TableBody>
         </Table>
       </div>
