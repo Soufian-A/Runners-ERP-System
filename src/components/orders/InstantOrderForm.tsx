@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react";
+import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -144,7 +144,6 @@ export function InstantOrderForm() {
   }) => {
     const [open, setOpen] = useState(false);
     const [searchTerm, setSearchTerm] = useState("");
-    const inputRef = useRef<HTMLInputElement>(null);
     const selected = items.find((item) => item.id === value);
 
     const filteredItems = items.filter((item) =>
@@ -155,16 +154,11 @@ export function InstantOrderForm() {
       if (filteredItems.length > 0) {
         onSelect(filteredItems[0].id);
         setSearchTerm("");
+        setOpen(false);
         return true;
       }
       return false;
     };
-
-    useEffect(() => {
-      if (open && inputRef.current) {
-        inputRef.current.focus();
-      }
-    }, [open]);
 
     return (
       <Popover open={open} onOpenChange={setOpen}>
@@ -173,12 +167,9 @@ export function InstantOrderForm() {
             variant="outline" 
             className="w-full justify-between h-8 text-xs"
             tabIndex={tabIndex}
-            onFocus={() => setOpen(true)}
             onKeyDown={(e) => {
-              if (e.key === 'Enter') {
+              if (e.key === 'Enter' || (e.key.length === 1 && !e.ctrlKey && !e.metaKey)) {
                 e.preventDefault();
-              } else if (e.key.length === 1 || e.key === 'Backspace') {
-                // Open dropdown and let the key be captured by the input
                 setOpen(true);
               }
             }}
@@ -187,19 +178,17 @@ export function InstantOrderForm() {
             <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
           </Button>
         </PopoverTrigger>
-        <PopoverContent className="w-[200px] p-0 bg-popover z-50">
+        <PopoverContent className="w-[200px] p-0 bg-popover z-50" onOpenAutoFocus={(e) => e.preventDefault()}>
           <Command shouldFilter={false}>
             <CommandInput 
-              ref={inputRef}
               placeholder="Search..." 
               value={searchTerm}
               onValueChange={setSearchTerm}
+              autoFocus
               onKeyDown={(e) => {
                 if (e.key === 'Tab') {
                   e.preventDefault();
-                  if (handleTabSelect()) {
-                    setOpen(false);
-                  }
+                  handleTabSelect();
                 }
               }}
             />
@@ -230,7 +219,6 @@ export function InstantOrderForm() {
   const AddressField = ({ row, tabIndex }: { row: NewOrderRow; tabIndex?: number }) => {
     const [open, setOpen] = useState(false);
     const [searchValue, setSearchValue] = useState("");
-    const inputRef = useRef<HTMLInputElement>(null);
 
     const filteredAddresses = addresses.filter((addr): addr is string => 
       typeof addr === 'string' && addr.toLowerCase().includes(searchValue.toLowerCase())
@@ -244,16 +232,11 @@ export function InstantOrderForm() {
       if (addressToUse) {
         updateRow(row.id, "address", addressToUse);
         setSearchValue("");
+        setOpen(false);
         return true;
       }
       return false;
     };
-
-    useEffect(() => {
-      if (open && inputRef.current) {
-        inputRef.current.focus();
-      }
-    }, [open]);
 
     return (
       <Popover open={open} onOpenChange={setOpen}>
@@ -262,12 +245,9 @@ export function InstantOrderForm() {
             variant="outline" 
             className="w-full justify-between h-8 text-xs"
             tabIndex={tabIndex}
-            onFocus={() => setOpen(true)}
             onKeyDown={(e) => {
-              if (e.key === 'Enter') {
+              if (e.key === 'Enter' || (e.key.length === 1 && !e.ctrlKey && !e.metaKey)) {
                 e.preventDefault();
-              } else if (e.key.length === 1 || e.key === 'Backspace') {
-                // Open dropdown and let the key be captured by the input
                 setOpen(true);
               }
             }}
@@ -276,19 +256,17 @@ export function InstantOrderForm() {
             <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
           </Button>
         </PopoverTrigger>
-        <PopoverContent className="w-[200px] p-0 bg-popover z-50">
+        <PopoverContent className="w-[200px] p-0 bg-popover z-50" onOpenAutoFocus={(e) => e.preventDefault()}>
           <Command shouldFilter={false}>
             <CommandInput 
-              ref={inputRef}
               placeholder="Type address..." 
               value={searchValue}
               onValueChange={setSearchValue}
+              autoFocus
               onKeyDown={(e) => {
                 if (e.key === 'Tab') {
                   e.preventDefault();
-                  if (handleTabSelect()) {
-                    setOpen(false);
-                  }
+                  handleTabSelect();
                 }
               }}
             />
