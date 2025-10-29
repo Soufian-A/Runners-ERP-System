@@ -38,29 +38,39 @@ const Drivers = () => {
     queryFn: async () => {
       if (!viewStatementDriver?.id) return null;
       
-      const { data, error } = await supabase
+      // First get driver transactions
+      const { data: transactions, error: txError } = await supabase
         .from('driver_transactions')
-        .select(`
-          *,
-          orders:order_ref (
-            voucher_no,
-            order_amount_usd,
-            order_amount_lbp,
-            delivery_fee_usd,
-            delivery_fee_lbp,
-            notes,
-            clients (
-              name
-            )
-          )
-        `)
+        .select('*')
         .eq('driver_id', viewStatementDriver.id)
         .gte('ts', dateFrom)
         .lte('ts', dateTo + 'T23:59:59')
         .order('ts', { ascending: false });
       
-      if (error) throw error;
-      return data;
+      if (txError) throw txError;
+      if (!transactions) return [];
+
+      // Get all unique order_refs
+      const orderRefs = transactions
+        .map(tx => tx.order_ref)
+        .filter(ref => ref !== null);
+
+      // Fetch orders data separately
+      const { data: orders, error: ordersError } = await supabase
+        .from('orders')
+        .select('order_id, voucher_no, order_amount_usd, order_amount_lbp, delivery_fee_usd, delivery_fee_lbp, notes, clients(name)')
+        .in('order_id', orderRefs);
+      
+      if (ordersError) throw ordersError;
+
+      // Create a map for quick lookup
+      const ordersMap = new Map(orders?.map(o => [o.order_id, o]) || []);
+
+      // Combine the data
+      return transactions.map(tx => ({
+        ...tx,
+        order: ordersMap.get(tx.order_ref)
+      }));
     },
     enabled: !!viewStatementDriver?.id,
   });
@@ -251,13 +261,13 @@ const Drivers = () => {
                         {statementData.map((row: any) => (
                           <TableRow key={row.id}>
                             <TableCell>{format(new Date(row.ts), 'MMM dd, yyyy HH:mm')}</TableCell>
-                            <TableCell>{row.orders?.voucher_no || '-'}</TableCell>
-                            <TableCell>{row.orders?.clients?.name || '-'}</TableCell>
-                            <TableCell>${Number(row.orders?.order_amount_usd || 0).toFixed(2)}</TableCell>
-                            <TableCell>{Number(row.orders?.order_amount_lbp || 0).toLocaleString()} LBP</TableCell>
-                            <TableCell>${Number(row.orders?.delivery_fee_usd || 0).toFixed(2)}</TableCell>
-                            <TableCell>{Number(row.orders?.delivery_fee_lbp || 0).toLocaleString()} LBP</TableCell>
-                            <TableCell className="max-w-xs truncate">{row.orders?.notes || '-'}</TableCell>
+                            <TableCell>{row.order?.voucher_no || '-'}</TableCell>
+                            <TableCell>{row.order?.clients?.name || '-'}</TableCell>
+                            <TableCell>${Number(row.order?.order_amount_usd || 0).toFixed(2)}</TableCell>
+                            <TableCell>{Number(row.order?.order_amount_lbp || 0).toLocaleString()} LBP</TableCell>
+                            <TableCell>${Number(row.order?.delivery_fee_usd || 0).toFixed(2)}</TableCell>
+                            <TableCell>{Number(row.order?.delivery_fee_lbp || 0).toLocaleString()} LBP</TableCell>
+                            <TableCell className="max-w-xs truncate">{row.order?.notes || '-'}</TableCell>
                           </TableRow>
                         ))}
                       </TableBody>
