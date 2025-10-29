@@ -24,7 +24,9 @@ interface Order {
   driver_id?: string;
   third_party_id?: string;
   order_amount_usd: number;
+  order_amount_lbp: number;
   delivery_fee_usd: number;
+  delivery_fee_lbp: number;
   address: string;
   notes?: string;
   created_at: string;
@@ -135,38 +137,35 @@ const InstantOrders = () => {
               <TableHeader>
                 <TableRow>
                   <TableHead className="w-[50px]"></TableHead>
-                  <TableHead>Order ID</TableHead>
                   <TableHead>Client</TableHead>
                   <TableHead>Driver</TableHead>
                   <TableHead>Address</TableHead>
-                  <TableHead>Amount</TableHead>
+                  <TableHead>Delivery LBP</TableHead>
+                  <TableHead>Delivery USD</TableHead>
                   <TableHead>Notes</TableHead>
                   <TableHead>Status</TableHead>
-                  <TableHead>Date</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {orders?.map((order) => (
-                  <TableRow key={order.id} className="hover:bg-muted/50">
+                  <TableRow 
+                    key={order.id} 
+                    className="hover:bg-muted/50 cursor-pointer"
+                    onClick={() => {
+                      setSelectedOrder(order);
+                      setDialogOpen(true);
+                    }}
+                  >
                     <TableCell onClick={(e) => e.stopPropagation()}>
                       <Checkbox checked={selectedIds.includes(order.id)} onCheckedChange={() => toggleSelect(order.id)} />
-                    </TableCell>
-                    <TableCell
-                      className="font-medium cursor-pointer"
-                      onClick={() => {
-                        setSelectedOrder(order);
-                        setDialogOpen(true);
-                      }}
-                    >
-                      {order.order_id}
                     </TableCell>
                     <TableCell>{order.clients?.name}</TableCell>
                     <TableCell>{order.drivers?.name || "-"}</TableCell>
                     <TableCell className="max-w-[200px] truncate">{order.address}</TableCell>
-                    <TableCell>${order.order_amount_usd.toFixed(2)}</TableCell>
+                    <TableCell>{order.delivery_fee_lbp?.toLocaleString() || "0"}</TableCell>
+                    <TableCell>${order.delivery_fee_usd?.toFixed(2) || "0.00"}</TableCell>
                     <TableCell className="max-w-[150px] truncate">{order.notes || "-"}</TableCell>
-                    <TableCell>{getStatusBadge(order.status)}</TableCell>
-                    <TableCell>{new Date(order.created_at).toLocaleDateString()}</TableCell>
+                    <TableCell onClick={(e) => e.stopPropagation()}>{getStatusBadge(order.status)}</TableCell>
                   </TableRow>
                 ))}
               </TableBody>
