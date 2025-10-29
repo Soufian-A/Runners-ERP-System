@@ -50,10 +50,12 @@ const Drivers = () => {
       if (txError) throw txError;
       if (!transactions) return [];
 
-      // Get all unique order_refs
+      // Get all unique order_refs (filter out null)
       const orderRefs = transactions
         .map(tx => tx.order_ref)
-        .filter(ref => ref !== null);
+        .filter(ref => ref !== null && ref !== undefined);
+
+      if (orderRefs.length === 0) return [];
 
       // Fetch orders data separately
       const { data: orders, error: ordersError } = await supabase
@@ -66,11 +68,13 @@ const Drivers = () => {
       // Create a map for quick lookup
       const ordersMap = new Map(orders?.map(o => [o.order_id, o]) || []);
 
-      // Combine the data
-      return transactions.map(tx => ({
-        ...tx,
-        order: ordersMap.get(tx.order_ref)
-      }));
+      // Combine the data and filter out transactions where order no longer exists
+      return transactions
+        .map(tx => ({
+          ...tx,
+          order: ordersMap.get(tx.order_ref)
+        }))
+        .filter(tx => tx.order); // Only show transactions where order still exists
     },
     enabled: !!viewStatementDriver?.id,
   });
