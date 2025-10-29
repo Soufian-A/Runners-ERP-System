@@ -91,20 +91,28 @@ export default function EditOrderDialog({ order, open, onOpenChange }: EditOrder
     mutationFn: async () => {
       const previousStatus = order.status;
       
+      // Prepare update data
+      const updateData: any = {
+        voucher_no: formData.voucher_no || null,
+        address: formData.address,
+        order_amount_usd: parseFloat(formData.order_amount_usd),
+        delivery_fee_usd: parseFloat(formData.delivery_fee_usd),
+        amount_due_to_client_usd: parseFloat(formData.amount_due_to_client_usd) || 0,
+        notes: formData.notes || null,
+        status: formData.status,
+        driver_id: formData.driver_id || null,
+        prepaid_by_runners: formData.prepaid_by_runners,
+        prepaid_by_company: formData.prepaid_by_company,
+      };
+
+      // Set delivered_at timestamp when status changes to Delivered
+      if (previousStatus !== 'Delivered' && formData.status === 'Delivered') {
+        updateData.delivered_at = new Date().toISOString();
+      }
+
       const { error } = await supabase
         .from("orders")
-        .update({
-          voucher_no: formData.voucher_no || null,
-          address: formData.address,
-          order_amount_usd: parseFloat(formData.order_amount_usd),
-          delivery_fee_usd: parseFloat(formData.delivery_fee_usd),
-          amount_due_to_client_usd: parseFloat(formData.amount_due_to_client_usd) || 0,
-          notes: formData.notes || null,
-          status: formData.status,
-          driver_id: formData.driver_id || null,
-          prepaid_by_runners: formData.prepaid_by_runners,
-          prepaid_by_company: formData.prepaid_by_company,
-        })
+        .update(updateData)
         .eq("id", order.id);
 
       if (error) throw error;
