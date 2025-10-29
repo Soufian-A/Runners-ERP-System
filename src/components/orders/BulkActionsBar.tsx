@@ -1,5 +1,5 @@
 import { Button } from "@/components/ui/button";
-import { Trash2, UserPlus } from "lucide-react";
+import { Trash2, UserPlus, CheckCircle } from "lucide-react";
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -27,6 +27,7 @@ interface BulkActionsBarProps {
 export function BulkActionsBar({ selectedIds, onClearSelection }: BulkActionsBarProps) {
   const queryClient = useQueryClient();
   const [driverOpen, setDriverOpen] = useState(false);
+  const [statusOpen, setStatusOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
 
   const { data: drivers = [] } = useQuery({
@@ -46,6 +47,22 @@ export function BulkActionsBar({ selectedIds, onClearSelection }: BulkActionsBar
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["orders"] });
       toast.success(`Driver assigned to ${selectedIds.length} orders`);
+      onClearSelection();
+    },
+    onError: (error: Error) => {
+      toast.error(error.message);
+    },
+  });
+
+  const updateStatusMutation = useMutation({
+    mutationFn: async (status: string) => {
+      const { error } = await supabase.from("orders").update({ status: status as any }).in("id", selectedIds);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["orders"] });
+      queryClient.invalidateQueries({ queryKey: ["instant-orders"] });
+      toast.success(`Status updated for ${selectedIds.length} orders`);
       onClearSelection();
     },
     onError: (error: Error) => {
@@ -99,6 +116,36 @@ export function BulkActionsBar({ selectedIds, onClearSelection }: BulkActionsBar
                       }}
                     >
                       {driver.name}
+                    </CommandItem>
+                  ))}
+                </CommandGroup>
+              </CommandList>
+            </Command>
+          </PopoverContent>
+        </Popover>
+
+        <Popover open={statusOpen} onOpenChange={setStatusOpen}>
+          <PopoverTrigger asChild>
+            <Button size="sm" variant="secondary">
+              <CheckCircle className="h-4 w-4 mr-2" />
+              Update Status
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent className="w-[200px] p-0 bg-popover">
+            <Command>
+              <CommandInput placeholder="Search status..." />
+              <CommandList>
+                <CommandEmpty>No status found.</CommandEmpty>
+                <CommandGroup>
+                  {["New", "Assigned", "PickedUp", "Delivered", "Returned", "Cancelled"].map((status) => (
+                    <CommandItem
+                      key={status}
+                      onSelect={() => {
+                        updateStatusMutation.mutate(status);
+                        setStatusOpen(false);
+                      }}
+                    >
+                      {status}
                     </CommandItem>
                   ))}
                 </CommandGroup>
