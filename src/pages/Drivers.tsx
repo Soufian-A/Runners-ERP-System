@@ -40,7 +40,20 @@ const Drivers = () => {
       
       const { data, error } = await supabase
         .from('driver_transactions')
-        .select('*')
+        .select(`
+          *,
+          orders:order_ref (
+            voucher_no,
+            order_amount_usd,
+            order_amount_lbp,
+            delivery_fee_usd,
+            delivery_fee_lbp,
+            notes,
+            clients (
+              name
+            )
+          )
+        `)
         .eq('driver_id', viewStatementDriver.id)
         .gte('ts', dateFrom)
         .lte('ts', dateTo + 'T23:59:59')
@@ -225,30 +238,26 @@ const Drivers = () => {
                       <TableHeader>
                         <TableRow>
                           <TableHead>Date</TableHead>
-                          <TableHead>Type</TableHead>
-                          <TableHead>Amount USD</TableHead>
-                          <TableHead>Amount LBP</TableHead>
-                          <TableHead>Order Ref</TableHead>
-                          <TableHead>Note</TableHead>
+                          <TableHead>Voucher #</TableHead>
+                          <TableHead>Client Name</TableHead>
+                          <TableHead>Order Amount USD</TableHead>
+                          <TableHead>Order Amount LBP</TableHead>
+                          <TableHead>Delivery Fee USD</TableHead>
+                          <TableHead>Delivery Fee LBP</TableHead>
+                          <TableHead>Notes</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
                         {statementData.map((row: any) => (
                           <TableRow key={row.id}>
                             <TableCell>{format(new Date(row.ts), 'MMM dd, yyyy HH:mm')}</TableCell>
-                            <TableCell>
-                              <span className={row.type === 'Credit' ? 'text-green-600' : 'text-red-600'}>
-                                {row.type}
-                              </span>
-                            </TableCell>
-                            <TableCell className={row.type === 'Credit' ? 'text-green-600' : 'text-red-600'}>
-                              {row.type === 'Credit' ? '+' : '-'}${Number(row.amount_usd).toFixed(2)}
-                            </TableCell>
-                            <TableCell className={row.type === 'Credit' ? 'text-green-600' : 'text-red-600'}>
-                              {row.type === 'Credit' ? '+' : '-'}{Number(row.amount_lbp).toLocaleString()} LBP
-                            </TableCell>
-                            <TableCell>{row.order_ref || '-'}</TableCell>
-                            <TableCell className="max-w-xs truncate">{row.note || '-'}</TableCell>
+                            <TableCell>{row.orders?.voucher_no || '-'}</TableCell>
+                            <TableCell>{row.orders?.clients?.name || '-'}</TableCell>
+                            <TableCell>${Number(row.orders?.order_amount_usd || 0).toFixed(2)}</TableCell>
+                            <TableCell>{Number(row.orders?.order_amount_lbp || 0).toLocaleString()} LBP</TableCell>
+                            <TableCell>${Number(row.orders?.delivery_fee_usd || 0).toFixed(2)}</TableCell>
+                            <TableCell>{Number(row.orders?.delivery_fee_lbp || 0).toLocaleString()} LBP</TableCell>
+                            <TableCell className="max-w-xs truncate">{row.orders?.notes || '-'}</TableCell>
                           </TableRow>
                         ))}
                       </TableBody>
