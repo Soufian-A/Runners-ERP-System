@@ -120,9 +120,26 @@ export function InstantOrderForm() {
     },
     onSuccess: (rowId) => {
       queryClient.invalidateQueries({ queryKey: ["orders"] });
+      queryClient.invalidateQueries({ queryKey: ["instant-orders"] });
       toast.success("Order created");
-      setNewRows(newRows.filter((r) => r.id !== rowId));
-      if (newRows.length === 1) addNewRow();
+      setNewRows((currentRows) => {
+        const filtered = currentRows.filter((r) => r.id !== rowId);
+        // If we just removed the last row, add a new empty one
+        if (filtered.length === 0) {
+          return [{
+            id: `new-${Date.now()}`,
+            client_id: "",
+            address: "",
+            driver_id: "",
+            order_amount_usd: "",
+            order_amount_lbp: "",
+            delivery_fee_usd: "",
+            delivery_fee_lbp: "",
+            notes: "",
+          }];
+        }
+        return filtered;
+      });
     },
     onError: (error: Error) => {
       toast.error(error.message);
