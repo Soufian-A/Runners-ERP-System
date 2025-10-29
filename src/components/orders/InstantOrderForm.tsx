@@ -64,7 +64,7 @@ export function InstantOrderForm() {
         .select("name")
         .order("name");
       if (error) throw error;
-      return data.map((area) => area.name);
+      return data.map((area) => area.name).filter((name): name is string => typeof name === 'string' && name.length > 0);
     },
   });
 
@@ -221,13 +221,13 @@ export function InstantOrderForm() {
     const [open, setOpen] = useState(false);
     const [searchValue, setSearchValue] = useState("");
 
-    const filteredAddresses = addresses.filter((addr) => 
-      (addr as string).toLowerCase().includes(searchValue.toLowerCase())
+    const filteredAddresses = addresses.filter((addr): addr is string => 
+      typeof addr === 'string' && addr.toLowerCase().includes(searchValue.toLowerCase())
     );
 
     const handleTabSelect = () => {
       const addressToUse = filteredAddresses.length > 0 
-        ? filteredAddresses[0] as string 
+        ? filteredAddresses[0]
         : searchValue;
       
       if (addressToUse) {
@@ -291,7 +291,7 @@ export function InstantOrderForm() {
                   <CommandItem
                     key={idx}
                     onSelect={() => {
-                      updateRow(row.id, "address", address as string);
+                      updateRow(row.id, "address", address);
                       setOpen(false);
                       setSearchValue("");
                     }}
