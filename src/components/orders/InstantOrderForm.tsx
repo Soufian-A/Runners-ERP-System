@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -144,6 +144,7 @@ export function InstantOrderForm() {
   }) => {
     const [open, setOpen] = useState(false);
     const [searchTerm, setSearchTerm] = useState("");
+    const inputRef = useRef<HTMLInputElement>(null);
     const selected = items.find((item) => item.id === value);
 
     const filteredItems = items.filter((item) =>
@@ -158,6 +159,12 @@ export function InstantOrderForm() {
       }
       return false;
     };
+
+    useEffect(() => {
+      if (open && inputRef.current) {
+        inputRef.current.focus();
+      }
+    }, [open]);
 
     return (
       <Popover open={open} onOpenChange={setOpen}>
@@ -180,16 +187,10 @@ export function InstantOrderForm() {
             <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
           </Button>
         </PopoverTrigger>
-        <PopoverContent className="w-[200px] p-0 bg-popover z-50" onOpenAutoFocus={(e) => {
-          e.preventDefault();
-          // Focus the input after a brief delay to ensure it's rendered
-          setTimeout(() => {
-            const input = document.querySelector('[cmdk-input]') as HTMLInputElement;
-            if (input) input.focus();
-          }, 0);
-        }}>
+        <PopoverContent className="w-[200px] p-0 bg-popover z-50">
           <Command shouldFilter={false}>
             <CommandInput 
+              ref={inputRef}
               placeholder="Search..." 
               value={searchTerm}
               onValueChange={setSearchTerm}
@@ -229,6 +230,7 @@ export function InstantOrderForm() {
   const AddressField = ({ row, tabIndex }: { row: NewOrderRow; tabIndex?: number }) => {
     const [open, setOpen] = useState(false);
     const [searchValue, setSearchValue] = useState("");
+    const inputRef = useRef<HTMLInputElement>(null);
 
     const filteredAddresses = addresses.filter((addr): addr is string => 
       typeof addr === 'string' && addr.toLowerCase().includes(searchValue.toLowerCase())
@@ -246,6 +248,12 @@ export function InstantOrderForm() {
       }
       return false;
     };
+
+    useEffect(() => {
+      if (open && inputRef.current) {
+        inputRef.current.focus();
+      }
+    }, [open]);
 
     return (
       <Popover open={open} onOpenChange={setOpen}>
@@ -268,16 +276,10 @@ export function InstantOrderForm() {
             <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
           </Button>
         </PopoverTrigger>
-        <PopoverContent className="w-[200px] p-0 bg-popover z-50" onOpenAutoFocus={(e) => {
-          e.preventDefault();
-          // Focus the input after a brief delay to ensure it's rendered
-          setTimeout(() => {
-            const input = document.querySelector('[cmdk-input]') as HTMLInputElement;
-            if (input) input.focus();
-          }, 0);
-        }}>
+        <PopoverContent className="w-[200px] p-0 bg-popover z-50">
           <Command shouldFilter={false}>
             <CommandInput 
+              ref={inputRef}
               placeholder="Type address..." 
               value={searchValue}
               onValueChange={setSearchValue}
