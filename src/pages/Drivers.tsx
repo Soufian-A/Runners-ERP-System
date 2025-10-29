@@ -247,27 +247,27 @@ const Drivers = () => {
                     <Table>
                       <TableHeader>
                         <TableRow>
-                          <TableHead>Date</TableHead>
-                          <TableHead>Voucher #</TableHead>
-                          <TableHead>Client Name</TableHead>
-                          <TableHead>Order Amount USD</TableHead>
-                          <TableHead>Order Amount LBP</TableHead>
-                          <TableHead>Delivery Fee USD</TableHead>
-                          <TableHead>Delivery Fee LBP</TableHead>
-                          <TableHead>Notes</TableHead>
+                          <TableHead className="py-2">Date</TableHead>
+                          <TableHead className="py-2">Voucher #</TableHead>
+                          <TableHead className="py-2">Client Name</TableHead>
+                          <TableHead className="py-2">Order Amount USD</TableHead>
+                          <TableHead className="py-2">Order Amount LBP</TableHead>
+                          <TableHead className="py-2">Delivery Fee USD</TableHead>
+                          <TableHead className="py-2">Delivery Fee LBP</TableHead>
+                          <TableHead className="py-2">Notes</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
                         {statementData.map((row: any) => (
                           <TableRow key={row.id}>
-                            <TableCell>{format(new Date(row.ts), 'MMM dd, yyyy HH:mm')}</TableCell>
-                            <TableCell>{row.order?.voucher_no || '-'}</TableCell>
-                            <TableCell>{row.order?.clients?.name || '-'}</TableCell>
-                            <TableCell>${Number(row.order?.order_amount_usd || 0).toFixed(2)}</TableCell>
-                            <TableCell>{Number(row.order?.order_amount_lbp || 0).toLocaleString()} LBP</TableCell>
-                            <TableCell>${Number(row.order?.delivery_fee_usd || 0).toFixed(2)}</TableCell>
-                            <TableCell>{Number(row.order?.delivery_fee_lbp || 0).toLocaleString()} LBP</TableCell>
-                            <TableCell className="max-w-xs truncate">{row.order?.notes || '-'}</TableCell>
+                            <TableCell className="py-1.5">{format(new Date(row.ts), 'MMM dd, yyyy HH:mm')}</TableCell>
+                            <TableCell className="py-1.5">{row.order?.voucher_no || '-'}</TableCell>
+                            <TableCell className="py-1.5">{row.order?.clients?.name || '-'}</TableCell>
+                            <TableCell className="py-1.5">${Number(row.order?.order_amount_usd || 0).toFixed(2)}</TableCell>
+                            <TableCell className="py-1.5">{Number(row.order?.order_amount_lbp || 0).toLocaleString()} LBP</TableCell>
+                            <TableCell className="py-1.5">${Number(row.order?.delivery_fee_usd || 0).toFixed(2)}</TableCell>
+                            <TableCell className="py-1.5">{Number(row.order?.delivery_fee_lbp || 0).toLocaleString()} LBP</TableCell>
+                            <TableCell className="py-1.5 max-w-xs truncate">{row.order?.notes || '-'}</TableCell>
                           </TableRow>
                         ))}
                       </TableBody>
