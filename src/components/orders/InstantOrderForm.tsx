@@ -57,11 +57,14 @@ export function InstantOrderForm() {
   });
 
   const { data: addresses = [] } = useQuery({
-    queryKey: ["customer-addresses"],
+    queryKey: ["address-areas"],
     queryFn: async () => {
-      const { data, error } = await supabase.from("customers").select("address").not("address", "is", null).order("address");
+      const { data, error } = await supabase
+        .from("address_areas")
+        .select("name")
+        .order("name");
       if (error) throw error;
-      return [...new Set(data.map((c) => c.address))].filter(Boolean);
+      return data.map((area) => area.name);
     },
   });
 
