@@ -31,10 +31,13 @@ interface Order {
   client_id: string;
   driver_id?: string;
   order_amount_usd: number;
+  order_amount_lbp: number;
   delivery_fee_usd: number;
+  delivery_fee_lbp: number;
   amount_due_to_client_usd?: number;
   prepaid_by_runners?: boolean;
   prepaid_by_company?: boolean;
+  driver_remit_status?: string;
   address: string;
   notes?: string;
   created_at: string;
@@ -145,6 +148,75 @@ export default function EditOrderDialog({ order, open, onOpenChange }: EditOrder
 
   const deleteOrderMutation = useMutation({
     mutationFn: async () => {
+      // Check if order was delivered and needs accounting reversal
+      if (order.driver_remit_status && order.status === 'Delivered') {
+        console.log('Reversing accounting for delivered order:', order.order_id);
+
+        // 1. Delete driver transaction
+        if (order.driver_id) {
+          const { error: driverTxError } = await supabase
+            .from('driver_transactions')
+            .delete()
+            .eq('order_ref', order.order_id);
+          
+          if (driverTxError) {
+            console.error('Error deleting driver transaction:', driverTxError);
+            throw new Error('Failed to reverse driver transaction');
+          }
+
+          // 2. Reverse driver wallet balance
+          const { data: driver, error: driverFetchError } = await supabase
+            .from('drivers')
+            .select('wallet_usd, wallet_lbp')
+            .eq('id', order.driver_id)
+            .single();
+
+          if (driverFetchError) throw driverFetchError;
+
+          if (driver) {
+            const { error: walletError } = await supabase
+              .from('drivers')
+              .update({
+                wallet_usd: Number(driver.wallet_usd) - Number(order.delivery_fee_usd),
+                wallet_lbp: Number(driver.wallet_lbp) - Number(order.delivery_fee_lbp),
+              })
+              .eq('id', order.driver_id);
+
+            if (walletError) {
+              console.error('Error reversing driver wallet:', walletError);
+              throw new Error('Failed to reverse driver wallet');
+            }
+          }
+        }
+
+        // 3. Delete client transaction
+        if (order.client_id) {
+          const { error: clientTxError } = await supabase
+            .from('client_transactions')
+            .delete()
+            .eq('order_ref', order.order_id);
+          
+          if (clientTxError) {
+            console.error('Error deleting client transaction:', clientTxError);
+            throw new Error('Failed to reverse client transaction');
+          }
+        }
+
+        // 4. Delete accounting entry
+        const { error: accountingError } = await supabase
+          .from('accounting_entries')
+          .delete()
+          .eq('order_ref', order.order_id);
+        
+        if (accountingError) {
+          console.error('Error deleting accounting entry:', accountingError);
+          throw new Error('Failed to reverse accounting entry');
+        }
+
+        console.log('Successfully reversed all accounting for order:', order.order_id);
+      }
+
+      // 5. Finally delete the order
       const { error } = await supabase.from("orders").delete().eq("id", order.id);
       if (error) throw error;
     },
@@ -152,6 +224,7 @@ export default function EditOrderDialog({ order, open, onOpenChange }: EditOrder
       queryClient.invalidateQueries({ queryKey: ["orders"] });
       queryClient.invalidateQueries({ queryKey: ["instant-orders"] });
       queryClient.invalidateQueries({ queryKey: ["ecom-orders"] });
+      queryClient.invalidateQueries({ queryKey: ["drivers"] });
       toast({ title: "Order deleted successfully" });
       setDeleteDialogOpen(false);
       onOpenChange(false);

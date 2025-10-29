@@ -23,7 +23,9 @@ interface Order {
   driver_id?: string;
   third_party_id?: string;
   order_amount_usd: number;
+  order_amount_lbp: number;
   delivery_fee_usd: number;
+  delivery_fee_lbp: number;
   address: string;
   notes?: string;
   created_at: string;
