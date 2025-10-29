@@ -58,13 +58,37 @@ export function BulkActionsBar({ selectedIds, onClearSelection }: BulkActionsBar
 
   const updateStatusMutation = useMutation({
     mutationFn: async (status: string) => {
-      const { error } = await supabase.from("orders").update({ status: status as any }).in("id", selectedIds);
+      // First update the status
+      const updateData: any = { status };
+      if (status === 'Delivered') {
+        updateData.delivered_at = new Date().toISOString();
+      }
+      
+      const { error } = await supabase.from("orders").update(updateData).in("id", selectedIds);
       if (error) throw error;
+
+      // If status is Delivered, process accounting for each order
+      if (status === 'Delivered') {
+        console.log(`Processing delivery accounting for ${selectedIds.length} orders...`);
+        
+        // Process each order through the edge function
+        for (const orderId of selectedIds) {
+          const { error: functionError } = await supabase.functions.invoke('process-order-delivery', {
+            body: { orderId }
+          });
+          
+          if (functionError) {
+            console.error(`Error processing delivery for order ${orderId}:`, functionError);
+            // Continue processing other orders even if one fails
+          }
+        }
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["orders"] });
       queryClient.invalidateQueries({ queryKey: ["instant-orders"] });
       queryClient.invalidateQueries({ queryKey: ["ecom-orders"] });
+      queryClient.invalidateQueries({ queryKey: ["drivers"] });
       toast.success(`Status updated for ${selectedIds.length} orders`);
       onClearSelection();
     },
