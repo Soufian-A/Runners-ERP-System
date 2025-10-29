@@ -59,143 +59,14 @@ const OrderActionsDialog = ({ order, open, onOpenChange }: OrderActionsDialogPro
 
   const updateStatusMutation = useMutation({
     mutationFn: async (data: any) => {
+      const previousStatus = order.status;
       const updateData: any = {
         status: data.status,
       };
 
-      // DELIVERED EVENT - Core posting logic
-      if (data.status === 'Delivered') {
+      // Set delivered_at timestamp when status changes to Delivered
+      if (previousStatus !== 'Delivered' && data.status === 'Delivered') {
         updateData.delivered_at = new Date().toISOString();
-        
-        if (order.fulfillment === 'InHouse') {
-          // 1. Credit driver wallet with delivery fee
-          if (order.driver_id) {
-            await supabase.from('driver_transactions').insert({
-              driver_id: order.driver_id,
-              type: 'Credit',
-              amount_usd: order.delivery_fee_usd,
-              amount_lbp: order.delivery_fee_lbp,
-              order_ref: order.order_id,
-              note: `Delivery fee for order ${order.order_id}`,
-            });
-
-            const { data: driver } = await supabase
-              .from('drivers')
-              .select('wallet_usd, wallet_lbp')
-              .eq('id', order.driver_id)
-              .single();
-
-            if (driver) {
-              await supabase
-                .from('drivers')
-                .update({
-                  wallet_usd: Number(driver.wallet_usd) + Number(order.delivery_fee_usd),
-                  wallet_lbp: Number(driver.wallet_lbp) + Number(order.delivery_fee_lbp),
-                })
-                .eq('id', order.driver_id);
-            }
-
-            // Set remittance pending if driver collected cash
-            if (Number(order.order_amount_usd) > 0 || Number(order.order_amount_lbp) > 0) {
-              updateData.driver_remit_status = 'Pending';
-            }
-          }
-
-          // 2. Accounting: Income → Delivery Fee
-          await supabase.from('accounting_entries').insert({
-            category: 'DeliveryIncome',
-            amount_usd: order.delivery_fee_usd,
-            amount_lbp: order.delivery_fee_lbp,
-            order_ref: order.order_id,
-            memo: `Delivery income for order ${order.order_id}`,
-          });
-
-          // 3. Client transactions: Credit based on fee rule
-          let clientCreditUSD = 0;
-          let clientCreditLBP = 0;
-          
-          if (order.client_fee_rule === 'ADD_ON') {
-            // Fee is on top; client gets order amount
-            clientCreditUSD = order.order_amount_usd;
-            clientCreditLBP = order.order_amount_lbp;
-          } else if (order.client_fee_rule === 'DEDUCT') {
-            // Fee deducted from amount payable to client
-            clientCreditUSD = Number(order.order_amount_usd) - Number(order.delivery_fee_usd);
-            clientCreditLBP = Number(order.order_amount_lbp) - Number(order.delivery_fee_lbp);
-          } else if (order.client_fee_rule === 'INCLUDED') {
-            // Fee handled separately, client gets full order amount
-            clientCreditUSD = order.order_amount_usd;
-            clientCreditLBP = order.order_amount_lbp;
-          }
-
-          await supabase.from('client_transactions').insert({
-            client_id: order.client_id,
-            type: 'Credit',
-            amount_usd: clientCreditUSD,
-            amount_lbp: clientCreditLBP,
-            order_ref: order.order_id,
-            note: `Payment for order ${order.order_id} (${order.client_fee_rule})`,
-          });
-
-        } else if (order.fulfillment === 'ThirdParty') {
-          // For third-party, must set sell/buy fees first
-          if (!thirdPartyData.sell_fee_usd && !thirdPartyData.sell_fee_lbp) {
-            throw new Error('Please set third-party fees in the Third-Party tab first');
-          }
-
-          // 1. Record third-party transaction
-          await supabase.from('third_party_transactions').insert({
-            third_party_id: order.third_party_id,
-            sell_fee_usd: thirdPartyData.sell_fee_usd,
-            sell_fee_lbp: thirdPartyData.sell_fee_lbp,
-            buy_cost_usd: thirdPartyData.buy_cost_usd,
-            buy_cost_lbp: thirdPartyData.buy_cost_lbp,
-            order_ref: order.order_id,
-            status: 'Delivered',
-          });
-
-          // 2. Accounting: Income (sell fee) and Expense (buy cost)
-          await supabase.from('accounting_entries').insert([
-            {
-              category: 'DeliveryIncome',
-              amount_usd: thirdPartyData.sell_fee_usd,
-              amount_lbp: thirdPartyData.sell_fee_lbp,
-              order_ref: order.order_id,
-              memo: `Third-party delivery income for ${order.order_id}`,
-            },
-            {
-              category: 'ThirdPartyCost',
-              amount_usd: thirdPartyData.buy_cost_usd,
-              amount_lbp: thirdPartyData.buy_cost_lbp,
-              order_ref: order.order_id,
-              memo: `Third-party cost for ${order.order_id}`,
-            },
-          ]);
-
-          // 3. Client transactions: same credit rule
-          let clientCreditUSD = 0;
-          let clientCreditLBP = 0;
-          
-          if (order.client_fee_rule === 'ADD_ON') {
-            clientCreditUSD = order.order_amount_usd;
-            clientCreditLBP = order.order_amount_lbp;
-          } else if (order.client_fee_rule === 'DEDUCT') {
-            clientCreditUSD = Number(order.order_amount_usd) - Number(order.delivery_fee_usd);
-            clientCreditLBP = Number(order.order_amount_lbp) - Number(order.delivery_fee_lbp);
-          } else if (order.client_fee_rule === 'INCLUDED') {
-            clientCreditUSD = order.order_amount_usd;
-            clientCreditLBP = order.order_amount_lbp;
-          }
-
-          await supabase.from('client_transactions').insert({
-            client_id: order.client_id,
-            type: 'Credit',
-            amount_usd: clientCreditUSD,
-            amount_lbp: clientCreditLBP,
-            order_ref: order.order_id,
-            note: `Payment for order ${order.order_id} (${order.client_fee_rule})`,
-          });
-        }
       }
 
       const { error } = await supabase
@@ -204,9 +75,25 @@ const OrderActionsDialog = ({ order, open, onOpenChange }: OrderActionsDialogPro
         .eq('id', order.id);
 
       if (error) throw error;
+
+      // If status changed to Delivered, process the accounting via edge function
+      if (previousStatus !== 'Delivered' && data.status === 'Delivered') {
+        console.log('Order marked as delivered, processing accounting...');
+        const { error: functionError } = await supabase.functions.invoke('process-order-delivery', {
+          body: { orderId: order.id }
+        });
+        
+        if (functionError) {
+          console.error('Error processing delivery:', functionError);
+          throw new Error('Order updated but accounting failed: ' + functionError.message);
+        }
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['orders'] });
+      queryClient.invalidateQueries({ queryKey: ['instant-orders'] });
+      queryClient.invalidateQueries({ queryKey: ['ecom-orders'] });
+      queryClient.invalidateQueries({ queryKey: ['drivers'] });
       toast({
         title: "Status Updated",
         description: "Order status has been updated successfully.",
