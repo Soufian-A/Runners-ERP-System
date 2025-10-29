@@ -168,6 +168,7 @@ export function InstantOrderForm() {
 
   const AddressField = ({ row }: { row: NewOrderRow }) => {
     const [open, setOpen] = useState(false);
+    const [searchValue, setSearchValue] = useState("");
 
     return (
       <Popover open={open} onOpenChange={setOpen}>
@@ -177,28 +178,45 @@ export function InstantOrderForm() {
             <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
           </Button>
         </PopoverTrigger>
-        <PopoverContent className="w-[200px] p-0 bg-popover">
-          <Command>
-            <CommandInput placeholder="Type address..." value={row.address} onValueChange={(value) => updateRow(row.id, "address", value)} />
+        <PopoverContent className="w-[200px] p-0 bg-popover z-50">
+          <Command shouldFilter={false}>
+            <CommandInput 
+              placeholder="Type address..." 
+              value={searchValue}
+              onValueChange={setSearchValue}
+            />
             <CommandList>
               <CommandEmpty>
-                <Button variant="ghost" className="w-full text-xs" onClick={() => setOpen(false)}>
-                  Use "{row.address}"
+                <Button 
+                  variant="ghost" 
+                  className="w-full text-xs" 
+                  onClick={() => {
+                    updateRow(row.id, "address", searchValue);
+                    setOpen(false);
+                    setSearchValue("");
+                  }}
+                >
+                  Use "{searchValue}"
                 </Button>
               </CommandEmpty>
               <CommandGroup>
-                {addresses.map((address, idx) => (
-                  <CommandItem
-                    key={idx}
-                    onSelect={() => {
-                      updateRow(row.id, "address", address as string);
-                      setOpen(false);
-                    }}
-                  >
-                    <Check className={cn("mr-2 h-4 w-4", row.address === address ? "opacity-100" : "opacity-0")} />
-                    {address}
-                  </CommandItem>
-                ))}
+                {addresses
+                  .filter((addr) => 
+                    (addr as string).toLowerCase().includes(searchValue.toLowerCase())
+                  )
+                  .map((address, idx) => (
+                    <CommandItem
+                      key={idx}
+                      onSelect={() => {
+                        updateRow(row.id, "address", address as string);
+                        setOpen(false);
+                        setSearchValue("");
+                      }}
+                    >
+                      <Check className={cn("mr-2 h-4 w-4", row.address === address ? "opacity-100" : "opacity-0")} />
+                      {address}
+                    </CommandItem>
+                  ))}
               </CommandGroup>
             </CommandList>
           </Command>
