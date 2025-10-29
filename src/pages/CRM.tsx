@@ -6,7 +6,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Users, Plus, Copy, Pencil, Trash2 } from 'lucide-react';
+import { Users, Plus, Copy, Pencil, Trash2, Search } from 'lucide-react';
+import { Input } from '@/components/ui/input';
 import CreateClientDialog from '@/components/clients/CreateClientDialog';
 import EditClientDialog from '@/components/clients/EditClientDialog';
 import {
@@ -26,6 +27,7 @@ const CRM = () => {
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [selectedClient, setSelectedClient] = useState<any>(null);
   const [deleteClientId, setDeleteClientId] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
   const { toast } = useToast();
   const queryClient = useQueryClient();
   
@@ -97,6 +99,16 @@ Fee Rule: ${client.client_rules?.[0]?.fee_rule || 'N/A'}
     setDeleteClientId(clientId);
   };
 
+  const filteredClients = clients?.filter((client) => {
+    const query = searchQuery.toLowerCase();
+    return (
+      client.name?.toLowerCase().includes(query) ||
+      client.contact_name?.toLowerCase().includes(query) ||
+      client.phone?.toLowerCase().includes(query) ||
+      client.address?.toLowerCase().includes(query)
+    );
+  });
+
   return (
     <Layout>
       <div className="space-y-6">
@@ -113,10 +125,21 @@ Fee Rule: ${client.client_rules?.[0]?.fee_rule || 'N/A'}
 
         <Card>
           <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Users className="h-5 w-5" />
-              Client List
-            </CardTitle>
+            <div className="flex items-center justify-between">
+              <CardTitle className="flex items-center gap-2">
+                <Users className="h-5 w-5" />
+                Client List
+              </CardTitle>
+              <div className="relative w-72">
+                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  placeholder="Search clients..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="pl-10"
+                />
+              </div>
+            </div>
           </CardHeader>
           <CardContent>
             <Table>
@@ -136,8 +159,8 @@ Fee Rule: ${client.client_rules?.[0]?.fee_rule || 'N/A'}
                   <TableRow>
                     <TableCell colSpan={7} className="text-center">Loading...</TableCell>
                   </TableRow>
-                ) : clients && clients.length > 0 ? (
-                  clients.map((client) => (
+                ) : filteredClients && filteredClients.length > 0 ? (
+                  filteredClients.map((client) => (
                     <TableRow key={client.id}>
                       <TableCell className="font-medium">{client.name}</TableCell>
                       <TableCell>
