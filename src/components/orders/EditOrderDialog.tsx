@@ -256,12 +256,15 @@ export default function EditOrderDialog({ order, open, onOpenChange }: EditOrder
 
                 <div className="space-y-2">
                   <Label>Assign Driver</Label>
-                  <Select value={formData.driver_id} onValueChange={(value) => setFormData({ ...formData, driver_id: value })}>
+                  <Select 
+                    value={formData.driver_id || "unassigned"} 
+                    onValueChange={(value) => setFormData({ ...formData, driver_id: value === "unassigned" ? null : value })}
+                  >
                     <SelectTrigger>
                       <SelectValue placeholder="Select driver..." />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="">No Driver</SelectItem>
+                      <SelectItem value="unassigned">No Driver</SelectItem>
                       {drivers.map((driver) => (
                         <SelectItem key={driver.id} value={driver.id}>
                           {driver.name}
