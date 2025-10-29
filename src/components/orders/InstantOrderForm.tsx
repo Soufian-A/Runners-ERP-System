@@ -143,14 +143,12 @@ export function InstantOrderForm() {
     tabIndex?: number;
   }) => {
     const [open, setOpen] = useState(false);
-    const [highlightedIndex, setHighlightedIndex] = useState(0);
+    const [searchTerm, setSearchTerm] = useState("");
     const selected = items.find((item) => item.id === value);
 
-    const handleSelect = (id: string) => {
-      onSelect(id);
-      setOpen(false);
-      setHighlightedIndex(0);
-    };
+    const filteredItems = items.filter((item) =>
+      item.name.toLowerCase().includes(searchTerm.toLowerCase())
+    );
 
     return (
       <Popover open={open} onOpenChange={setOpen}>
@@ -160,11 +158,9 @@ export function InstantOrderForm() {
             className="w-full justify-between h-8 text-xs"
             tabIndex={tabIndex}
             onKeyDown={(e) => {
-              if (e.key === 'Enter' || e.key === 'Tab') {
-                if (!open) {
-                  e.preventDefault();
-                  setOpen(true);
-                }
+              if (e.key === 'Enter') {
+                e.preventDefault();
+                setOpen(!open);
               }
             }}
           >
@@ -173,25 +169,36 @@ export function InstantOrderForm() {
           </Button>
         </PopoverTrigger>
         <PopoverContent className="w-[200px] p-0 bg-popover z-50">
-          <Command
-            onKeyDown={(e) => {
-              if (e.key === 'Tab') {
-                e.preventDefault();
-                if (items.length > 0) {
-                  handleSelect(items[highlightedIndex]?.id || items[0].id);
+          <Command shouldFilter={false}>
+            <CommandInput 
+              placeholder="Search..." 
+              value={searchTerm}
+              onValueChange={setSearchTerm}
+              onKeyDown={(e) => {
+                if (e.key === 'Tab' && filteredItems.length > 0) {
+                  e.preventDefault();
+                  onSelect(filteredItems[0].id);
+                  setOpen(false);
+                  setSearchTerm("");
+                  // Let tab continue to next field
+                  setTimeout(() => {
+                    const nextElement = document.activeElement?.closest('tr')?.querySelector(`[tabindex="${(tabIndex || 0) + 1}"]`) as HTMLElement;
+                    nextElement?.focus();
+                  }, 0);
                 }
-              }
-            }}
-          >
-            <CommandInput placeholder="Search..." />
+              }}
+            />
             <CommandList>
               <CommandEmpty>No results found.</CommandEmpty>
               <CommandGroup>
-                {items.map((item, index) => (
+                {filteredItems.map((item) => (
                   <CommandItem
                     key={item.id}
-                    onSelect={() => handleSelect(item.id)}
-                    onMouseEnter={() => setHighlightedIndex(index)}
+                    onSelect={() => {
+                      onSelect(item.id);
+                      setOpen(false);
+                      setSearchTerm("");
+                    }}
                   >
                     <Check className={cn("mr-2 h-4 w-4", value === item.id ? "opacity-100" : "opacity-0")} />
                     {item.name}
@@ -208,18 +215,10 @@ export function InstantOrderForm() {
   const AddressField = ({ row, tabIndex }: { row: NewOrderRow; tabIndex?: number }) => {
     const [open, setOpen] = useState(false);
     const [searchValue, setSearchValue] = useState("");
-    const [highlightedIndex, setHighlightedIndex] = useState(0);
 
     const filteredAddresses = addresses.filter((addr) => 
       (addr as string).toLowerCase().includes(searchValue.toLowerCase())
     );
-
-    const handleSelect = (address: string) => {
-      updateRow(row.id, "address", address);
-      setOpen(false);
-      setSearchValue("");
-      setHighlightedIndex(0);
-    };
 
     return (
       <Popover open={open} onOpenChange={setOpen}>
@@ -229,11 +228,9 @@ export function InstantOrderForm() {
             className="w-full justify-between h-8 text-xs"
             tabIndex={tabIndex}
             onKeyDown={(e) => {
-              if (e.key === 'Enter' || e.key === 'Tab') {
-                if (!open) {
-                  e.preventDefault();
-                  setOpen(true);
-                }
+              if (e.key === 'Enter') {
+                e.preventDefault();
+                setOpen(!open);
               }
             }}
           >
@@ -242,30 +239,41 @@ export function InstantOrderForm() {
           </Button>
         </PopoverTrigger>
         <PopoverContent className="w-[200px] p-0 bg-popover z-50">
-          <Command 
-            shouldFilter={false}
-            onKeyDown={(e) => {
-              if (e.key === 'Tab') {
-                e.preventDefault();
-                if (filteredAddresses.length > 0) {
-                  handleSelect(filteredAddresses[highlightedIndex] as string || filteredAddresses[0] as string);
-                } else if (searchValue) {
-                  handleSelect(searchValue);
-                }
-              }
-            }}
-          >
+          <Command shouldFilter={false}>
             <CommandInput 
               placeholder="Type address..." 
               value={searchValue}
               onValueChange={setSearchValue}
+              onKeyDown={(e) => {
+                if (e.key === 'Tab') {
+                  e.preventDefault();
+                  const addressToUse = filteredAddresses.length > 0 
+                    ? filteredAddresses[0] as string 
+                    : searchValue;
+                  
+                  if (addressToUse) {
+                    updateRow(row.id, "address", addressToUse);
+                    setOpen(false);
+                    setSearchValue("");
+                    // Let tab continue to next field
+                    setTimeout(() => {
+                      const nextElement = document.activeElement?.closest('tr')?.querySelector(`[tabindex="${(tabIndex || 0) + 1}"]`) as HTMLElement;
+                      nextElement?.focus();
+                    }, 0);
+                  }
+                }
+              }}
             />
             <CommandList>
               <CommandEmpty>
                 <Button 
                   variant="ghost" 
                   className="w-full text-xs" 
-                  onClick={() => handleSelect(searchValue)}
+                  onClick={() => {
+                    updateRow(row.id, "address", searchValue);
+                    setOpen(false);
+                    setSearchValue("");
+                  }}
                 >
                   Use "{searchValue}"
                 </Button>
@@ -274,8 +282,11 @@ export function InstantOrderForm() {
                 {filteredAddresses.map((address, idx) => (
                   <CommandItem
                     key={idx}
-                    onSelect={() => handleSelect(address as string)}
-                    onMouseEnter={() => setHighlightedIndex(idx)}
+                    onSelect={() => {
+                      updateRow(row.id, "address", address as string);
+                      setOpen(false);
+                      setSearchValue("");
+                    }}
                   >
                     <Check className={cn("mr-2 h-4 w-4", row.address === address ? "opacity-100" : "opacity-0")} />
                     {address}
