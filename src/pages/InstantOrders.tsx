@@ -187,7 +187,7 @@ const InstantOrders = () => {
                     <TableCell>{order.clients?.name}</TableCell>
                     <TableCell>{order.drivers?.name || "-"}</TableCell>
                     <TableCell className="max-w-[200px] truncate">{order.address}</TableCell>
-                    <TableCell>{order.delivery_fee_lbp?.toLocaleString() || "0"}</TableCell>
+                    <TableCell>LBP {order.delivery_fee_lbp?.toLocaleString() || "0"}</TableCell>
                     <TableCell>${order.delivery_fee_usd?.toFixed(2) || "0.00"}</TableCell>
                     <TableCell className="max-w-[150px] truncate">{order.notes || "-"}</TableCell>
                     <TableCell onClick={(e) => e.stopPropagation()}>{getStatusBadge(order.status)}</TableCell>
