@@ -209,32 +209,27 @@ export function EcomOrderForm() {
   };
 
   const CustomerPhoneField = ({ row }: { row: NewOrderRow }) => {
-    const handlePhoneChange = (value: string) => {
-      // Auto-fill if matching customer found
-      const matchingCustomer = customers.find((c) => c.phone === value);
-      
+    const handlePhoneBlur = () => {
+      // Auto-fill when user finishes typing (on blur)
+      const matchingCustomer = customers.find((c) => c.phone === row.customer_phone);
       if (matchingCustomer) {
-        // Batch all updates together
         setNewRows(newRows.map((r) => 
           r.id === row.id 
             ? { 
                 ...r, 
-                customer_phone: value,
-                customer_name: matchingCustomer.name || "",
-                customer_address: matchingCustomer.address || ""
+                customer_name: matchingCustomer.name || r.customer_name,
+                customer_address: matchingCustomer.address || r.customer_address
               }
             : r
         ));
-      } else {
-        // Just update phone if no match
-        updateRow(row.id, "customer_phone", value);
       }
     };
 
     return (
       <Input 
         value={row.customer_phone} 
-        onChange={(e) => handlePhoneChange(e.target.value)} 
+        onChange={(e) => updateRow(row.id, "customer_phone", e.target.value)}
+        onBlur={handlePhoneBlur}
         className="h-8 text-xs" 
         placeholder="Phone..."
       />
