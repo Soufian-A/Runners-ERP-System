@@ -21,7 +21,6 @@ type NewOrderRow = {
   total_with_delivery_usd: string;
   delivery_fee_usd: string;
   amount_due_to_client_usd: string;
-  prepaid_by_driver: boolean;
   prepaid_by_company: boolean;
 };
 
@@ -45,7 +44,6 @@ export function EcomOrderForm() {
       total_with_delivery_usd: "",
       delivery_fee_usd: "",
       amount_due_to_client_usd: "",
-      prepaid_by_driver: false,
       prepaid_by_company: false,
     },
   ]);
@@ -81,7 +79,6 @@ export function EcomOrderForm() {
         total_with_delivery_usd: "",
         delivery_fee_usd: "",
         amount_due_to_client_usd: "",
-        prepaid_by_driver: false,
         prepaid_by_company: false,
       },
     ]);
@@ -159,7 +156,7 @@ export function EcomOrderForm() {
         delivery_fee_usd: deliveryFee,
         amount_due_to_client_usd: amountDue,
         client_fee_rule: client.client_rules?.[0]?.fee_rule || "ADD_ON",
-        prepaid_by_runners: rowData.prepaid_by_driver,
+        prepaid_by_runners: rowData.prepaid_by_company,
         prepaid_by_company: rowData.prepaid_by_company,
         status: "New",
         address: rowData.customer_address || "",
@@ -324,13 +321,11 @@ export function EcomOrderForm() {
                   />
                 </TableCell>
                 <TableCell>
-                  <div className="flex gap-1 items-center">
-                    <Checkbox checked={row.prepaid_by_driver} onCheckedChange={(checked) => updateRow(row.id, "prepaid_by_driver", checked)} title="Driver" />
-                    <span className="text-xs text-muted-foreground">D</span>
+                  <div className="flex gap-1 items-center justify-center">
                     <Checkbox
                       checked={row.prepaid_by_company}
                       onCheckedChange={(checked) => updateRow(row.id, "prepaid_by_company", checked)}
-                      title="Company"
+                      title="Prepaid by Company"
                     />
                     <span className="text-xs text-muted-foreground">C</span>
                   </div>
