@@ -155,14 +155,12 @@ const EcomOrders = () => {
               <TableHeader>
                 <TableRow>
                   <TableHead className="w-[50px]"></TableHead>
-                  <TableHead>Order ID</TableHead>
                   <TableHead>Voucher</TableHead>
                   <TableHead>Client</TableHead>
                   <TableHead>Customer</TableHead>
                   <TableHead>Address</TableHead>
                   <TableHead>Amount</TableHead>
                   <TableHead>Status</TableHead>
-                  <TableHead>Date</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -178,9 +176,8 @@ const EcomOrders = () => {
                         setDialogOpen(true);
                       }}
                     >
-                      {order.order_id}
+                      {order.voucher_no || "-"}
                     </TableCell>
-                    <TableCell>{order.voucher_no || "-"}</TableCell>
                     <TableCell>{order.clients?.name}</TableCell>
                     <TableCell>
                       {order.customers ? (
@@ -195,7 +192,6 @@ const EcomOrders = () => {
                     <TableCell className="max-w-[200px] truncate">{order.address}</TableCell>
                     <TableCell>${order.order_amount_usd.toFixed(2)}</TableCell>
                     <TableCell>{getStatusBadge(order.status)}</TableCell>
-                    <TableCell>{new Date(order.created_at).toLocaleDateString()}</TableCell>
                   </TableRow>
                 ))}
               </TableBody>
