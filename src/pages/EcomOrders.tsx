@@ -161,6 +161,7 @@ const EcomOrders = () => {
                   <TableHead>Address</TableHead>
                   <TableHead>Amount</TableHead>
                   <TableHead>Status</TableHead>
+                  <TableHead>Created</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -192,6 +193,14 @@ const EcomOrders = () => {
                     <TableCell className="max-w-[200px] truncate">{order.address}</TableCell>
                     <TableCell>${order.order_amount_usd.toFixed(2)}</TableCell>
                     <TableCell>{getStatusBadge(order.status)}</TableCell>
+                    <TableCell className="text-xs">
+                      {new Date(order.created_at).toLocaleString('en-US', { 
+                        month: 'short', 
+                        day: 'numeric', 
+                        hour: '2-digit', 
+                        minute: '2-digit' 
+                      })}
+                    </TableCell>
                   </TableRow>
                 ))}
               </TableBody>
