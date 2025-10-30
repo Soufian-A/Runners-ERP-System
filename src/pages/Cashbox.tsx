@@ -3,12 +3,18 @@ import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import Layout from '@/components/Layout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { DollarSign } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Plus, Minus, HandCoins } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import CashboxTransactionDialog from '@/components/cashbox/CashboxTransactionDialog';
+import GiveDriverCashDialog from '@/components/cashbox/GiveDriverCashDialog';
 
 const Cashbox = () => {
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
+  const [addCapitalOpen, setAddCapitalOpen] = useState(false);
+  const [withdrawCapitalOpen, setWithdrawCapitalOpen] = useState(false);
+  const [giveDriverCashOpen, setGiveDriverCashOpen] = useState(false);
 
   const { data: cashbox, isLoading } = useQuery({
     queryKey: ['cashbox', selectedDate],
@@ -31,14 +37,30 @@ const Cashbox = () => {
           <p className="text-muted-foreground mt-1">Daily cash flow management</p>
         </div>
 
-        <div className="w-64">
-          <Label htmlFor="date">Select Date</Label>
-          <Input
-            id="date"
-            type="date"
-            value={selectedDate}
-            onChange={(e) => setSelectedDate(e.target.value)}
-          />
+        <div className="flex justify-between items-end">
+          <div className="w-64">
+            <Label htmlFor="date">Select Date</Label>
+            <Input
+              id="date"
+              type="date"
+              value={selectedDate}
+              onChange={(e) => setSelectedDate(e.target.value)}
+            />
+          </div>
+          <div className="flex gap-2">
+            <Button onClick={() => setAddCapitalOpen(true)} variant="default">
+              <Plus className="mr-2 h-4 w-4" />
+              Add Capital
+            </Button>
+            <Button onClick={() => setWithdrawCapitalOpen(true)} variant="outline">
+              <Minus className="mr-2 h-4 w-4" />
+              Withdraw Capital
+            </Button>
+            <Button onClick={() => setGiveDriverCashOpen(true)} variant="secondary">
+              <HandCoins className="mr-2 h-4 w-4" />
+              Give Driver Cash
+            </Button>
+          </div>
         </div>
 
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
@@ -141,6 +163,24 @@ const Cashbox = () => {
           </Card>
         )}
       </div>
+
+      <CashboxTransactionDialog
+        open={addCapitalOpen}
+        onOpenChange={setAddCapitalOpen}
+        date={selectedDate}
+        type="in"
+      />
+      <CashboxTransactionDialog
+        open={withdrawCapitalOpen}
+        onOpenChange={setWithdrawCapitalOpen}
+        date={selectedDate}
+        type="out"
+      />
+      <GiveDriverCashDialog
+        open={giveDriverCashOpen}
+        onOpenChange={setGiveDriverCashOpen}
+        date={selectedDate}
+      />
     </Layout>
   );
 };
