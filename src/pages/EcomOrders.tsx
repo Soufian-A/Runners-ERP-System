@@ -169,6 +169,7 @@ const EcomOrders = () => {
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
                     className="pl-8 w-[350px]"
+                    autoFocus
                   />
                 </div>
                 {filteredOrders && filteredOrders.length > 0 && (
