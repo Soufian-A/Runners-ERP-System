@@ -189,6 +189,7 @@ export function EcomOrderForm() {
     placeholder: string;
   }) => {
     const [open, setOpen] = useState(false);
+    const [searchValue, setSearchValue] = useState("");
     const selected = items.find((item) => item.id === value);
 
     return (
@@ -198,7 +199,12 @@ export function EcomOrderForm() {
             variant="outline" 
             className="w-full justify-between h-8 text-xs"
             onKeyDown={(e) => {
-              if (e.key === 'Enter' || e.key === ' ') {
+              // Allow typing to open the dropdown
+              if (e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey) {
+                e.preventDefault();
+                setSearchValue(e.key);
+                setOpen(true);
+              } else if (e.key === 'Enter' || e.key === ' ') {
                 e.preventDefault();
                 setOpen(true);
               }
@@ -212,7 +218,12 @@ export function EcomOrderForm() {
           e.preventDefault();
           const target = e.currentTarget as HTMLElement;
           const input = target.querySelector('input');
-          input?.focus();
+          if (input) {
+            input.value = searchValue;
+            input.focus();
+            // Trigger the input event so Command recognizes the value
+            input.dispatchEvent(new Event('input', { bubbles: true }));
+          }
         }}>
           <Command>
             <CommandInput placeholder="Search..." />
@@ -225,6 +236,7 @@ export function EcomOrderForm() {
                     onSelect={() => {
                       onSelect(item.id);
                       setOpen(false);
+                      setSearchValue("");
                     }}
                   >
                     <Check className={cn("mr-2 h-4 w-4", value === item.id ? "opacity-100" : "opacity-0")} />
