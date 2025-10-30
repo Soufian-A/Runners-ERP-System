@@ -167,6 +167,7 @@ export function EcomOrderForm() {
     },
     onSuccess: (rowId) => {
       queryClient.invalidateQueries({ queryKey: ["orders"] });
+      queryClient.invalidateQueries({ queryKey: ["ecom-orders"] });
       queryClient.invalidateQueries({ queryKey: ["customers"] });
       toast.success("Order created");
       setNewRows(newRows.filter((r) => r.id !== rowId));
