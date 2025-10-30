@@ -25,6 +25,13 @@ type NewOrderRow = {
   prepaid_by_company: boolean;
 };
 
+type Customer = {
+  id: string;
+  phone: string;
+  name: string | null;
+  address: string | null;
+};
+
 export function EcomOrderForm() {
   const queryClient = useQueryClient();
   const [newRows, setNewRows] = useState<NewOrderRow[]>([
@@ -208,33 +215,6 @@ export function EcomOrderForm() {
     );
   };
 
-  const CustomerPhoneField = ({ row }: { row: NewOrderRow }) => {
-    const handlePhoneBlur = () => {
-      // Auto-fill when user finishes typing (on blur)
-      const matchingCustomer = customers.find((c) => c.phone === row.customer_phone);
-      if (matchingCustomer) {
-        setNewRows((prevRows) => prevRows.map((r) => 
-          r.id === row.id 
-            ? { 
-                ...r, 
-                customer_name: matchingCustomer.name || r.customer_name,
-                customer_address: matchingCustomer.address || r.customer_address
-              }
-            : r
-        ));
-      }
-    };
-
-    return (
-      <Input 
-        value={row.customer_phone} 
-        onChange={(e) => updateRow(row.id, "customer_phone", e.target.value)}
-        onBlur={handlePhoneBlur}
-        className="h-8 text-xs" 
-        placeholder="Phone..."
-      />
-    );
-  };
 
   return (
     <div className="space-y-2">
@@ -272,7 +252,28 @@ export function EcomOrderForm() {
                   <ComboboxField value={row.client_id} onSelect={(id) => updateRow(row.id, "client_id", id)} items={clients} placeholder="Client" />
                 </TableCell>
                 <TableCell>
-                  <CustomerPhoneField row={row} />
+                  <Input 
+                    value={row.customer_phone} 
+                    onChange={(e) => {
+                      updateRow(row.id, "customer_phone", e.target.value);
+                    }}
+                    onBlur={() => {
+                      const matchingCustomer = customers.find((c) => c.phone === row.customer_phone);
+                      if (matchingCustomer) {
+                        setNewRows((prevRows) => prevRows.map((r) => 
+                          r.id === row.id 
+                            ? { 
+                                ...r, 
+                                customer_name: matchingCustomer.name || r.customer_name,
+                                customer_address: matchingCustomer.address || r.customer_address
+                              }
+                            : r
+                        ));
+                      }
+                    }}
+                    className="h-8 text-xs" 
+                    placeholder="Phone..."
+                  />
                 </TableCell>
                 <TableCell>
                   <Input value={row.customer_name} onChange={(e) => updateRow(row.id, "customer_name", e.target.value)} className="h-8 text-xs" />
