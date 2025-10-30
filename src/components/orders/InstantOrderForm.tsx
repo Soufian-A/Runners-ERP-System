@@ -9,6 +9,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Check, ChevronsUpDown, Plus } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Checkbox } from "@/components/ui/checkbox";
 
 type NewOrderRow = {
   id: string;
@@ -20,6 +21,7 @@ type NewOrderRow = {
   delivery_fee_usd: string;
   delivery_fee_lbp: string;
   notes: string;
+  driver_paid_for_client: boolean;
 };
 
 export function InstantOrderForm() {
@@ -35,6 +37,7 @@ export function InstantOrderForm() {
       delivery_fee_usd: "",
       delivery_fee_lbp: "",
       notes: "",
+      driver_paid_for_client: false,
     },
   ]);
 
@@ -81,6 +84,7 @@ export function InstantOrderForm() {
         delivery_fee_usd: "",
         delivery_fee_lbp: "",
         notes: "",
+        driver_paid_for_client: false,
       },
     ]);
   };
@@ -98,7 +102,7 @@ export function InstantOrderForm() {
       const timestamp = Date.now().toString().slice(-6);
       const order_id = `${prefix}-${timestamp}`;
 
-      const { error } = await supabase.from("orders").insert({
+      const orderData: any = {
         order_id,
         order_type: "instant",
         client_id: rowData.client_id,
@@ -113,7 +117,19 @@ export function InstantOrderForm() {
         status: "New",
         address: rowData.address,
         notes: rowData.notes || null,
-      });
+        driver_paid_for_client: rowData.driver_paid_for_client,
+      };
+
+      // If driver paid for client, set the paid amounts based on order amounts
+      if (rowData.driver_paid_for_client) {
+        orderData.driver_paid_amount_usd = parseFloat(rowData.order_amount_usd) || 0;
+        orderData.driver_paid_amount_lbp = parseFloat(rowData.order_amount_lbp) || 0;
+        if (rowData.notes) {
+          orderData.driver_paid_reason = rowData.notes;
+        }
+      }
+
+      const { error } = await supabase.from("orders").insert(orderData);
 
       if (error) throw error;
       return rowData.id;
@@ -136,6 +152,7 @@ export function InstantOrderForm() {
             delivery_fee_usd: "",
             delivery_fee_lbp: "",
             notes: "",
+            driver_paid_for_client: false,
           }];
         }
         return filtered;
@@ -345,6 +362,7 @@ export function InstantOrderForm() {
               <TableHead className="w-[90px]">Fee USD</TableHead>
               <TableHead className="w-[90px]">Fee LBP</TableHead>
               <TableHead className="w-[150px]">Notes</TableHead>
+              <TableHead className="w-[80px]">Driver Paid</TableHead>
               <TableHead className="w-[80px]">Action</TableHead>
             </TableRow>
           </TableHeader>
@@ -423,12 +441,22 @@ export function InstantOrderForm() {
                     />
                   </TableCell>
                   <TableCell>
+                    <div className="flex justify-center">
+                      <Checkbox 
+                        checked={row.driver_paid_for_client}
+                        onCheckedChange={(checked) => updateRow(row.id, "driver_paid_for_client", checked)}
+                        title="Driver paid for client"
+                        tabIndex={baseTabIndex + 9}
+                      />
+                    </div>
+                  </TableCell>
+                  <TableCell>
                     <Button 
                       size="sm" 
                       onClick={() => createOrderMutation.mutate(row)} 
                       disabled={!row.client_id || !row.address} 
                       className="h-8 text-xs"
-                      tabIndex={baseTabIndex + 9}
+                      tabIndex={baseTabIndex + 10}
                     >
                       Save
                     </Button>
