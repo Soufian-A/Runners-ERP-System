@@ -357,10 +357,10 @@ export function InstantOrderForm() {
               <TableHead className="w-[150px]">Client</TableHead>
               <TableHead className="w-[180px]">Address</TableHead>
               <TableHead className="w-[150px]">Driver</TableHead>
-              <TableHead className="w-[100px]">Amount USD</TableHead>
               <TableHead className="w-[100px]">Amount LBP</TableHead>
-              <TableHead className="w-[90px]">Fee USD</TableHead>
+              <TableHead className="w-[100px]">Amount USD</TableHead>
               <TableHead className="w-[90px]">Fee LBP</TableHead>
+              <TableHead className="w-[90px]">Fee USD</TableHead>
               <TableHead className="w-[150px]">Notes</TableHead>
               <TableHead className="w-[80px]">Driver Paid</TableHead>
               <TableHead className="w-[80px]">Action</TableHead>
@@ -395,9 +395,9 @@ export function InstantOrderForm() {
                   <TableCell>
                     <Input
                       type="number"
-                      step="0.01"
-                      value={row.order_amount_usd}
-                      onChange={(e) => updateRow(row.id, "order_amount_usd", e.target.value)}
+                      step="1"
+                      value={row.order_amount_lbp}
+                      onChange={(e) => updateRow(row.id, "order_amount_lbp", e.target.value)}
                       className="h-8 text-xs"
                       tabIndex={baseTabIndex + 4}
                     />
@@ -405,21 +405,11 @@ export function InstantOrderForm() {
                   <TableCell>
                     <Input
                       type="number"
-                      step="1"
-                      value={row.order_amount_lbp}
-                      onChange={(e) => updateRow(row.id, "order_amount_lbp", e.target.value)}
+                      step="0.01"
+                      value={row.order_amount_usd}
+                      onChange={(e) => updateRow(row.id, "order_amount_usd", e.target.value)}
                       className="h-8 text-xs"
                       tabIndex={baseTabIndex + 5}
-                    />
-                  </TableCell>
-                  <TableCell>
-                    <Input
-                      type="number"
-                      step="0.01"
-                      value={row.delivery_fee_usd}
-                      onChange={(e) => updateRow(row.id, "delivery_fee_usd", e.target.value)}
-                      className="h-8 text-xs"
-                      tabIndex={baseTabIndex + 6}
                     />
                   </TableCell>
                   <TableCell>
@@ -428,6 +418,16 @@ export function InstantOrderForm() {
                       step="1"
                       value={row.delivery_fee_lbp}
                       onChange={(e) => updateRow(row.id, "delivery_fee_lbp", e.target.value)}
+                      className="h-8 text-xs"
+                      tabIndex={baseTabIndex + 6}
+                    />
+                  </TableCell>
+                  <TableCell>
+                    <Input
+                      type="number"
+                      step="0.01"
+                      value={row.delivery_fee_usd}
+                      onChange={(e) => updateRow(row.id, "delivery_fee_usd", e.target.value)}
                       className="h-8 text-xs"
                       tabIndex={baseTabIndex + 7}
                     />
