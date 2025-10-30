@@ -98,7 +98,6 @@ const InstantOrders = () => {
       return (
         order.clients?.name?.toLowerCase().includes(query) ||
         order.drivers?.name?.toLowerCase().includes(query) ||
-        order.voucher_no?.toLowerCase().includes(query) ||
         order.order_id?.toLowerCase().includes(query) ||
         order.address?.toLowerCase().includes(query) ||
         order.notes?.toLowerCase().includes(query)
@@ -172,7 +171,7 @@ const InstantOrders = () => {
                 <div className="relative">
                   <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
                   <Input
-                    placeholder="Search by client, driver, voucher, address..."
+                    placeholder="Search by client, driver, address, notes..."
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
                     className="pl-8 w-[350px]"

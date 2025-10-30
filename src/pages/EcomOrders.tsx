@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import Layout from "@/components/Layout";
@@ -9,7 +9,8 @@ import { EcomOrderForm } from "@/components/orders/EcomOrderForm";
 import { BulkActionsBar } from "@/components/orders/BulkActionsBar";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Button } from "@/components/ui/button";
-import { LayoutGrid, List } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { LayoutGrid, List, Search } from "lucide-react";
 import EditOrderDialog from "@/components/orders/EditOrderDialog";
 import CreateOrderDialog from "@/components/orders/CreateOrderDialog";
 
@@ -42,6 +43,7 @@ const EcomOrders = () => {
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [viewMode, setViewMode] = useState<"quick" | "form">("quick");
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
 
   const { data: orders, isLoading } = useQuery({
     queryKey: ["ecom-orders"],
@@ -86,6 +88,21 @@ const EcomOrders = () => {
     };
   }, [queryClient]);
 
+  const filteredOrders = useMemo(() => {
+    if (!orders || !searchQuery.trim()) return orders;
+    
+    const query = searchQuery.toLowerCase();
+    return orders.filter((order) => {
+      return (
+        order.clients?.name?.toLowerCase().includes(query) ||
+        order.voucher_no?.toLowerCase().includes(query) ||
+        order.customers?.name?.toLowerCase().includes(query) ||
+        order.customers?.phone?.toLowerCase().includes(query) ||
+        order.address?.toLowerCase().includes(query)
+      );
+    });
+  }, [orders, searchQuery]);
+
   const getStatusBadge = (status: string) => {
     const variants: Record<string, "default" | "secondary" | "destructive" | "outline"> = {
       New: "secondary",
@@ -99,7 +116,7 @@ const EcomOrders = () => {
   };
 
   const toggleSelectAll = () => {
-    const allIds = orders?.map((o) => o.id) || [];
+    const allIds = filteredOrders?.map((o) => o.id) || [];
     if (allIds.every((id) => selectedIds.includes(id))) {
       setSelectedIds([]);
     } else {
@@ -144,12 +161,23 @@ const EcomOrders = () => {
           <CardContent className="p-6">
             <div className="flex justify-between items-center mb-4">
               <h3 className="text-lg font-semibold">All E-commerce Orders</h3>
-              {orders && orders.length > 0 && (
-                <Checkbox
-                  checked={orders.every((o) => selectedIds.includes(o.id))}
-                  onCheckedChange={toggleSelectAll}
-                />
-              )}
+              <div className="flex items-center gap-2">
+                <div className="relative">
+                  <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    placeholder="Search by client, voucher, customer, address..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="pl-8 w-[350px]"
+                  />
+                </div>
+                {filteredOrders && filteredOrders.length > 0 && (
+                  <Checkbox
+                    checked={filteredOrders.every((o) => selectedIds.includes(o.id))}
+                    onCheckedChange={toggleSelectAll}
+                  />
+                )}
+              </div>
             </div>
             <Table>
               <TableHeader>
@@ -165,7 +193,7 @@ const EcomOrders = () => {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {orders?.map((order) => (
+                {filteredOrders?.map((order) => (
                   <TableRow key={order.id} className="hover:bg-muted/50">
                     <TableCell onClick={(e) => e.stopPropagation()}>
                       <Checkbox checked={selectedIds.includes(order.id)} onCheckedChange={() => toggleSelect(order.id)} />
