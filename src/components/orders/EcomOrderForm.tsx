@@ -321,13 +321,12 @@ export function EcomOrderForm() {
                   />
                 </TableCell>
                 <TableCell>
-                  <div className="flex gap-1 items-center justify-center">
+                  <div className="flex justify-center">
                     <Checkbox
                       checked={row.prepaid_by_company}
                       onCheckedChange={(checked) => updateRow(row.id, "prepaid_by_company", checked)}
                       title="Prepaid by Company"
                     />
-                    <span className="text-xs text-muted-foreground">C</span>
                   </div>
                 </TableCell>
                 <TableCell>
