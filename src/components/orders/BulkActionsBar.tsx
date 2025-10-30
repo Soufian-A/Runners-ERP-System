@@ -58,6 +58,19 @@ export function BulkActionsBar({ selectedIds, onClearSelection }: BulkActionsBar
 
   const updateStatusMutation = useMutation({
     mutationFn: async (status: string) => {
+      // Validate: Cannot mark as Delivered without a driver for any selected order
+      if (status === 'Delivered') {
+        const { data: orders } = await supabase
+          .from("orders")
+          .select("id, order_id, driver_id")
+          .in("id", selectedIds);
+        
+        const ordersWithoutDriver = orders?.filter(order => !order.driver_id) || [];
+        if (ordersWithoutDriver.length > 0) {
+          throw new Error(`Cannot mark orders as Delivered without assigning drivers. ${ordersWithoutDriver.length} order(s) have no driver assigned.`);
+        }
+      }
+      
       // First update the status
       const updateData: any = { status };
       if (status === 'Delivered') {

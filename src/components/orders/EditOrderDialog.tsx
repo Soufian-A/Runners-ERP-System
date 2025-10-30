@@ -94,6 +94,11 @@ export default function EditOrderDialog({ order, open, onOpenChange }: EditOrder
     mutationFn: async () => {
       const previousStatus = order.status;
       
+      // Validate: Cannot mark as Delivered without a driver
+      if (formData.status === 'Delivered' && !formData.driver_id) {
+        throw new Error('Cannot mark order as Delivered without assigning a driver');
+      }
+      
       // Prepare update data
       const updateData: any = {
         voucher_no: formData.voucher_no || null,

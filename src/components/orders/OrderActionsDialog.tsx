@@ -60,6 +60,12 @@ const OrderActionsDialog = ({ order, open, onOpenChange }: OrderActionsDialogPro
   const updateStatusMutation = useMutation({
     mutationFn: async (data: any) => {
       const previousStatus = order.status;
+      
+      // Validate: Cannot mark as Delivered without a driver
+      if (data.status === 'Delivered' && !order.driver_id) {
+        throw new Error('Cannot mark order as Delivered without assigning a driver');
+      }
+      
       const updateData: any = {
         status: data.status,
       };
