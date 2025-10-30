@@ -210,13 +210,24 @@ export function EcomOrderForm() {
 
   const CustomerPhoneField = ({ row }: { row: NewOrderRow }) => {
     const handlePhoneChange = (value: string) => {
-      updateRow(row.id, "customer_phone", value);
-      
       // Auto-fill if matching customer found
       const matchingCustomer = customers.find((c) => c.phone === value);
+      
       if (matchingCustomer) {
-        updateRow(row.id, "customer_name", matchingCustomer.name || "");
-        updateRow(row.id, "customer_address", matchingCustomer.address || "");
+        // Batch all updates together
+        setNewRows(newRows.map((r) => 
+          r.id === row.id 
+            ? { 
+                ...r, 
+                customer_phone: value,
+                customer_name: matchingCustomer.name || "",
+                customer_address: matchingCustomer.address || ""
+              }
+            : r
+        ));
+      } else {
+        // Just update phone if no match
+        updateRow(row.id, "customer_phone", value);
       }
     };
 
