@@ -81,7 +81,7 @@ export function EcomOrderForm() {
   };
 
   const updateRow = (id: string, field: keyof NewOrderRow, value: any) => {
-    setNewRows(newRows.map((row) => (row.id === id ? { ...row, [field]: value } : row)));
+    setNewRows((prevRows) => prevRows.map((row) => (row.id === id ? { ...row, [field]: value } : row)));
   };
 
   const createOrderMutation = useMutation({
@@ -213,7 +213,7 @@ export function EcomOrderForm() {
       // Auto-fill when user finishes typing (on blur)
       const matchingCustomer = customers.find((c) => c.phone === row.customer_phone);
       if (matchingCustomer) {
-        setNewRows(newRows.map((r) => 
+        setNewRows((prevRows) => prevRows.map((r) => 
           r.id === row.id 
             ? { 
                 ...r, 
