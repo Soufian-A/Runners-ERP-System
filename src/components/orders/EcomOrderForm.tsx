@@ -194,12 +194,26 @@ export function EcomOrderForm() {
     return (
       <Popover open={open} onOpenChange={setOpen}>
         <PopoverTrigger asChild>
-          <Button variant="outline" className="w-full justify-between h-8 text-xs">
+          <Button 
+            variant="outline" 
+            className="w-full justify-between h-8 text-xs"
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                setOpen(true);
+              }
+            }}
+          >
             {selected?.name || placeholder}
             <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
           </Button>
         </PopoverTrigger>
-        <PopoverContent className="w-[200px] p-0 bg-popover">
+        <PopoverContent className="w-[200px] p-0 bg-popover" onOpenAutoFocus={(e) => {
+          e.preventDefault();
+          const target = e.currentTarget as HTMLElement;
+          const input = target.querySelector('input');
+          input?.focus();
+        }}>
           <Command>
             <CommandInput placeholder="Search..." />
             <CommandList>
