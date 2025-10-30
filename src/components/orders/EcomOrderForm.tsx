@@ -209,52 +209,24 @@ export function EcomOrderForm() {
   };
 
   const CustomerPhoneField = ({ row }: { row: NewOrderRow }) => {
-    const [open, setOpen] = useState(false);
+    const handlePhoneChange = (value: string) => {
+      updateRow(row.id, "customer_phone", value);
+      
+      // Auto-fill if matching customer found
+      const matchingCustomer = customers.find((c) => c.phone === value);
+      if (matchingCustomer) {
+        updateRow(row.id, "customer_name", matchingCustomer.name || "");
+        updateRow(row.id, "customer_address", matchingCustomer.address || "");
+      }
+    };
 
     return (
-      <Popover open={open} onOpenChange={setOpen}>
-        <PopoverTrigger asChild>
-          <Button variant="outline" className="w-full justify-between h-8 text-xs">
-            {row.customer_phone || "Phone..."}
-            <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-          </Button>
-        </PopoverTrigger>
-        <PopoverContent className="w-[200px] p-0 bg-popover">
-          <Command>
-            <CommandInput
-              placeholder="Type phone..."
-              value={row.customer_phone}
-              onValueChange={(value) => updateRow(row.id, "customer_phone", value)}
-            />
-            <CommandList>
-              <CommandEmpty>
-                <Button variant="ghost" className="w-full text-xs" onClick={() => setOpen(false)}>
-                  Use "{row.customer_phone}"
-                </Button>
-              </CommandEmpty>
-              <CommandGroup>
-                {customers.map((customer) => (
-                  <CommandItem
-                    key={customer.id}
-                    onSelect={() => {
-                      updateRow(row.id, "customer_phone", customer.phone);
-                      updateRow(row.id, "customer_name", customer.name || "");
-                      updateRow(row.id, "customer_address", customer.address || "");
-                      setOpen(false);
-                    }}
-                  >
-                    <Check className={cn("mr-2 h-4 w-4", row.customer_phone === customer.phone ? "opacity-100" : "opacity-0")} />
-                    <div className="flex flex-col">
-                      <span className="text-xs">{customer.phone}</span>
-                      {customer.name && <span className="text-xs text-muted-foreground">{customer.name}</span>}
-                    </div>
-                  </CommandItem>
-                ))}
-              </CommandGroup>
-            </CommandList>
-          </Command>
-        </PopoverContent>
-      </Popover>
+      <Input 
+        value={row.customer_phone} 
+        onChange={(e) => handlePhoneChange(e.target.value)} 
+        className="h-8 text-xs" 
+        placeholder="Phone..."
+      />
     );
   };
 
