@@ -88,7 +88,20 @@ export function EcomOrderForm() {
   };
 
   const updateRow = (id: string, field: keyof NewOrderRow, value: any) => {
-    setNewRows((prevRows) => prevRows.map((row) => (row.id === id ? { ...row, [field]: value } : row)));
+    setNewRows((prevRows) => prevRows.map((row) => {
+      if (row.id !== id) return row;
+      
+      const updatedRow = { ...row, [field]: value };
+      
+      // Auto-calculate Due USD when total or delivery fee changes
+      if (field === "total_with_delivery_usd" || field === "delivery_fee_usd") {
+        const total = parseFloat(field === "total_with_delivery_usd" ? value : row.total_with_delivery_usd) || 0;
+        const deliveryFee = parseFloat(field === "delivery_fee_usd" ? value : row.delivery_fee_usd) || 0;
+        updatedRow.amount_due_to_client_usd = (total - deliveryFee).toString();
+      }
+      
+      return updatedRow;
+    }));
   };
 
   const createOrderMutation = useMutation({
@@ -306,16 +319,20 @@ export function EcomOrderForm() {
                     value={row.amount_due_to_client_usd}
                     onChange={(e) => updateRow(row.id, "amount_due_to_client_usd", e.target.value)}
                     className="h-8 text-xs"
+                    readOnly
+                    title="Auto-calculated: Total - Delivery Fee"
                   />
                 </TableCell>
                 <TableCell>
-                  <div className="flex gap-1">
+                  <div className="flex gap-1 items-center">
                     <Checkbox checked={row.prepaid_by_driver} onCheckedChange={(checked) => updateRow(row.id, "prepaid_by_driver", checked)} title="Driver" />
+                    <span className="text-xs text-muted-foreground">D</span>
                     <Checkbox
                       checked={row.prepaid_by_company}
                       onCheckedChange={(checked) => updateRow(row.id, "prepaid_by_company", checked)}
                       title="Company"
                     />
+                    <span className="text-xs text-muted-foreground">C</span>
                   </div>
                 </TableCell>
                 <TableCell>
