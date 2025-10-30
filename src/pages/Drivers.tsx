@@ -8,9 +8,10 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Truck, Plus, DollarSign, FileText } from 'lucide-react';
+import { Truck, Plus, DollarSign, FileText, ArrowDownLeft } from 'lucide-react';
 import CreateDriverDialog from '@/components/drivers/CreateDriverDialog';
 import DriverRemittanceDialog from '@/components/drivers/DriverRemittanceDialog';
+import TakeBackCashDialog from '@/components/drivers/TakeBackCashDialog';
 import { toast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
 
@@ -18,6 +19,7 @@ const Drivers = () => {
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [selectedDriver, setSelectedDriver] = useState<any>(null);
   const [viewStatementDriver, setViewStatementDriver] = useState<any>(null);
+  const [takeBackCashDriver, setTakeBackCashDriver] = useState<any>(null);
   const [dateFrom, setDateFrom] = useState(new Date().toISOString().split('T')[0]);
   const [dateTo, setDateTo] = useState(new Date().toISOString().split('T')[0]);
 
@@ -38,7 +40,7 @@ const Drivers = () => {
     queryFn: async () => {
       if (!viewStatementDriver?.id) return null;
       
-      // First get driver transactions
+      // Get all driver transactions
       const { data: transactions, error: txError } = await supabase
         .from('driver_transactions')
         .select('*')
@@ -55,26 +57,23 @@ const Drivers = () => {
         .map(tx => tx.order_ref)
         .filter(ref => ref !== null && ref !== undefined);
 
-      if (orderRefs.length === 0) return [];
+      // Fetch orders data if there are any order refs
+      let ordersMap = new Map();
+      if (orderRefs.length > 0) {
+        const { data: orders, error: ordersError } = await supabase
+          .from('orders')
+          .select('order_id, voucher_no, order_amount_usd, order_amount_lbp, delivery_fee_usd, delivery_fee_lbp, notes, clients(name)')
+          .in('order_id', orderRefs);
+        
+        if (ordersError) throw ordersError;
+        ordersMap = new Map(orders?.map(o => [o.order_id, o]) || []);
+      }
 
-      // Fetch orders data separately
-      const { data: orders, error: ordersError } = await supabase
-        .from('orders')
-        .select('order_id, voucher_no, order_amount_usd, order_amount_lbp, delivery_fee_usd, delivery_fee_lbp, notes, clients(name)')
-        .in('order_id', orderRefs);
-      
-      if (ordersError) throw ordersError;
-
-      // Create a map for quick lookup
-      const ordersMap = new Map(orders?.map(o => [o.order_id, o]) || []);
-
-      // Combine the data and filter out transactions where order no longer exists
-      return transactions
-        .map(tx => ({
-          ...tx,
-          order: ordersMap.get(tx.order_ref)
-        }))
-        .filter(tx => tx.order); // Only show transactions where order still exists
+      // Combine the data - include all transactions
+      return transactions.map(tx => ({
+        ...tx,
+        order: tx.order_ref ? ordersMap.get(tx.order_ref) : null
+      }));
     },
     enabled: !!viewStatementDriver?.id,
   });
@@ -168,6 +167,14 @@ const Drivers = () => {
                             <DollarSign className="mr-1 h-3 w-3" />
                             Remit
                           </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => setTakeBackCashDriver(driver)}
+                          >
+                            <ArrowDownLeft className="mr-1 h-3 w-3" />
+                            Take Cash
+                          </Button>
                         </div>
                       </TableCell>
                     </TableRow>
@@ -226,26 +233,32 @@ const Drivers = () => {
                       <TableHeader>
                         <TableRow>
                           <TableHead className="py-2">Date</TableHead>
+                          <TableHead className="py-2">Type</TableHead>
                           <TableHead className="py-2">Voucher #</TableHead>
-                          <TableHead className="py-2">Client Name</TableHead>
-                          <TableHead className="py-2">Order Amount USD</TableHead>
-                          <TableHead className="py-2">Order Amount LBP</TableHead>
-                          <TableHead className="py-2">Delivery Fee USD</TableHead>
-                          <TableHead className="py-2">Delivery Fee LBP</TableHead>
-                          <TableHead className="py-2">Notes</TableHead>
+                          <TableHead className="py-2">Client</TableHead>
+                          <TableHead className="py-2">Amount USD</TableHead>
+                          <TableHead className="py-2">Amount LBP</TableHead>
+                          <TableHead className="py-2">Note</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
                         {statementData.map((row: any) => (
                           <TableRow key={row.id}>
                             <TableCell className="py-1.5">{format(new Date(row.ts), 'MMM dd, yyyy HH:mm')}</TableCell>
+                            <TableCell className="py-1.5">
+                              <Badge variant={row.type === 'Credit' ? 'default' : 'secondary'}>
+                                {row.type}
+                              </Badge>
+                            </TableCell>
                             <TableCell className="py-1.5">{row.order?.voucher_no || '-'}</TableCell>
                             <TableCell className="py-1.5">{row.order?.clients?.name || '-'}</TableCell>
-                            <TableCell className="py-1.5">${Number(row.order?.order_amount_usd || 0).toFixed(2)}</TableCell>
-                            <TableCell className="py-1.5">{Number(row.order?.order_amount_lbp || 0).toLocaleString()} LBP</TableCell>
-                            <TableCell className="py-1.5">${Number(row.order?.delivery_fee_usd || 0).toFixed(2)}</TableCell>
-                            <TableCell className="py-1.5">{Number(row.order?.delivery_fee_lbp || 0).toLocaleString()} LBP</TableCell>
-                            <TableCell className="py-1.5 max-w-xs truncate">{row.order?.notes || '-'}</TableCell>
+                            <TableCell className={`py-1.5 ${row.type === 'Credit' ? 'text-green-600' : 'text-red-600'}`}>
+                              {row.type === 'Credit' ? '+' : '-'}${Number(row.amount_usd || 0).toFixed(2)}
+                            </TableCell>
+                            <TableCell className={`py-1.5 ${row.type === 'Credit' ? 'text-green-600' : 'text-red-600'}`}>
+                              {row.type === 'Credit' ? '+' : '-'}{Number(row.amount_lbp || 0).toLocaleString()} LBP
+                            </TableCell>
+                            <TableCell className="py-1.5 max-w-xs truncate">{row.note || row.order?.notes || '-'}</TableCell>
                           </TableRow>
                         ))}
                       </TableBody>
@@ -280,6 +293,14 @@ const Drivers = () => {
           driver={selectedDriver}
           open={!!selectedDriver}
           onOpenChange={(open) => !open && setSelectedDriver(null)}
+        />
+      )}
+
+      {takeBackCashDriver && (
+        <TakeBackCashDialog
+          driver={takeBackCashDriver}
+          open={!!takeBackCashDriver}
+          onOpenChange={(open) => !open && setTakeBackCashDriver(null)}
         />
       )}
     </Layout>
