@@ -398,7 +398,7 @@ export function InstantOrderForm() {
                       step="1"
                       value={row.order_amount_lbp}
                       onChange={(e) => updateRow(row.id, "order_amount_lbp", e.target.value)}
-                      className="h-8 text-xs"
+                      className="h-8 text-xs [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                       tabIndex={baseTabIndex + 4}
                     />
                   </TableCell>
@@ -408,7 +408,7 @@ export function InstantOrderForm() {
                       step="0.01"
                       value={row.order_amount_usd}
                       onChange={(e) => updateRow(row.id, "order_amount_usd", e.target.value)}
-                      className="h-8 text-xs"
+                      className="h-8 text-xs [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                       tabIndex={baseTabIndex + 5}
                     />
                   </TableCell>
@@ -418,7 +418,7 @@ export function InstantOrderForm() {
                       step="1"
                       value={row.delivery_fee_lbp}
                       onChange={(e) => updateRow(row.id, "delivery_fee_lbp", e.target.value)}
-                      className="h-8 text-xs"
+                      className="h-8 text-xs [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                       tabIndex={baseTabIndex + 6}
                     />
                   </TableCell>
@@ -428,7 +428,7 @@ export function InstantOrderForm() {
                       step="0.01"
                       value={row.delivery_fee_usd}
                       onChange={(e) => updateRow(row.id, "delivery_fee_usd", e.target.value)}
-                      className="h-8 text-xs"
+                      className="h-8 text-xs [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                       tabIndex={baseTabIndex + 7}
                     />
                   </TableCell>
