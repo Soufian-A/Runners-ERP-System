@@ -7,10 +7,10 @@ import { Button } from '@/components/ui/button';
 import { Plus, Minus, HandCoins, Receipt } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import CashboxTransactionDialog from '@/components/cashbox/CashboxTransactionDialog';
 import GiveDriverCashDialog from '@/components/cashbox/GiveDriverCashDialog';
 import AddExpenseDialog from '@/components/cashbox/AddExpenseDialog';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 
 const Cashbox = () => {
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
@@ -33,11 +33,11 @@ const Cashbox = () => {
   });
 
   const { data: expenses } = useQuery({
-    queryKey: ['daily_expenses', selectedDate],
+    queryKey: ['daily-expenses', selectedDate],
     queryFn: async () => {
       const { data, error } = await supabase
         .from('daily_expenses')
-        .select('*, expense_categories(name, category_group)')
+        .select('*, expense_categories(*)')
         .eq('date', selectedDate)
         .order('created_at', { ascending: false });
       if (error) throw error;
@@ -45,13 +45,12 @@ const Cashbox = () => {
     },
   });
 
-  // Calculate totals
-  const totalExpensesUsd = expenses?.reduce((sum, exp) => sum + Number(exp.amount_usd || 0), 0) || 0;
-  const totalExpensesLbp = expenses?.reduce((sum, exp) => sum + Number(exp.amount_lbp || 0), 0) || 0;
-  const revenueUsd = Number(cashbox?.cash_in_usd || 0) - Number(cashbox?.cash_out_usd || 0);
-  const revenueLbp = Number(cashbox?.cash_in_lbp || 0) - Number(cashbox?.cash_out_lbp || 0);
-  const profitUsd = revenueUsd - totalExpensesUsd;
-  const profitLbp = revenueLbp - totalExpensesLbp;
+  const totalExpensesUSD = expenses?.reduce((sum, exp) => sum + Number(exp.amount_usd || 0), 0) || 0;
+  const totalExpensesLBP = expenses?.reduce((sum, exp) => sum + Number(exp.amount_lbp || 0), 0) || 0;
+  const revenueUSD = Number(cashbox?.cash_in_usd || 0);
+  const revenueLBP = Number(cashbox?.cash_in_lbp || 0);
+  const profitUSD = revenueUSD - totalExpensesUSD;
+  const profitLBP = revenueLBP - totalExpensesLBP;
 
   return (
     <Layout>
@@ -84,7 +83,7 @@ const Cashbox = () => {
               <HandCoins className="mr-2 h-4 w-4" />
               Give Driver Cash
             </Button>
-            <Button onClick={() => setAddExpenseOpen(true)} variant="destructive">
+            <Button onClick={() => setAddExpenseOpen(true)} variant="secondary">
               <Receipt className="mr-2 h-4 w-4" />
               Add Expense
             </Button>
@@ -92,6 +91,72 @@ const Cashbox = () => {
         </div>
 
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+          <Card className="md:col-span-2">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium text-muted-foreground">Revenue USD</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-3xl font-bold text-green-600">
+                ${revenueUSD.toFixed(2)}
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="md:col-span-2">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium text-muted-foreground">Revenue LBP</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-3xl font-bold text-green-600">
+                {revenueLBP.toLocaleString()} LBP
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="md:col-span-2">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium text-muted-foreground">Total Expenses USD</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-3xl font-bold text-red-600">
+                ${totalExpensesUSD.toFixed(2)}
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="md:col-span-2">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium text-muted-foreground">Total Expenses LBP</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-3xl font-bold text-red-600">
+                {totalExpensesLBP.toLocaleString()} LBP
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="md:col-span-2">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium text-muted-foreground">Profit USD</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className={`text-3xl font-bold ${profitUSD >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                ${profitUSD.toFixed(2)}
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="md:col-span-2">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium text-muted-foreground">Profit LBP</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className={`text-3xl font-bold ${profitLBP >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                {profitLBP.toLocaleString()} LBP
+              </div>
+            </CardContent>
+          </Card>
+
           <Card>
             <CardHeader className="pb-2">
               <CardTitle className="text-sm font-medium text-muted-foreground">Opening Balance USD</CardTitle>
@@ -110,50 +175,6 @@ const Cashbox = () => {
             <CardContent>
               <div className="text-2xl font-bold">
                 {Number(cashbox?.opening_lbp || 0).toLocaleString()} LBP
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">Cash In USD</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-green-600">
-                +${Number(cashbox?.cash_in_usd || 0).toFixed(2)}
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">Cash In LBP</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-green-600">
-                +{Number(cashbox?.cash_in_lbp || 0).toLocaleString()} LBP
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">Cash Out USD</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-red-600">
-                -${Number(cashbox?.cash_out_usd || 0).toFixed(2)}
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">Cash Out LBP</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-red-600">
-                -{Number(cashbox?.cash_out_lbp || 0).toLocaleString()} LBP
               </div>
             </CardContent>
           </Card>
@@ -181,74 +202,6 @@ const Cashbox = () => {
           </Card>
         </div>
 
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">Revenue USD</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-blue-600">
-                ${revenueUsd.toFixed(2)}
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">Revenue LBP</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-blue-600">
-                {revenueLbp.toLocaleString()} LBP
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">Total Expenses USD</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-orange-600">
-                ${totalExpensesUsd.toFixed(2)}
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">Total Expenses LBP</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-orange-600">
-                {totalExpensesLbp.toLocaleString()} LBP
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">Profit USD</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className={`text-2xl font-bold ${profitUsd >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                ${profitUsd.toFixed(2)}
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">Profit LBP</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className={`text-2xl font-bold ${profitLbp >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                {profitLbp.toLocaleString()} LBP
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-
         {expenses && expenses.length > 0 && (
           <Card>
             <CardHeader>
@@ -259,30 +212,21 @@ const Cashbox = () => {
                 <TableHeader>
                   <TableRow>
                     <TableHead>Category</TableHead>
-                    <TableHead>Group</TableHead>
-                    <TableHead className="text-right">Amount USD</TableHead>
-                    <TableHead className="text-right">Amount LBP</TableHead>
+                    <TableHead>Amount USD</TableHead>
+                    <TableHead>Amount LBP</TableHead>
                     <TableHead>Notes</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {expenses.map((expense) => (
+                  {expenses.map((expense: any) => (
                     <TableRow key={expense.id}>
-                      <TableCell className="font-medium">
-                        {expense.expense_categories?.name}
+                      <TableCell>
+                        <div className="font-medium">{expense.expense_categories?.name}</div>
+                        <div className="text-xs text-muted-foreground">{expense.expense_categories?.category_group}</div>
                       </TableCell>
-                      <TableCell className="text-muted-foreground">
-                        {expense.expense_categories?.category_group}
-                      </TableCell>
-                      <TableCell className="text-right">
-                        ${Number(expense.amount_usd || 0).toFixed(2)}
-                      </TableCell>
-                      <TableCell className="text-right">
-                        {Number(expense.amount_lbp || 0).toLocaleString()} LBP
-                      </TableCell>
-                      <TableCell className="text-muted-foreground">
-                        {expense.notes || '-'}
-                      </TableCell>
+                      <TableCell>${Number(expense.amount_usd || 0).toFixed(2)}</TableCell>
+                      <TableCell>{Number(expense.amount_lbp || 0).toLocaleString()} LBP</TableCell>
+                      <TableCell className="text-sm text-muted-foreground">{expense.notes || '-'}</TableCell>
                     </TableRow>
                   ))}
                 </TableBody>

@@ -1,26 +1,13 @@
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-  SelectGroup,
-  SelectLabel,
-} from '@/components/ui/select';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
-import { toast } from '@/hooks/use-toast';
+import { toast } from 'sonner';
 
 interface AddExpenseDialogProps {
   open: boolean;
@@ -36,7 +23,7 @@ const AddExpenseDialog = ({ open, onOpenChange, date }: AddExpenseDialogProps) =
   const [notes, setNotes] = useState('');
 
   const { data: categories } = useQuery({
-    queryKey: ['expense_categories'],
+    queryKey: ['expense-categories'],
     queryFn: async () => {
       const { data, error } = await supabase
         .from('expense_categories')
@@ -48,14 +35,14 @@ const AddExpenseDialog = ({ open, onOpenChange, date }: AddExpenseDialogProps) =
     },
   });
 
-  const addExpenseMutation = useMutation({
+  const mutation = useMutation({
     mutationFn: async () => {
       const expenseData = {
         date,
         category_id: categoryId,
-        amount_usd: currency === 'USD' ? parseFloat(amount) : 0,
-        amount_lbp: currency === 'LBP' ? parseFloat(amount) : 0,
-        notes: notes.trim() || null,
+        amount_usd: currency === 'USD' ? Number(amount) : 0,
+        amount_lbp: currency === 'LBP' ? Number(amount) : 0,
+        notes: notes || null,
       };
 
       const { error } = await supabase
@@ -65,66 +52,68 @@ const AddExpenseDialog = ({ open, onOpenChange, date }: AddExpenseDialogProps) =
       if (error) throw error;
     },
     onSuccess: () => {
-      toast({
-        title: 'Success',
-        description: 'Expense added successfully',
-      });
-      queryClient.invalidateQueries({ queryKey: ['daily_expenses', date] });
+      toast.success('Expense added successfully');
+      queryClient.invalidateQueries({ queryKey: ['daily-expenses'] });
       setCategoryId('');
       setAmount('');
       setNotes('');
       onOpenChange(false);
     },
     onError: (error: Error) => {
-      toast({
-        title: 'Error',
-        description: error.message,
-        variant: 'destructive',
-      });
+      toast.error(`Failed to add expense: ${error.message}`);
     },
   });
 
-  const groupedCategories = categories?.reduce((acc, category) => {
-    if (!acc[category.category_group]) {
-      acc[category.category_group] = [];
+  const handleSubmit = () => {
+    if (!categoryId || !amount || Number(amount) <= 0) {
+      toast.error('Please select a category and enter a valid amount');
+      return;
     }
-    acc[category.category_group].push(category);
+    mutation.mutate();
+  };
+
+  const groupedCategories = categories?.reduce((acc, cat) => {
+    if (!acc[cat.category_group]) {
+      acc[cat.category_group] = [];
+    }
+    acc[cat.category_group].push(cat);
     return acc;
   }, {} as Record<string, typeof categories>);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[500px]">
+      <DialogContent className="max-w-md">
         <DialogHeader>
           <DialogTitle>Add Expense</DialogTitle>
         </DialogHeader>
-
-        <div className="space-y-4 pt-4">
+        <div className="space-y-4 py-4">
           <div className="space-y-2">
-            <Label htmlFor="category">Expense Category</Label>
+            <Label>Expense Category</Label>
             <Select value={categoryId} onValueChange={setCategoryId}>
-              <SelectTrigger id="category">
-                <SelectValue placeholder="Select category" />
+              <SelectTrigger>
+                <SelectValue placeholder="Select expense category" />
               </SelectTrigger>
-              <SelectContent>
-                {Object.entries(groupedCategories || {}).map(([group, cats]) => (
-                  <SelectGroup key={group}>
-                    <SelectLabel>{group}</SelectLabel>
+              <SelectContent className="max-h-80">
+                {groupedCategories && Object.entries(groupedCategories).map(([group, cats]) => (
+                  <div key={group}>
+                    <div className="px-2 py-1.5 text-sm font-semibold text-muted-foreground">
+                      {group}
+                    </div>
                     {cats.map((cat) => (
                       <SelectItem key={cat.id} value={cat.id}>
                         {cat.name}
                       </SelectItem>
                     ))}
-                  </SelectGroup>
+                  </div>
                 ))}
               </SelectContent>
             </Select>
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="currency">Currency</Label>
+            <Label>Currency</Label>
             <Select value={currency} onValueChange={(v) => setCurrency(v as 'USD' | 'LBP')}>
-              <SelectTrigger id="currency">
+              <SelectTrigger>
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -135,39 +124,34 @@ const AddExpenseDialog = ({ open, onOpenChange, date }: AddExpenseDialogProps) =
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="amount">Amount</Label>
+            <Label>Amount</Label>
             <Input
-              id="amount"
               type="number"
-              step="0.01"
+              placeholder="0.00"
               value={amount}
               onChange={(e) => setAmount(e.target.value)}
-              placeholder="0.00"
+              step="0.01"
             />
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="notes">Notes (Optional)</Label>
+            <Label>Notes (optional)</Label>
             <Textarea
-              id="notes"
+              placeholder="Add any notes about this expense..."
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
-              placeholder="Add any additional notes..."
               rows={3}
             />
           </div>
+        </div>
 
-          <div className="flex justify-end gap-2 pt-4">
-            <Button variant="outline" onClick={() => onOpenChange(false)}>
-              Cancel
-            </Button>
-            <Button 
-              onClick={() => addExpenseMutation.mutate()}
-              disabled={!categoryId || !amount || addExpenseMutation.isPending}
-            >
-              Add Expense
-            </Button>
-          </div>
+        <div className="flex justify-end gap-2">
+          <Button variant="outline" onClick={() => onOpenChange(false)}>
+            Cancel
+          </Button>
+          <Button onClick={handleSubmit} disabled={mutation.isPending}>
+            Add Expense
+          </Button>
         </div>
       </DialogContent>
     </Dialog>
