@@ -240,6 +240,44 @@ export type Database = {
         }
         Relationships: []
       }
+      daily_expenses: {
+        Row: {
+          amount_lbp: number | null
+          amount_usd: number | null
+          category_id: string
+          created_at: string
+          date: string
+          id: string
+          notes: string | null
+        }
+        Insert: {
+          amount_lbp?: number | null
+          amount_usd?: number | null
+          category_id: string
+          created_at?: string
+          date: string
+          id?: string
+          notes?: string | null
+        }
+        Update: {
+          amount_lbp?: number | null
+          amount_usd?: number | null
+          category_id?: string
+          created_at?: string
+          date?: string
+          id?: string
+          notes?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "daily_expenses_category_id_fkey"
+            columns: ["category_id"]
+            isOneToOne: false
+            referencedRelation: "expense_categories"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       driver_transactions: {
         Row: {
           amount_lbp: number | null
@@ -308,6 +346,27 @@ export type Database = {
           phone?: string | null
           wallet_lbp?: number | null
           wallet_usd?: number | null
+        }
+        Relationships: []
+      }
+      expense_categories: {
+        Row: {
+          category_group: string
+          created_at: string
+          id: string
+          name: string
+        }
+        Insert: {
+          category_group: string
+          created_at?: string
+          id?: string
+          name: string
+        }
+        Update: {
+          category_group?: string
+          created_at?: string
+          id?: string
+          name?: string
         }
         Relationships: []
       }
