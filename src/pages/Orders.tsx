@@ -171,7 +171,8 @@ const Orders = () => {
                       <TableHead>Client</TableHead>
                       <TableHead>Customer</TableHead>
                       <TableHead>Address</TableHead>
-                      <TableHead>Amount</TableHead>
+                      <TableHead>Amount USD</TableHead>
+                      <TableHead>Amount LBP</TableHead>
                       <TableHead>Status</TableHead>
                       <TableHead>Date</TableHead>
                     </TableRow>
@@ -205,6 +206,7 @@ const Orders = () => {
                         </TableCell>
                         <TableCell className="max-w-[200px] truncate">{order.address}</TableCell>
                         <TableCell>${order.order_amount_usd.toFixed(2)}</TableCell>
+                        <TableCell>{order.order_amount_lbp.toLocaleString()} LL</TableCell>
                         <TableCell>{getStatusBadge(order.status)}</TableCell>
                         <TableCell>{new Date(order.created_at).toLocaleDateString()}</TableCell>
                       </TableRow>
@@ -243,7 +245,8 @@ const Orders = () => {
                       <TableHead>Client</TableHead>
                       <TableHead>Driver</TableHead>
                       <TableHead>Address</TableHead>
-                      <TableHead>Amount</TableHead>
+                      <TableHead>Amount USD</TableHead>
+                      <TableHead>Amount LBP</TableHead>
                       <TableHead>Notes</TableHead>
                       <TableHead>Status</TableHead>
                       <TableHead>Date</TableHead>
@@ -268,6 +271,7 @@ const Orders = () => {
                         <TableCell>{order.drivers?.name || "-"}</TableCell>
                         <TableCell className="max-w-[200px] truncate">{order.address}</TableCell>
                         <TableCell>${order.order_amount_usd.toFixed(2)}</TableCell>
+                        <TableCell>{order.order_amount_lbp.toLocaleString()} LL</TableCell>
                         <TableCell className="max-w-[150px] truncate">{order.notes || "-"}</TableCell>
                         <TableCell>{getStatusBadge(order.status)}</TableCell>
                         <TableCell>{new Date(order.created_at).toLocaleDateString()}</TableCell>
