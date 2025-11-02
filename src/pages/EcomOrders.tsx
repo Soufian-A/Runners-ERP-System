@@ -188,7 +188,8 @@ const EcomOrders = () => {
                   <TableHead>Client</TableHead>
                   <TableHead>Customer</TableHead>
                   <TableHead>Address</TableHead>
-                  <TableHead>Amount</TableHead>
+                  <TableHead>Amount USD</TableHead>
+                  <TableHead>Amount LBP</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead>Created</TableHead>
                 </TableRow>
@@ -221,6 +222,7 @@ const EcomOrders = () => {
                     </TableCell>
                     <TableCell className="max-w-[200px] truncate">{order.address}</TableCell>
                     <TableCell>${order.order_amount_usd.toFixed(2)}</TableCell>
+                    <TableCell>{order.order_amount_lbp.toLocaleString()} LL</TableCell>
                     <TableCell>{getStatusBadge(order.status)}</TableCell>
                     <TableCell className="text-xs">
                       {new Date(order.created_at).toLocaleString('en-US', { 

@@ -193,8 +193,10 @@ const InstantOrders = () => {
                   <TableHead>Client</TableHead>
                   <TableHead>Driver</TableHead>
                   <TableHead>Address</TableHead>
-                  <TableHead>Delivery LBP</TableHead>
+                  <TableHead>Amount USD</TableHead>
+                  <TableHead>Amount LBP</TableHead>
                   <TableHead>Delivery USD</TableHead>
+                  <TableHead>Delivery LBP</TableHead>
                   <TableHead>Notes</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead>Created</TableHead>
@@ -216,8 +218,10 @@ const InstantOrders = () => {
                     <TableCell>{order.clients?.name}</TableCell>
                     <TableCell>{order.drivers?.name || "-"}</TableCell>
                     <TableCell className="max-w-[200px] truncate">{order.address}</TableCell>
-                    <TableCell>LBP {order.delivery_fee_lbp?.toLocaleString() || "0"}</TableCell>
+                    <TableCell>${order.order_amount_usd?.toFixed(2) || "0.00"}</TableCell>
+                    <TableCell>{order.order_amount_lbp?.toLocaleString() || "0"} LL</TableCell>
                     <TableCell>${order.delivery_fee_usd?.toFixed(2) || "0.00"}</TableCell>
+                    <TableCell>{order.delivery_fee_lbp?.toLocaleString() || "0"} LL</TableCell>
                     <TableCell className="max-w-[150px] truncate">{order.notes || "-"}</TableCell>
                     <TableCell onClick={(e) => e.stopPropagation()}>{getStatusBadge(order.status)}</TableCell>
                     <TableCell className="text-xs whitespace-nowrap">
