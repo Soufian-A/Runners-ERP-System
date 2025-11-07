@@ -46,6 +46,7 @@ Deno.serve(async (req) => {
 
       // 1. Reverse Driver Wallet Changes
       if (order.driver_id) {
+        console.log(`Reversing driver wallet for driver ${order.driver_id}...`);
         const { data: driver, error: driverFetchError } = await supabaseClient
           .from('drivers')
           .select('wallet_usd, wallet_lbp')
@@ -85,12 +86,13 @@ Deno.serve(async (req) => {
             console.error('Error updating driver wallet during reversal:', walletUpdateError);
             throw walletUpdateError;
           }
-          console.log(`Driver ${order.driver_id} wallet updated.`);
+          console.log(`Driver ${order.driver_id} wallet updated. New USD: ${newWalletUsd}, New LBP: ${newWalletLbp}`);
         }
       }
 
       // 2. Reverse Cashbox entries if order was prepaid by company
       if (order.prepaid_by_company && (Number(order.prepay_amount_usd) > 0 || Number(order.prepay_amount_lbp) > 0)) {
+        console.log('Reversing cashbox entries for prepayment...');
         const today = new Date().toISOString().split('T')[0];
         const { data: cashbox, error: cashboxFetchError } = await supabaseClient
           .from('cashbox_daily')
@@ -124,6 +126,7 @@ Deno.serve(async (req) => {
     }
 
     // 3. Delete all associated transactions and accounting entries
+    console.log(`Deleting driver transactions for order_ref: ${order.order_id}...`);
     const { error: driverTxDeleteError } = await supabaseClient
       .from('driver_transactions')
       .delete()
@@ -134,6 +137,7 @@ Deno.serve(async (req) => {
     }
     console.log('Driver transactions deleted.');
 
+    console.log(`Deleting client transactions for order_ref: ${order.order_id}...`);
     const { error: clientTxDeleteError } = await supabaseClient
       .from('client_transactions')
       .delete()
@@ -144,6 +148,7 @@ Deno.serve(async (req) => {
     }
     console.log('Client transactions deleted.');
 
+    console.log(`Deleting accounting entries for order_ref: ${order.order_id}...`);
     const { error: accountingDeleteError } = await supabaseClient
       .from('accounting_entries')
       .delete()
@@ -155,6 +160,7 @@ Deno.serve(async (req) => {
     console.log('Accounting entries deleted.');
 
     // 4. Finally, delete the order itself
+    console.log(`Deleting order with ID: ${orderId}...`);
     const { error: orderDeleteError } = await supabaseClient
       .from('orders')
       .delete()

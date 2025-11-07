@@ -112,6 +112,7 @@ export function BulkActionsBar({ selectedIds, onClearSelection }: BulkActionsBar
 
   const deleteOrdersMutation = useMutation({
     mutationFn: async () => {
+      let allSuccessful = true;
       // Call the new edge function for each selected order
       for (const orderId of selectedIds) {
         const { data, error } = await supabase.functions.invoke('delete-order-with-accounting', {
@@ -120,11 +121,15 @@ export function BulkActionsBar({ selectedIds, onClearSelection }: BulkActionsBar
 
         if (error) {
           console.error(`Error invoking delete-order-with-accounting for order ${orderId}:`, error);
-          // Continue processing other orders even if one fails
+          allSuccessful = false;
+          // Display error for individual order
           toast.error(`Failed to delete order ${orderId}: ${data?.error || error.message}`);
         } else {
           console.log(`Order ${orderId} deleted with accounting reversal.`);
         }
+      }
+      if (!allSuccessful) {
+        throw new Error("Some orders failed to delete. Check individual error messages.");
       }
     },
     onSuccess: () => {
@@ -137,7 +142,7 @@ export function BulkActionsBar({ selectedIds, onClearSelection }: BulkActionsBar
       setDeleteDialogOpen(false);
     },
     onError: (error: Error) => {
-      toast.error(error.message);
+      toast.error("Error deleting orders", { description: error.message });
       setDeleteDialogOpen(false);
     },
   });
