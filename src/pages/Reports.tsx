@@ -8,8 +8,10 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { FileText, Download } from 'lucide-react';
+import { FileText, Download, FileSpreadsheet } from 'lucide-react';
 import { format } from 'date-fns';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { ClientStatementReport } from '@/components/reports/ClientStatementReport';
 
 const Reports = () => {
   const [reportType, setReportType] = useState('driver-statement');
@@ -90,9 +92,28 @@ const Reports = () => {
     <Layout>
       <div className="space-y-6">
         <div>
-          <h1 className="text-3xl font-bold">Reports</h1>
-          <p className="text-muted-foreground mt-1">Analytics and business insights</p>
+          <h1 className="text-3xl font-bold">Reports & Statements</h1>
+          <p className="text-muted-foreground mt-1">Generate statements and view analytics</p>
         </div>
+
+        <Tabs defaultValue="client-statements" className="space-y-6">
+          <TabsList>
+            <TabsTrigger value="client-statements">
+              <FileSpreadsheet className="h-4 w-4 mr-2" />
+              Client Statements
+            </TabsTrigger>
+            <TabsTrigger value="transaction-reports">
+              <FileText className="h-4 w-4 mr-2" />
+              Transaction Reports
+            </TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="client-statements">
+            <ClientStatementReport />
+          </TabsContent>
+
+          <TabsContent value="transaction-reports">
+            <div className="space-y-6">{/* ... keep existing code ... */}
 
         <Card>
           <CardHeader>
@@ -240,6 +261,9 @@ const Reports = () => {
             </CardContent>
           </Card>
         )}
+            </div>
+          </TabsContent>
+        </Tabs>
       </div>
     </Layout>
   );

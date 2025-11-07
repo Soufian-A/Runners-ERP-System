@@ -10,6 +10,7 @@ import { BulkActionsBar } from "@/components/orders/BulkActionsBar";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { LayoutGrid, List, Search } from "lucide-react";
 import EditOrderDialog from "@/components/orders/EditOrderDialog";
 import CreateOrderDialog from "@/components/orders/CreateOrderDialog";
@@ -30,6 +31,8 @@ interface Order {
   address: string;
   notes?: string;
   created_at: string;
+  prepaid_by_company?: boolean;
+  fulfillment?: string;
   clients?: { name: string };
   drivers?: { name: string };
   third_parties?: { name: string };
@@ -44,6 +47,9 @@ const EcomOrders = () => {
   const [viewMode, setViewMode] = useState<"quick" | "form">("quick");
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [paymentFilter, setPaymentFilter] = useState<string>("all");
+  const [fulfillmentFilter, setFulfillmentFilter] = useState<string>("all");
 
   const { data: orders, isLoading } = useQuery({
     queryKey: ["ecom-orders"],
@@ -89,24 +95,33 @@ const EcomOrders = () => {
   }, [queryClient]);
 
   const filteredOrders = useMemo(() => {
-    if (!orders || !searchQuery.trim()) return orders;
+    if (!orders) return orders;
     
-    const query = searchQuery.toLowerCase();
     return orders.filter((order) => {
-      return (
-        order.clients?.name?.toLowerCase().includes(query) ||
-        order.voucher_no?.toLowerCase().includes(query) ||
-        order.customers?.name?.toLowerCase().includes(query) ||
-        order.customers?.phone?.toLowerCase().includes(query) ||
-        order.address?.toLowerCase().includes(query)
+      const matchesSearch = !searchQuery.trim() || (
+        order.clients?.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        order.voucher_no?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        order.customers?.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        order.customers?.phone?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        order.address?.toLowerCase().includes(searchQuery.toLowerCase())
       );
+
+      const matchesStatus = statusFilter === "all" || order.status === statusFilter;
+      const matchesPayment = paymentFilter === "all" || 
+        (paymentFilter === "cash" && order.prepaid_by_company) ||
+        (paymentFilter === "statement" && !order.prepaid_by_company);
+      const matchesFulfillment = fulfillmentFilter === "all" || order.fulfillment === fulfillmentFilter;
+
+      return matchesSearch && matchesStatus && matchesPayment && matchesFulfillment;
     });
-  }, [orders, searchQuery]);
+  }, [orders, searchQuery, statusFilter, paymentFilter, fulfillmentFilter]);
 
   const getStatusBadge = (status: string) => {
     const variants: Record<string, "default" | "secondary" | "destructive" | "outline"> = {
+      Pending: "secondary",
       New: "secondary",
       Assigned: "outline",
+      Dispatched: "outline",
       PickedUp: "default",
       Delivered: "default",
       Returned: "destructive",
@@ -159,25 +174,50 @@ const EcomOrders = () => {
 
         <Card>
           <CardContent className="p-6">
-            <div className="flex justify-between items-center mb-4">
-              <h3 className="text-lg font-semibold">All E-commerce Orders</h3>
-              <div className="flex items-center gap-2">
-                <div className="relative">
-                  <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
-                  <Input
-                    placeholder="Search by client, voucher, customer, address..."
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    className="pl-8 w-[350px]"
-                    autoFocus
-                  />
-                </div>
+            <div className="space-y-4">
+              <div className="flex justify-between items-center">
+                <h3 className="text-lg font-semibold">All E-commerce Orders</h3>
                 {filteredOrders && filteredOrders.length > 0 && (
                   <Checkbox
                     checked={filteredOrders.every((o) => selectedIds.includes(o.id))}
                     onCheckedChange={toggleSelectAll}
                   />
                 )}
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                <div className="relative md:col-span-2">
+                  <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    placeholder="Search by client, voucher, customer, address..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="pl-8"
+                  />
+                </div>
+                <Select value={statusFilter} onValueChange={setStatusFilter}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Filter by status" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Statuses</SelectItem>
+                    <SelectItem value="Pending">Pending</SelectItem>
+                    <SelectItem value="Dispatched">Dispatched</SelectItem>
+                    <SelectItem value="Delivered">Delivered</SelectItem>
+                    <SelectItem value="Returned">Returned</SelectItem>
+                    <SelectItem value="Cancelled">Cancelled</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Select value={paymentFilter} onValueChange={setPaymentFilter}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Payment type" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Payment Types</SelectItem>
+                    <SelectItem value="cash">Cash-Based</SelectItem>
+                    <SelectItem value="statement">Statement-Based</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
             </div>
             <Table>
@@ -190,6 +230,8 @@ const EcomOrders = () => {
                   <TableHead>Address</TableHead>
                   <TableHead>Amount USD</TableHead>
                   <TableHead>Amount LBP</TableHead>
+                  <TableHead>Payment Type</TableHead>
+                  <TableHead>Delivery</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead>Created</TableHead>
                 </TableRow>
@@ -223,6 +265,16 @@ const EcomOrders = () => {
                     <TableCell className="max-w-[200px] truncate">{order.address}</TableCell>
                     <TableCell>${order.order_amount_usd.toFixed(2)}</TableCell>
                     <TableCell>{order.order_amount_lbp.toLocaleString()} LL</TableCell>
+                    <TableCell>
+                      <Badge variant={order.prepaid_by_company ? "default" : "outline"}>
+                        {order.prepaid_by_company ? "Cash" : "Statement"}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="text-xs">
+                      {order.fulfillment === "InHouse" 
+                        ? (order.drivers?.name || "Unassigned") 
+                        : (order.third_parties?.name || "Third-Party")}
+                    </TableCell>
                     <TableCell>{getStatusBadge(order.status)}</TableCell>
                     <TableCell className="text-xs">
                       {new Date(order.created_at).toLocaleString('en-US', { 

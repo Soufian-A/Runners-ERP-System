@@ -33,6 +33,8 @@ const CreateOrderDialog = ({ open, onOpenChange, orderType }: CreateOrderDialogP
   const [formData, setFormData] = useState({
     client_id: '',
     voucher_no: '',
+    customer_phone: '',
+    customer_name: '',
     address: '',
     order_amount_usd: 0,
     order_amount_lbp: 0,
@@ -41,6 +43,7 @@ const CreateOrderDialog = ({ open, onOpenChange, orderType }: CreateOrderDialogP
     fulfillment: 'InHouse' as 'InHouse' | 'ThirdParty',
     driver_id: '',
     third_party_id: '',
+    payment_type: 'statement' as 'cash' | 'statement',
     notes: '',
   });
 
@@ -81,6 +84,40 @@ const CreateOrderDialog = ({ open, onOpenChange, orderType }: CreateOrderDialogP
 
   const createOrderMutation = useMutation({
     mutationFn: async (data: any) => {
+      // Handle customer creation/update
+      let customerId = null;
+      if (data.customer_phone) {
+        const { data: existingCustomer } = await supabase
+          .from('customers')
+          .select('id')
+          .eq('phone', data.customer_phone)
+          .maybeSingle();
+
+        if (existingCustomer) {
+          customerId = existingCustomer.id;
+          await supabase
+            .from('customers')
+            .update({
+              name: data.customer_name || null,
+              address: data.address,
+            })
+            .eq('id', customerId);
+        } else {
+          const { data: newCustomer, error } = await supabase
+            .from('customers')
+            .insert({
+              phone: data.customer_phone,
+              name: data.customer_name || null,
+              address: data.address,
+            })
+            .select()
+            .single();
+
+          if (error) throw error;
+          customerId = newCustomer.id;
+        }
+      }
+
       // Get client and rules
       const { data: clientData, error: clientError } = await supabase
         .from('clients')
@@ -92,27 +129,33 @@ const CreateOrderDialog = ({ open, onOpenChange, orderType }: CreateOrderDialogP
 
       const clientRule = clientData.client_rules?.[0];
       
-      // Generate OrderID based on client type
-      const orderIdPrefix = 
-        clientData.type === 'Individual' ? 'INST' : 
-        clientData.type === 'Ecom' ? 'EC' : 
-        'REST';
+      // Generate OrderID
+      const orderIdPrefix = clientData.type === 'Ecom' ? 'EC' : 'ORD';
       const orderId = `${orderIdPrefix}-${Date.now()}`;
 
       // Use provided delivery fee or default from client rules
       const deliveryFeeUSD = data.delivery_fee_usd || clientRule?.default_fee_usd || 0;
       const deliveryFeeLBP = data.delivery_fee_lbp || clientRule?.default_fee_lbp || 0;
 
+      // Calculate amount due to client based on fee rule
+      let amountDueUSD = data.order_amount_usd;
+      if (clientRule?.fee_rule === 'DEDUCT') {
+        amountDueUSD = data.order_amount_usd - deliveryFeeUSD;
+      }
+
       const orderData = {
         order_id: orderId,
+        order_type: orderType || 'ecom',
         voucher_no: data.voucher_no || null,
         client_id: data.client_id,
+        customer_id: customerId,
         client_type: clientData.type,
         address: data.address,
         order_amount_usd: data.order_amount_usd,
         order_amount_lbp: data.order_amount_lbp,
         delivery_fee_usd: deliveryFeeUSD,
         delivery_fee_lbp: deliveryFeeLBP,
+        amount_due_to_client_usd: amountDueUSD,
         client_fee_rule: clientRule?.fee_rule || 'ADD_ON',
         fulfillment: data.fulfillment,
         driver_id: data.fulfillment === 'InHouse' ? (data.driver_id || null) : null,
@@ -120,6 +163,7 @@ const CreateOrderDialog = ({ open, onOpenChange, orderType }: CreateOrderDialogP
         status: 'New' as const,
         entered_by: user?.id,
         notes: data.notes || null,
+        prepaid_by_company: data.payment_type === 'cash',
         prepaid_by_runners: false,
         driver_paid_for_client: false,
         prepay_amount_usd: 0,
@@ -147,6 +191,8 @@ const CreateOrderDialog = ({ open, onOpenChange, orderType }: CreateOrderDialogP
       setFormData({
         client_id: '',
         voucher_no: '',
+        customer_phone: '',
+        customer_name: '',
         address: '',
         order_amount_usd: 0,
         order_amount_lbp: 0,
@@ -155,6 +201,7 @@ const CreateOrderDialog = ({ open, onOpenChange, orderType }: CreateOrderDialogP
         fulfillment: 'InHouse',
         driver_id: '',
         third_party_id: '',
+        payment_type: 'statement',
         notes: '',
       });
     },
@@ -174,14 +221,14 @@ const CreateOrderDialog = ({ open, onOpenChange, orderType }: CreateOrderDialogP
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl">
+      <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Create New Order</DialogTitle>
+          <DialogTitle>Create New E-commerce Order</DialogTitle>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="client">Client *</Label>
+              <Label htmlFor="client">Client (Business) *</Label>
               <Select
                 value={formData.client_id}
                 onValueChange={(value) => setFormData({ ...formData, client_id: value })}
@@ -193,7 +240,7 @@ const CreateOrderDialog = ({ open, onOpenChange, orderType }: CreateOrderDialogP
                 <SelectContent>
                   {clients?.map((client) => (
                     <SelectItem key={client.id} value={client.id}>
-                      {client.name} ({client.type})
+                      {client.name}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -201,19 +248,68 @@ const CreateOrderDialog = ({ open, onOpenChange, orderType }: CreateOrderDialogP
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="voucher_no">Voucher No</Label>
+              <Label htmlFor="voucher_no">Voucher Number</Label>
               <Input
                 id="voucher_no"
                 value={formData.voucher_no}
                 onChange={(e) => setFormData({ ...formData, voucher_no: e.target.value })}
-                placeholder="For Ecom orders"
+                placeholder="Order voucher/tracking #"
               />
             </div>
           </div>
 
+          <div className="space-y-4 rounded-md border p-4 bg-muted/50">
+            <h3 className="font-medium">Customer Details (Recipient)</h3>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="customer_phone">Customer Phone *</Label>
+                <Input
+                  id="customer_phone"
+                  value={formData.customer_phone}
+                  onChange={(e) => setFormData({ ...formData, customer_phone: e.target.value })}
+                  placeholder="Phone number"
+                  required
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="customer_name">Customer Name</Label>
+                <Input
+                  id="customer_name"
+                  value={formData.customer_name}
+                  onChange={(e) => setFormData({ ...formData, customer_name: e.target.value })}
+                  placeholder="Recipient name"
+                />
+              </div>
+            </div>
+          </div>
+
+          <div className="space-y-4 rounded-md border p-4 bg-muted/50">
+            <h3 className="font-medium">Payment Type *</h3>
+            <Select
+              value={formData.payment_type}
+              onValueChange={(value: 'cash' | 'statement') =>
+                setFormData({ ...formData, payment_type: value })
+              }
+              required
+            >
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="cash">Cash-Based (Pay client upfront)</SelectItem>
+                <SelectItem value="statement">Statement-Based (Pay via statement)</SelectItem>
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-muted-foreground">
+              {formData.payment_type === 'cash'
+                ? 'Client receives cash immediately when bringing the order'
+                : 'Client receives payment based on periodic statements'}
+            </p>
+          </div>
+
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="fulfillment">Fulfillment *</Label>
+              <Label htmlFor="fulfillment">Delivery Method *</Label>
               <Select
                 value={formData.fulfillment}
                 onValueChange={(value: 'InHouse' | 'ThirdParty') =>
@@ -225,21 +321,21 @@ const CreateOrderDialog = ({ open, onOpenChange, orderType }: CreateOrderDialogP
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="InHouse">In-House</SelectItem>
-                  <SelectItem value="ThirdParty">Third Party</SelectItem>
+                  <SelectItem value="InHouse">In-House Driver</SelectItem>
+                  <SelectItem value="ThirdParty">Third-Party Partner</SelectItem>
                 </SelectContent>
               </Select>
             </div>
 
             {formData.fulfillment === 'InHouse' && (
               <div className="space-y-2">
-                <Label htmlFor="driver">Driver</Label>
+                <Label htmlFor="driver">Assign Driver</Label>
                 <Select
                   value={formData.driver_id}
                   onValueChange={(value) => setFormData({ ...formData, driver_id: value })}
                 >
                   <SelectTrigger>
-                    <SelectValue placeholder="Select driver (optional)" />
+                    <SelectValue placeholder="Optional - assign later" />
                   </SelectTrigger>
                   <SelectContent>
                     {drivers?.map((driver) => (
@@ -254,13 +350,13 @@ const CreateOrderDialog = ({ open, onOpenChange, orderType }: CreateOrderDialogP
 
             {formData.fulfillment === 'ThirdParty' && (
               <div className="space-y-2">
-                <Label htmlFor="third_party">Third Party</Label>
+                <Label htmlFor="third_party">Third Party Company</Label>
                 <Select
                   value={formData.third_party_id}
                   onValueChange={(value) => setFormData({ ...formData, third_party_id: value })}
                 >
                   <SelectTrigger>
-                    <SelectValue placeholder="Select third party (optional)" />
+                    <SelectValue placeholder="Optional - assign later" />
                   </SelectTrigger>
                   <SelectContent>
                     {thirdParties?.map((tp) => (
