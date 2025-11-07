@@ -11,7 +11,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { LayoutGrid, List, Search } from "lucide-react";
+import { LayoutGrid, List, Search, Pencil } from "lucide-react"; // Import Pencil icon
 import EditOrderDialog from "@/components/orders/EditOrderDialog";
 import CreateOrderDialog from "@/components/orders/CreateOrderDialog";
 
@@ -234,6 +234,7 @@ const EcomOrders = () => {
                   <TableHead>Delivery</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead>Created</TableHead>
+                  <TableHead className="w-[80px]">Actions</TableHead> {/* New Actions column */}
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -242,13 +243,7 @@ const EcomOrders = () => {
                     <TableCell onClick={(e) => e.stopPropagation()}>
                       <Checkbox checked={selectedIds.includes(order.id)} onCheckedChange={() => toggleSelect(order.id)} />
                     </TableCell>
-                    <TableCell
-                      className="font-medium cursor-pointer"
-                      onClick={() => {
-                        setSelectedOrder(order);
-                        setDialogOpen(true);
-                      }}
-                    >
+                    <TableCell className="font-medium">
                       {order.voucher_no || "-"}
                     </TableCell>
                     <TableCell>{order.clients?.name}</TableCell>
@@ -283,6 +278,19 @@ const EcomOrders = () => {
                         hour: '2-digit', 
                         minute: '2-digit' 
                       })}
+                    </TableCell>
+                    <TableCell> {/* New Actions cell */}
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={(e) => {
+                          e.stopPropagation(); // Prevent row click from firing
+                          setSelectedOrder(order);
+                          setDialogOpen(true);
+                        }}
+                      >
+                        <Pencil className="h-4 w-4" />
+                      </Button>
                     </TableCell>
                   </TableRow>
                 ))}

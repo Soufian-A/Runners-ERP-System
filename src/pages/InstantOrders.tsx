@@ -10,7 +10,7 @@ import { BulkActionsBar } from "@/components/orders/BulkActionsBar";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { LayoutGrid, List, Settings, Search } from "lucide-react";
+import { LayoutGrid, List, Settings, Search, Pencil } from "lucide-react"; // Import Pencil icon
 import EditOrderDialog from "@/components/orders/EditOrderDialog";
 import CreateOrderDialog from "@/components/orders/CreateOrderDialog";
 import { AddressSettingsDialog } from "@/components/orders/AddressSettingsDialog";
@@ -200,17 +200,14 @@ const InstantOrders = () => {
                   <TableHead>Notes</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead>Created</TableHead>
+                  <TableHead className="w-[80px]">Actions</TableHead> {/* New Actions column */}
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {filteredOrders?.map((order) => (
                   <TableRow 
                     key={order.id} 
-                    className="hover:bg-muted/50 cursor-pointer"
-                    onClick={() => {
-                      setSelectedOrder(order);
-                      setDialogOpen(true);
-                    }}
+                    className="hover:bg-muted/50"
                   >
                     <TableCell onClick={(e) => e.stopPropagation()}>
                       <Checkbox checked={selectedIds.includes(order.id)} onCheckedChange={() => toggleSelect(order.id)} />
@@ -226,6 +223,19 @@ const InstantOrders = () => {
                     <TableCell onClick={(e) => e.stopPropagation()}>{getStatusBadge(order.status)}</TableCell>
                     <TableCell className="text-xs whitespace-nowrap">
                       {new Date(order.created_at).toLocaleDateString()} {new Date(order.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                    </TableCell>
+                    <TableCell> {/* New Actions cell */}
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={(e) => {
+                          e.stopPropagation(); // Prevent row click from firing
+                          setSelectedOrder(order);
+                          setDialogOpen(true);
+                        }}
+                      >
+                        <Pencil className="h-4 w-4" />
+                      </Button>
                     </TableCell>
                   </TableRow>
                 ))}
