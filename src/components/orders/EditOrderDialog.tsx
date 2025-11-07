@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { toast } from "@/hooks/use-toast";
+import { toast } from "sonner"; // Using sonner for toasts as per AI_RULES.md
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -31,9 +31,9 @@ interface Order {
   client_id: string;
   driver_id?: string;
   order_amount_usd: number;
-  order_amount_lbp: number;
+  order_amount_lbp: number; // Added
   delivery_fee_usd: number;
-  delivery_fee_lbp: number;
+  delivery_fee_lbp: number; // Added
   amount_due_to_client_usd?: number;
   prepaid_by_runners?: boolean;
   prepaid_by_company?: boolean;
@@ -45,11 +45,11 @@ interface Order {
   drivers?: { name: string };
   customers?: { phone: string; name?: string };
   customer_id?: string;
-  prepay_amount_usd?: number; // Added for reversal logic
-  prepay_amount_lbp?: number; // Added for reversal logic
-  driver_paid_for_client?: boolean; // Added for reversal logic
-  driver_paid_amount_usd?: number; // Added for reversal logic
-  driver_paid_amount_lbp?: number; // Added for reversal logic
+  prepay_amount_usd?: number;
+  prepay_amount_lbp?: number;
+  driver_paid_for_client?: boolean;
+  driver_paid_amount_usd?: number;
+  driver_paid_amount_lbp?: number;
 }
 
 interface EditOrderDialogProps {
@@ -66,7 +66,9 @@ export default function EditOrderDialog({ order, open, onOpenChange }: EditOrder
     voucher_no: order.voucher_no || "",
     address: order.address,
     order_amount_usd: order.order_amount_usd.toString(),
+    order_amount_lbp: order.order_amount_lbp?.toString() || "0", // Initialize LBP
     delivery_fee_usd: order.delivery_fee_usd.toString(),
+    delivery_fee_lbp: order.delivery_fee_lbp?.toString() || "0", // Initialize LBP
     amount_due_to_client_usd: order.amount_due_to_client_usd?.toString() || "0",
     notes: order.notes || "",
     status: order.status as "New" | "Assigned" | "PickedUp" | "Delivered" | "Returned" | "Cancelled",
@@ -109,7 +111,9 @@ export default function EditOrderDialog({ order, open, onOpenChange }: EditOrder
         voucher_no: formData.voucher_no || null,
         address: formData.address,
         order_amount_usd: parseFloat(formData.order_amount_usd),
+        order_amount_lbp: parseFloat(formData.order_amount_lbp), // Include LBP
         delivery_fee_usd: parseFloat(formData.delivery_fee_usd),
+        delivery_fee_lbp: parseFloat(formData.delivery_fee_lbp), // Include LBP
         amount_due_to_client_usd: parseFloat(formData.amount_due_to_client_usd) || 0,
         notes: formData.notes || null,
         status: formData.status,
@@ -148,11 +152,11 @@ export default function EditOrderDialog({ order, open, onOpenChange }: EditOrder
       queryClient.invalidateQueries({ queryKey: ["instant-orders"] });
       queryClient.invalidateQueries({ queryKey: ["ecom-orders"] });
       queryClient.invalidateQueries({ queryKey: ["drivers"] });
-      toast({ title: "Order updated successfully" });
+      toast.success("Order updated successfully"); // Using sonner toast
       onOpenChange(false);
     },
     onError: (error: Error) => {
-      toast({ title: "Error", description: error.message, variant: "destructive" });
+      toast.error("Error", { description: error.message }); // Using sonner toast
     },
   });
 
@@ -175,12 +179,13 @@ export default function EditOrderDialog({ order, open, onOpenChange }: EditOrder
       queryClient.invalidateQueries({ queryKey: ["ecom-orders"] });
       queryClient.invalidateQueries({ queryKey: ["drivers"] });
       queryClient.invalidateQueries({ queryKey: ["cashbox"] }); // Invalidate cashbox as well
-      toast({ title: "Order deleted successfully" });
+      toast.success("Order deleted successfully"); // Using sonner toast
       setDeleteDialogOpen(false);
       onOpenChange(false);
     },
     onError: (error: Error) => {
-      toast({ title: "Error", description: error.message, variant: "destructive" });
+      toast.error("Error", { description: error.message }); // Using sonner toast
+      setDeleteDialogOpen(false);
     },
   });
 
@@ -257,12 +262,33 @@ export default function EditOrderDialog({ order, open, onOpenChange }: EditOrder
                     />
                   </div>
                   <div className="space-y-2">
+                    <Label>Order Amount (LBP)</Label>
+                    <Input
+                      type="number"
+                      step="1"
+                      value={formData.order_amount_lbp}
+                      onChange={(e) => setFormData({ ...formData, order_amount_lbp: e.target.value })}
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
                     <Label>Delivery Fee (USD)</Label>
                     <Input
                       type="number"
                       step="0.01"
                       value={formData.delivery_fee_usd}
                       onChange={(e) => setFormData({ ...formData, delivery_fee_usd: e.target.value })}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Delivery Fee (LBP)</Label>
+                    <Input
+                      type="number"
+                      step="1"
+                      value={formData.delivery_fee_lbp}
+                      onChange={(e) => setFormData({ ...formData, delivery_fee_lbp: e.target.value })}
                     />
                   </div>
                 </div>
@@ -364,20 +390,32 @@ export default function EditOrderDialog({ order, open, onOpenChange }: EditOrder
                   <h4 className="font-semibold text-sm">Payment Summary</h4>
                   <div className="space-y-1 text-sm">
                     <div className="flex justify-between">
-                      <span className="text-muted-foreground">Order Amount:</span>
+                      <span className="text-muted-foreground">Order Amount (USD):</span>
                       <span className="font-medium">${parseFloat(formData.order_amount_usd).toFixed(2)}</span>
                     </div>
                     <div className="flex justify-between">
-                      <span className="text-muted-foreground">Delivery Fee:</span>
+                      <span className="text-muted-foreground">Order Amount (LBP):</span>
+                      <span className="font-medium">{parseFloat(formData.order_amount_lbp).toLocaleString()} LBP</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Delivery Fee (USD):</span>
                       <span className="font-medium">${parseFloat(formData.delivery_fee_usd).toFixed(2)}</span>
                     </div>
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Delivery Fee (LBP):</span>
+                      <span className="font-medium">{parseFloat(formData.delivery_fee_lbp).toLocaleString()} LBP</span>
+                    </div>
                     <div className="flex justify-between border-t pt-1 mt-1">
-                      <span className="text-muted-foreground">Total:</span>
+                      <span className="text-muted-foreground">Total (USD):</span>
                       <span className="font-semibold">${(parseFloat(formData.order_amount_usd) + parseFloat(formData.delivery_fee_usd)).toFixed(2)}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Total (LBP):</span>
+                      <span className="font-semibold">{(parseFloat(formData.order_amount_lbp) + parseFloat(formData.delivery_fee_lbp)).toLocaleString()} LBP</span>
                     </div>
                     {order.order_type === "ecom" && (
                       <div className="flex justify-between">
-                        <span className="text-muted-foreground">Due to Client:</span>
+                        <span className="text-muted-foreground">Due to Client (USD):</span>
                         <span className="font-medium">${parseFloat(formData.amount_due_to_client_usd).toFixed(2)}</span>
                       </div>
                     )}
