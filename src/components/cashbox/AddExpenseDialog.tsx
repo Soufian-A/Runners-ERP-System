@@ -37,23 +37,77 @@ const AddExpenseDialog = ({ open, onOpenChange, date }: AddExpenseDialogProps) =
 
   const mutation = useMutation({
     mutationFn: async () => {
+      const amountNum = parseFloat(amount);
+      if (isNaN(amountNum) || amountNum <= 0) {
+        throw new Error('Please enter a valid amount');
+      }
+      if (!categoryId) {
+        throw new Error('Please select an expense category');
+      }
+
+      // Insert into daily_expenses
       const expenseData = {
         date,
         category_id: categoryId,
-        amount_usd: currency === 'USD' ? Number(amount) : 0,
-        amount_lbp: currency === 'LBP' ? Number(amount) : 0,
+        amount_usd: currency === 'USD' ? amountNum : 0,
+        amount_lbp: currency === 'LBP' ? amountNum : 0,
         notes: notes || null,
       };
 
-      const { error } = await supabase
+      const { error: expenseError } = await supabase
         .from('daily_expenses')
         .insert(expenseData);
 
-      if (error) throw error;
+      if (expenseError) throw expenseError;
+
+      // Update cashbox_daily
+      const { data: existingCashbox, error: cashboxFetchError } = await supabase
+        .from('cashbox_daily')
+        .select('*')
+        .eq('date', date)
+        .maybeSingle();
+
+      if (cashboxFetchError) throw cashboxFetchError;
+
+      const updateData: any = {};
+      if (currency === 'USD') {
+        updateData.cash_out_usd = (existingCashbox?.cash_out_usd || 0) + amountNum;
+        updateData.closing_usd = (existingCashbox?.opening_usd || 0) + (existingCashbox?.cash_in_usd || 0) - updateData.cash_out_usd;
+      } else {
+        updateData.cash_out_lbp = (existingCashbox?.cash_out_lbp || 0) + amountNum;
+        updateData.closing_lbp = (existingCashbox?.opening_lbp || 0) + (existingCashbox?.cash_in_lbp || 0) - updateData.cash_out_lbp;
+      }
+
+      const expenseCategory = categories?.find(cat => cat.id === categoryId)?.name || 'Unknown Expense';
+      const cashboxNote = `${new Date().toLocaleString()}: Expense (${expenseCategory}) - ${amountNum} ${currency}${notes ? ` - ${notes}` : ''}`;
+      updateData.notes = existingCashbox?.notes
+        ? `${existingCashbox.notes}\n${cashboxNote}`
+        : cashboxNote;
+
+      if (existingCashbox) {
+        const { error: cashboxUpdateError } = await supabase
+          .from('cashbox_daily')
+          .update(updateData)
+          .eq('id', existingCashbox.id);
+        if (cashboxUpdateError) throw cashboxUpdateError;
+      } else {
+        const { error: cashboxInsertError } = await supabase
+          .from('cashbox_daily')
+          .insert({
+            date,
+            opening_usd: 0,
+            opening_lbp: 0,
+            cash_in_usd: 0,
+            cash_in_lbp: 0,
+            ...updateData,
+          });
+        if (cashboxInsertError) throw cashboxInsertError;
+      }
     },
     onSuccess: () => {
       toast.success('Expense added successfully');
       queryClient.invalidateQueries({ queryKey: ['daily-expenses'] });
+      queryClient.invalidateQueries({ queryKey: ['cashbox'] }); // Invalidate cashbox to reflect changes
       setCategoryId('');
       setAmount('');
       setNotes('');
@@ -65,10 +119,6 @@ const AddExpenseDialog = ({ open, onOpenChange, date }: AddExpenseDialogProps) =
   });
 
   const handleSubmit = () => {
-    if (!categoryId || !amount || Number(amount) <= 0) {
-      toast.error('Please select a category and enter a valid amount');
-      return;
-    }
     mutation.mutate();
   };
 

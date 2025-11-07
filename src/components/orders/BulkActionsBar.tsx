@@ -112,13 +112,26 @@ export function BulkActionsBar({ selectedIds, onClearSelection }: BulkActionsBar
 
   const deleteOrdersMutation = useMutation({
     mutationFn: async () => {
-      const { error } = await supabase.from("orders").delete().in("id", selectedIds);
-      if (error) throw error;
+      // Call the new edge function for each selected order
+      for (const orderId of selectedIds) {
+        const { data, error } = await supabase.functions.invoke('delete-order-with-accounting', {
+          body: { orderId }
+        });
+
+        if (error) {
+          console.error(`Error invoking delete-order-with-accounting for order ${orderId}:`, error);
+          // Continue processing other orders even if one fails
+          toast.error(`Failed to delete order ${orderId}: ${data?.error || error.message}`);
+        } else {
+          console.log(`Order ${orderId} deleted with accounting reversal.`);
+        }
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["orders"] });
       queryClient.invalidateQueries({ queryKey: ["instant-orders"] });
       queryClient.invalidateQueries({ queryKey: ["ecom-orders"] });
+      queryClient.invalidateQueries({ queryKey: ["cashbox"] }); // Invalidate cashbox as well
       toast.success(`${selectedIds.length} orders deleted`);
       onClearSelection();
       setDeleteDialogOpen(false);
@@ -210,7 +223,7 @@ export function BulkActionsBar({ selectedIds, onClearSelection }: BulkActionsBar
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Delete {selectedIds.length} orders?</AlertDialogTitle>
-            <AlertDialogDescription>This action cannot be undone. This will permanently delete the selected orders.</AlertDialogDescription>
+            <AlertDialogDescription>This action cannot be undone. This will permanently delete the selected orders and reverse any associated accounting entries.</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
