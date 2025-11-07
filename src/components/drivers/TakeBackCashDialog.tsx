@@ -8,6 +8,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
+import { updateCashboxDaily } from '@/lib/cashbox'; // Import the new utility
 
 interface TakeBackCashDialogProps {
   open: boolean;
@@ -59,45 +60,14 @@ export default function TakeBackCashDialog({ open, onOpenChange, driver }: TakeB
 
       if (driverError) throw driverError;
 
-      // Update cashbox for today (cash in)
+      // Update cashbox for today (cash in) using the new utility
       const today = new Date().toISOString().split('T')[0];
-      const { data: existing } = await supabase
-        .from('cashbox_daily')
-        .select('*')
-        .eq('date', today)
-        .maybeSingle();
-
-      const updateData: any = {};
-      
-      if (currency === 'USD') {
-        updateData.cash_in_usd = (existing?.cash_in_usd || 0) + amountNum;
-        updateData.closing_usd = (existing?.opening_usd || 0) + (existing?.cash_in_usd || 0) + amountNum - (existing?.cash_out_usd || 0);
-      } else {
-        updateData.cash_in_lbp = (existing?.cash_in_lbp || 0) + amountNum;
-        updateData.closing_lbp = (existing?.opening_lbp || 0) + (existing?.cash_in_lbp || 0) + amountNum - (existing?.cash_out_lbp || 0);
-      }
-
-      updateData.notes = existing?.notes 
-        ? `${existing.notes}\n${new Date().toLocaleString()}: Took back ${amountNum} ${currency} from ${driver.name} - ${notes}`
-        : `${new Date().toLocaleString()}: Took back ${amountNum} ${currency} from ${driver.name} - ${notes}`;
-
-      if (existing) {
-        const { error } = await supabase
-          .from('cashbox_daily')
-          .update(updateData)
-          .eq('id', existing.id);
-        if (error) throw error;
-      } else {
-        const { error } = await supabase
-          .from('cashbox_daily')
-          .insert({
-            date: today,
-            opening_usd: 0,
-            opening_lbp: 0,
-            ...updateData,
-          });
-        if (error) throw error;
-      }
+      await updateCashboxDaily({
+        date: today,
+        cashInUsdChange: currency === 'USD' ? amountNum : 0,
+        cashInLbpChange: currency === 'LBP' ? amountNum : 0,
+        note: `Took back ${amountNum} ${currency} from driver ${driver.name} - ${notes}`,
+      });
     },
     onSuccess: () => {
       toast({

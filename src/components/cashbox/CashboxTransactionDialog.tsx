@@ -8,6 +8,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
+import { updateCashboxDaily } from '@/lib/cashbox'; // Import the new utility
 
 interface CashboxTransactionDialogProps {
   open: boolean;
@@ -30,56 +31,19 @@ export default function CashboxTransactionDialog({ open, onOpenChange, date, typ
         throw new Error('Please enter a valid amount');
       }
 
-      // Get or create cashbox record for the date
-      const { data: existing } = await supabase
-        .from('cashbox_daily')
-        .select('*')
-        .eq('date', date)
-        .maybeSingle();
+      const cashInUsdChange = type === 'in' && currency === 'USD' ? amountNum : 0;
+      const cashInLbpChange = type === 'in' && currency === 'LBP' ? amountNum : 0;
+      const cashOutUsdChange = type === 'out' && currency === 'USD' ? amountNum : 0;
+      const cashOutLbpChange = type === 'out' && currency === 'LBP' ? amountNum : 0;
 
-      const updateData: any = {};
-      
-      if (type === 'in') {
-        if (currency === 'USD') {
-          updateData.cash_in_usd = (existing?.cash_in_usd || 0) + amountNum;
-          updateData.closing_usd = (existing?.opening_usd || 0) + (existing?.cash_in_usd || 0) + amountNum - (existing?.cash_out_usd || 0);
-        } else {
-          updateData.cash_in_lbp = (existing?.cash_in_lbp || 0) + amountNum;
-          updateData.closing_lbp = (existing?.opening_lbp || 0) + (existing?.cash_in_lbp || 0) + amountNum - (existing?.cash_out_lbp || 0);
-        }
-      } else {
-        if (currency === 'USD') {
-          updateData.cash_out_usd = (existing?.cash_out_usd || 0) + amountNum;
-          updateData.closing_usd = (existing?.opening_usd || 0) + (existing?.cash_in_usd || 0) - (existing?.cash_out_usd || 0) - amountNum;
-        } else {
-          updateData.cash_out_lbp = (existing?.cash_out_lbp || 0) + amountNum;
-          updateData.closing_lbp = (existing?.opening_lbp || 0) + (existing?.cash_in_lbp || 0) - (existing?.cash_out_lbp || 0) - amountNum;
-        }
-      }
-
-      if (notes) {
-        updateData.notes = existing?.notes 
-          ? `${existing.notes}\n${new Date().toLocaleString()}: ${type === 'in' ? 'Added' : 'Withdrew'} ${amountNum} ${currency} - ${notes}`
-          : `${new Date().toLocaleString()}: ${type === 'in' ? 'Added' : 'Withdrew'} ${amountNum} ${currency} - ${notes}`;
-      }
-
-      if (existing) {
-        const { error } = await supabase
-          .from('cashbox_daily')
-          .update(updateData)
-          .eq('id', existing.id);
-        if (error) throw error;
-      } else {
-        const { error } = await supabase
-          .from('cashbox_daily')
-          .insert({
-            date,
-            opening_usd: 0,
-            opening_lbp: 0,
-            ...updateData,
-          });
-        if (error) throw error;
-      }
+      await updateCashboxDaily({
+        date,
+        cashInUsdChange,
+        cashInLbpChange,
+        cashOutUsdChange,
+        cashOutLbpChange,
+        note: `${type === 'in' ? 'Added' : 'Withdrew'} capital: ${amountNum} ${currency} - ${notes}`,
+      });
     },
     onSuccess: () => {
       toast({

@@ -8,6 +8,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
+import { updateCashboxDaily } from '@/lib/cashbox'; // Import the new utility
 
 interface GiveDriverCashDialogProps {
   open: boolean;
@@ -79,44 +80,13 @@ export default function GiveDriverCashDialog({ open, onOpenChange, date }: GiveD
 
       if (driverError) throw driverError;
 
-      // Update cashbox (cash out)
-      const { data: existing } = await supabase
-        .from('cashbox_daily')
-        .select('*')
-        .eq('date', date)
-        .maybeSingle();
-
-      const updateData: any = {};
-      
-      if (currency === 'USD') {
-        updateData.cash_out_usd = (existing?.cash_out_usd || 0) + amountNum;
-        updateData.closing_usd = (existing?.opening_usd || 0) + (existing?.cash_in_usd || 0) - (existing?.cash_out_usd || 0) - amountNum;
-      } else {
-        updateData.cash_out_lbp = (existing?.cash_out_lbp || 0) + amountNum;
-        updateData.closing_lbp = (existing?.opening_lbp || 0) + (existing?.cash_in_lbp || 0) - (existing?.cash_out_lbp || 0) - amountNum;
-      }
-
-      updateData.notes = existing?.notes 
-        ? `${existing.notes}\n${new Date().toLocaleString()}: Gave ${amountNum} ${currency} to ${driver.name} - ${notes}`
-        : `${new Date().toLocaleString()}: Gave ${amountNum} ${currency} to ${driver.name} - ${notes}`;
-
-      if (existing) {
-        const { error } = await supabase
-          .from('cashbox_daily')
-          .update(updateData)
-          .eq('id', existing.id);
-        if (error) throw error;
-      } else {
-        const { error } = await supabase
-          .from('cashbox_daily')
-          .insert({
-            date,
-            opening_usd: 0,
-            opening_lbp: 0,
-            ...updateData,
-          });
-        if (error) throw error;
-      }
+      // Update cashbox (cash out) using the new utility
+      await updateCashboxDaily({
+        date,
+        cashOutUsdChange: currency === 'USD' ? amountNum : 0,
+        cashOutLbpChange: currency === 'LBP' ? amountNum : 0,
+        note: `Gave ${amountNum} ${currency} to driver ${driver.name} - ${notes}`,
+      });
     },
     onSuccess: () => {
       toast({

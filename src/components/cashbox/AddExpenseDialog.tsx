@@ -8,6 +8,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { toast } from 'sonner';
+import { updateCashboxDaily } from '@/lib/cashbox'; // Import the new utility
 
 interface AddExpenseDialogProps {
   open: boolean;
@@ -60,49 +61,14 @@ const AddExpenseDialog = ({ open, onOpenChange, date }: AddExpenseDialogProps) =
 
       if (expenseError) throw expenseError;
 
-      // Update cashbox_daily
-      const { data: existingCashbox, error: cashboxFetchError } = await supabase
-        .from('cashbox_daily')
-        .select('*')
-        .eq('date', date)
-        .maybeSingle();
-
-      if (cashboxFetchError) throw cashboxFetchError;
-
-      const updateData: any = {};
-      if (currency === 'USD') {
-        updateData.cash_out_usd = (existingCashbox?.cash_out_usd || 0) + amountNum;
-        updateData.closing_usd = (existingCashbox?.opening_usd || 0) + (existingCashbox?.cash_in_usd || 0) - updateData.cash_out_usd;
-      } else {
-        updateData.cash_out_lbp = (existingCashbox?.cash_out_lbp || 0) + amountNum;
-        updateData.closing_lbp = (existingCashbox?.opening_lbp || 0) + (existingCashbox?.cash_in_lbp || 0) - updateData.cash_out_lbp;
-      }
-
+      // Update cashbox_daily using the new utility
       const expenseCategory = categories?.find(cat => cat.id === categoryId)?.name || 'Unknown Expense';
-      const cashboxNote = `${new Date().toLocaleString()}: Expense (${expenseCategory}) - ${amountNum} ${currency}${notes ? ` - ${notes}` : ''}`;
-      updateData.notes = existingCashbox?.notes
-        ? `${existingCashbox.notes}\n${cashboxNote}`
-        : cashboxNote;
-
-      if (existingCashbox) {
-        const { error: cashboxUpdateError } = await supabase
-          .from('cashbox_daily')
-          .update(updateData)
-          .eq('id', existingCashbox.id);
-        if (cashboxUpdateError) throw cashboxUpdateError;
-      } else {
-        const { error: cashboxInsertError } = await supabase
-          .from('cashbox_daily')
-          .insert({
-            date,
-            opening_usd: 0,
-            opening_lbp: 0,
-            cash_in_usd: 0,
-            cash_in_lbp: 0,
-            ...updateData,
-          });
-        if (cashboxInsertError) throw cashboxInsertError;
-      }
+      await updateCashboxDaily({
+        date,
+        cashOutUsdChange: currency === 'USD' ? amountNum : 0,
+        cashOutLbpChange: currency === 'LBP' ? amountNum : 0,
+        note: `Expense (${expenseCategory}) - ${amountNum} ${currency}${notes ? ` - ${notes}` : ''}`,
+      });
     },
     onSuccess: () => {
       toast.success('Expense added successfully');
