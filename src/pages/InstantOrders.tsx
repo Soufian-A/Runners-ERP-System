@@ -35,6 +35,7 @@ interface Order {
   drivers?: { name: string };
   third_parties?: { name: string };
   customers?: { phone: string; name?: string };
+  driver_paid_for_client?: boolean; // Added for the new feature
 }
 
 const InstantOrders = () => {
@@ -198,9 +199,10 @@ const InstantOrders = () => {
                   <TableHead>Delivery USD</TableHead>
                   <TableHead>Delivery LBP</TableHead>
                   <TableHead>Notes</TableHead>
+                  <TableHead>Driver Paid</TableHead> {/* New column */}
                   <TableHead>Status</TableHead>
                   <TableHead>Created</TableHead>
-                  <TableHead className="w-[80px]">Actions</TableHead> {/* New Actions column */}
+                  <TableHead className="w-[80px]">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -215,21 +217,26 @@ const InstantOrders = () => {
                     <TableCell>{order.clients?.name}</TableCell>
                     <TableCell>{order.drivers?.name || "-"}</TableCell>
                     <TableCell className="max-w-[200px] truncate">{order.address}</TableCell>
-                    <TableCell>${order.order_amount_usd?.toFixed(2) || "0.00"}</TableCell>
-                    <TableCell>{order.order_amount_lbp?.toLocaleString() || "0"} LL</TableCell>
+                    <TableCell className={order.driver_paid_for_client ? "text-red-600" : ""}>
+                      ${order.order_amount_usd?.toFixed(2) || "0.00"}</TableCell>
+                    <TableCell className={order.driver_paid_for_client ? "text-red-600" : ""}>
+                      {order.order_amount_lbp?.toLocaleString() || "0"} LL</TableCell>
                     <TableCell>${order.delivery_fee_usd?.toFixed(2) || "0.00"}</TableCell>
                     <TableCell>{order.delivery_fee_lbp?.toLocaleString() || "0"} LL</TableCell>
                     <TableCell className="max-w-[150px] truncate">{order.notes || "-"}</TableCell>
+                    <TableCell>
+                      {order.driver_paid_for_client ? <Badge variant="destructive">Yes</Badge> : "No"}
+                    </TableCell>
                     <TableCell onClick={(e) => e.stopPropagation()}>{getStatusBadge(order.status)}</TableCell>
                     <TableCell className="text-xs whitespace-nowrap">
                       {new Date(order.created_at).toLocaleDateString()} {new Date(order.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                     </TableCell>
-                    <TableCell> {/* New Actions cell */}
+                    <TableCell>
                       <Button
                         variant="ghost"
                         size="sm"
                         onClick={(e) => {
-                          e.stopPropagation(); // Prevent row click from firing
+                          e.stopPropagation();
                           setSelectedOrder(order);
                           setDialogOpen(true);
                         }}

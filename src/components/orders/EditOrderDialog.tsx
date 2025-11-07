@@ -75,6 +75,7 @@ export default function EditOrderDialog({ order, open, onOpenChange }: EditOrder
     driver_id: order.driver_id || "",
     prepaid_by_runners: order.prepaid_by_runners || false,
     prepaid_by_company: order.prepaid_by_company || false,
+    driver_paid_for_client: order.driver_paid_for_client || false, // Added for the new feature
   });
 
   const { data: drivers = [] } = useQuery({
@@ -120,6 +121,7 @@ export default function EditOrderDialog({ order, open, onOpenChange }: EditOrder
         driver_id: formData.driver_id || null,
         prepaid_by_runners: formData.prepaid_by_runners,
         prepaid_by_company: formData.prepaid_by_company,
+        driver_paid_for_client: formData.driver_paid_for_client, // Include new field
       };
 
       // Set delivered_at timestamp when status changes to Delivered
@@ -386,16 +388,32 @@ export default function EditOrderDialog({ order, open, onOpenChange }: EditOrder
                   </div>
                 )}
 
+                <div className="flex items-center space-x-2">
+                  <Checkbox
+                    id="driver-paid-for-client"
+                    checked={formData.driver_paid_for_client}
+                    onCheckedChange={(checked) => setFormData({ ...formData, driver_paid_for_client: checked as boolean })}
+                  />
+                  <Label htmlFor="driver-paid-for-client">Driver Paid for Client</Label>
+                </div>
+
                 <div className="p-4 border rounded-lg space-y-2">
                   <h4 className="font-semibold text-sm">Payment Summary</h4>
+                  {formData.driver_paid_for_client && (
+                    <Badge variant="destructive" className="mb-2">Driver Paid for Client</Badge>
+                  )}
                   <div className="space-y-1 text-sm">
                     <div className="flex justify-between">
                       <span className="text-muted-foreground">Order Amount (USD):</span>
-                      <span className="font-medium">${parseFloat(formData.order_amount_usd).toFixed(2)}</span>
+                      <span className={`font-medium ${formData.driver_paid_for_client ? "text-red-600" : ""}`}>
+                        ${parseFloat(formData.order_amount_usd).toFixed(2)}
+                      </span>
                     </div>
                     <div className="flex justify-between">
                       <span className="text-muted-foreground">Order Amount (LBP):</span>
-                      <span className="font-medium">{parseFloat(formData.order_amount_lbp).toLocaleString()} LBP</span>
+                      <span className={`font-medium ${formData.driver_paid_for_client ? "text-red-600" : ""}`}>
+                        {parseFloat(formData.order_amount_lbp).toLocaleString()} LBP
+                      </span>
                     </div>
                     <div className="flex justify-between">
                       <span className="text-muted-foreground">Delivery Fee (USD):</span>
