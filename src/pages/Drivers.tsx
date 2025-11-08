@@ -8,7 +8,8 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Truck, Plus, DollarSign, FileText, ArrowDownLeft } from 'lucide-react';
+import { Truck, Plus, DollarSign, FileText, ArrowDownLeft, Trash2 } from 'lucide-react';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import CreateDriverDialog from '@/components/drivers/CreateDriverDialog';
 import DriverRemittanceDialog from '@/components/drivers/DriverRemittanceDialog';
 import TakeBackCashDialog from '@/components/drivers/TakeBackCashDialog';
@@ -22,6 +23,7 @@ const Drivers = () => {
   const [takeBackCashDriver, setTakeBackCashDriver] = useState<any>(null);
   const [dateFrom, setDateFrom] = useState(new Date().toISOString().split('T')[0]);
   const [dateTo, setDateTo] = useState(new Date().toISOString().split('T')[0]);
+  const [deleteTransactionId, setDeleteTransactionId] = useState<string | null>(null);
 
   const { data: drivers, isLoading, refetch } = useQuery({
     queryKey: ['drivers'],
@@ -62,7 +64,7 @@ const Drivers = () => {
       if (orderRefs.length > 0) {
         const { data: orders, error: ordersError } = await supabase
           .from('orders')
-          .select('order_id, voucher_no, order_amount_usd, order_amount_lbp, delivery_fee_usd, delivery_fee_lbp, notes, clients(name)')
+          .select('order_id, voucher_no, order_amount_usd, order_amount_lbp, delivery_fee_usd, delivery_fee_lbp, notes, driver_paid_for_client, driver_paid_amount_usd, driver_paid_amount_lbp, driver_paid_reason, clients(name)')
           .in('order_id', orderRefs);
         
         if (ordersError) throw ordersError;
@@ -94,6 +96,59 @@ const Drivers = () => {
   };
 
   const statementTotals = calculateStatementTotals();
+
+  const handleDeleteTransaction = async () => {
+    if (!deleteTransactionId) return;
+
+    try {
+      // Get transaction details before deleting to reverse wallet balance
+      const { data: transaction, error: fetchError } = await supabase
+        .from('driver_transactions')
+        .select('*, drivers(id, wallet_usd, wallet_lbp)')
+        .eq('id', deleteTransactionId)
+        .single();
+
+      if (fetchError) throw fetchError;
+
+      // Reverse wallet balance
+      const multiplier = transaction.type === 'Credit' ? -1 : 1;
+      const newWalletUsd = Number(transaction.drivers.wallet_usd) + (Number(transaction.amount_usd) * multiplier);
+      const newWalletLbp = Number(transaction.drivers.wallet_lbp) + (Number(transaction.amount_lbp) * multiplier);
+
+      const { error: walletError } = await supabase
+        .from('drivers')
+        .update({
+          wallet_usd: newWalletUsd,
+          wallet_lbp: newWalletLbp,
+        })
+        .eq('id', transaction.driver_id);
+
+      if (walletError) throw walletError;
+
+      // Delete the transaction
+      const { error: deleteError } = await supabase
+        .from('driver_transactions')
+        .delete()
+        .eq('id', deleteTransactionId);
+
+      if (deleteError) throw deleteError;
+
+      toast({
+        title: 'Transaction deleted',
+        description: 'Transaction has been deleted and wallet balance updated',
+      });
+
+      refetch();
+    } catch (error: any) {
+      toast({
+        title: 'Error',
+        description: error.message,
+        variant: 'destructive',
+      });
+    } finally {
+      setDeleteTransactionId(null);
+    }
+  };
 
   return (
     <Layout>
@@ -236,15 +291,21 @@ const Drivers = () => {
                           <TableHead className="py-2">Type</TableHead>
                           <TableHead className="py-2">Voucher #</TableHead>
                           <TableHead className="py-2">Client</TableHead>
-                          <TableHead className="py-2">Amount USD</TableHead>
-                          <TableHead className="py-2">Amount LBP</TableHead>
+                          <TableHead className="py-2">Order Amount USD</TableHead>
+                          <TableHead className="py-2">Order Amount LBP</TableHead>
+                          <TableHead className="py-2">Delivery Fee USD</TableHead>
+                          <TableHead className="py-2">Delivery Fee LBP</TableHead>
+                          <TableHead className="py-2">Transaction USD</TableHead>
+                          <TableHead className="py-2">Transaction LBP</TableHead>
+                          <TableHead className="py-2">Driver Paid</TableHead>
                           <TableHead className="py-2">Note</TableHead>
+                          <TableHead className="py-2">Actions</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
                         {statementData.map((row: any) => (
                           <TableRow key={row.id}>
-                            <TableCell className="py-1.5">{format(new Date(row.ts), 'MMM dd, yyyy HH:mm')}</TableCell>
+                            <TableCell className="py-1.5 whitespace-nowrap">{format(new Date(row.ts), 'MMM dd, yyyy HH:mm')}</TableCell>
                             <TableCell className="py-1.5">
                               <Badge variant={row.type === 'Credit' ? 'default' : 'secondary'}>
                                 {row.type}
@@ -252,13 +313,43 @@ const Drivers = () => {
                             </TableCell>
                             <TableCell className="py-1.5">{row.order?.voucher_no || '-'}</TableCell>
                             <TableCell className="py-1.5">{row.order?.clients?.name || '-'}</TableCell>
+                            <TableCell className="py-1.5">
+                              {row.order?.order_amount_usd ? `$${Number(row.order.order_amount_usd).toFixed(2)}` : '-'}
+                            </TableCell>
+                            <TableCell className="py-1.5">
+                              {row.order?.order_amount_lbp ? `${Number(row.order.order_amount_lbp).toLocaleString()} LBP` : '-'}
+                            </TableCell>
+                            <TableCell className="py-1.5">
+                              {row.order?.delivery_fee_usd ? `$${Number(row.order.delivery_fee_usd).toFixed(2)}` : '-'}
+                            </TableCell>
+                            <TableCell className="py-1.5">
+                              {row.order?.delivery_fee_lbp ? `${Number(row.order.delivery_fee_lbp).toLocaleString()} LBP` : '-'}
+                            </TableCell>
                             <TableCell className={`py-1.5 ${row.type === 'Credit' ? 'text-green-600' : 'text-red-600'}`}>
                               {row.type === 'Credit' ? '+' : '-'}${Number(row.amount_usd || 0).toFixed(2)}
                             </TableCell>
                             <TableCell className={`py-1.5 ${row.type === 'Credit' ? 'text-green-600' : 'text-red-600'}`}>
                               {row.type === 'Credit' ? '+' : '-'}{Number(row.amount_lbp || 0).toLocaleString()} LBP
                             </TableCell>
+                            <TableCell className="py-1.5">
+                              {row.order?.driver_paid_for_client ? (
+                                <div className="text-xs">
+                                  <Badge variant="outline" className="mb-1">Paid</Badge>
+                                  <div>${Number(row.order.driver_paid_amount_usd || 0).toFixed(2)} / {Number(row.order.driver_paid_amount_lbp || 0).toLocaleString()} LBP</div>
+                                  {row.order.driver_paid_reason && <div className="text-muted-foreground">{row.order.driver_paid_reason}</div>}
+                                </div>
+                              ) : '-'}
+                            </TableCell>
                             <TableCell className="py-1.5 max-w-xs truncate">{row.note || row.order?.notes || '-'}</TableCell>
+                            <TableCell className="py-1.5">
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={() => setDeleteTransactionId(row.id)}
+                              >
+                                <Trash2 className="h-4 w-4 text-destructive" />
+                              </Button>
+                            </TableCell>
                           </TableRow>
                         ))}
                       </TableBody>
@@ -303,6 +394,21 @@ const Drivers = () => {
           onOpenChange={(open) => !open && setTakeBackCashDriver(null)}
         />
       )}
+
+      <AlertDialog open={!!deleteTransactionId} onOpenChange={(open) => !open && setDeleteTransactionId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Transaction</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete this transaction? This will reverse the wallet balance and cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDeleteTransaction}>Delete</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Layout>
   );
 };
