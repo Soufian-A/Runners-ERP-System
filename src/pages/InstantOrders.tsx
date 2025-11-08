@@ -10,7 +10,7 @@ import { BulkActionsBar } from "@/components/orders/BulkActionsBar";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { LayoutGrid, List, Settings, Search, Pencil } from "lucide-react"; // Import Pencil icon
+import { LayoutGrid, List, Settings, Search } from "lucide-react";
 import EditOrderDialog from "@/components/orders/EditOrderDialog";
 import CreateOrderDialog from "@/components/orders/CreateOrderDialog";
 import { AddressSettingsDialog } from "@/components/orders/AddressSettingsDialog";
@@ -35,7 +35,6 @@ interface Order {
   drivers?: { name: string };
   third_parties?: { name: string };
   customers?: { phone: string; name?: string };
-  driver_paid_for_client?: boolean; // Added for the new feature
 }
 
 const InstantOrders = () => {
@@ -199,17 +198,19 @@ const InstantOrders = () => {
                   <TableHead>Delivery USD</TableHead>
                   <TableHead>Delivery LBP</TableHead>
                   <TableHead>Notes</TableHead>
-                  <TableHead>Driver Paid</TableHead> {/* New column */}
                   <TableHead>Status</TableHead>
                   <TableHead>Created</TableHead>
-                  <TableHead className="w-[80px]">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {filteredOrders?.map((order) => (
                   <TableRow 
                     key={order.id} 
-                    className="hover:bg-muted/50"
+                    className="hover:bg-muted/50 cursor-pointer"
+                    onClick={() => {
+                      setSelectedOrder(order);
+                      setDialogOpen(true);
+                    }}
                   >
                     <TableCell onClick={(e) => e.stopPropagation()}>
                       <Checkbox checked={selectedIds.includes(order.id)} onCheckedChange={() => toggleSelect(order.id)} />
@@ -217,32 +218,14 @@ const InstantOrders = () => {
                     <TableCell>{order.clients?.name}</TableCell>
                     <TableCell>{order.drivers?.name || "-"}</TableCell>
                     <TableCell className="max-w-[200px] truncate">{order.address}</TableCell>
-                    <TableCell className={order.driver_paid_for_client ? "text-red-600" : ""}>
-                      ${order.order_amount_usd?.toFixed(2) || "0.00"}</TableCell>
-                    <TableCell className={order.driver_paid_for_client ? "text-red-600" : ""}>
-                      {order.order_amount_lbp?.toLocaleString() || "0"} LL</TableCell>
+                    <TableCell>${order.order_amount_usd?.toFixed(2) || "0.00"}</TableCell>
+                    <TableCell>{order.order_amount_lbp?.toLocaleString() || "0"} LL</TableCell>
                     <TableCell>${order.delivery_fee_usd?.toFixed(2) || "0.00"}</TableCell>
                     <TableCell>{order.delivery_fee_lbp?.toLocaleString() || "0"} LL</TableCell>
                     <TableCell className="max-w-[150px] truncate">{order.notes || "-"}</TableCell>
-                    <TableCell>
-                      {order.driver_paid_for_client ? <Badge variant="destructive">Yes</Badge> : "No"}
-                    </TableCell>
                     <TableCell onClick={(e) => e.stopPropagation()}>{getStatusBadge(order.status)}</TableCell>
                     <TableCell className="text-xs whitespace-nowrap">
                       {new Date(order.created_at).toLocaleDateString()} {new Date(order.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                    </TableCell>
-                    <TableCell>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setSelectedOrder(order);
-                          setDialogOpen(true);
-                        }}
-                      >
-                        <Pencil className="h-4 w-4" />
-                      </Button>
                     </TableCell>
                   </TableRow>
                 ))}

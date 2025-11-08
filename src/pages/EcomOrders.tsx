@@ -11,7 +11,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { LayoutGrid, List, Search, Pencil } from "lucide-react"; // Import Pencil icon
+import { LayoutGrid, List, Search } from "lucide-react";
 import EditOrderDialog from "@/components/orders/EditOrderDialog";
 import CreateOrderDialog from "@/components/orders/CreateOrderDialog";
 
@@ -37,7 +37,6 @@ interface Order {
   drivers?: { name: string };
   third_parties?: { name: string };
   customers?: { phone: string; name?: string };
-  driver_paid_for_client?: boolean; // Added for the new feature
 }
 
 const EcomOrders = () => {
@@ -232,11 +231,9 @@ const EcomOrders = () => {
                   <TableHead>Amount USD</TableHead>
                   <TableHead>Amount LBP</TableHead>
                   <TableHead>Payment Type</TableHead>
-                  <TableHead>Driver Paid</TableHead> {/* New column */}
                   <TableHead>Delivery</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead>Created</TableHead>
-                  <TableHead className="w-[80px]">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -245,7 +242,13 @@ const EcomOrders = () => {
                     <TableCell onClick={(e) => e.stopPropagation()}>
                       <Checkbox checked={selectedIds.includes(order.id)} onCheckedChange={() => toggleSelect(order.id)} />
                     </TableCell>
-                    <TableCell className="font-medium">
+                    <TableCell
+                      className="font-medium cursor-pointer"
+                      onClick={() => {
+                        setSelectedOrder(order);
+                        setDialogOpen(true);
+                      }}
+                    >
                       {order.voucher_no || "-"}
                     </TableCell>
                     <TableCell>{order.clients?.name}</TableCell>
@@ -260,19 +263,12 @@ const EcomOrders = () => {
                       )}
                     </TableCell>
                     <TableCell className="max-w-[200px] truncate">{order.address}</TableCell>
-                    <TableCell className={order.driver_paid_for_client ? "text-red-600" : ""}>
-                      ${order.order_amount_usd.toFixed(2)}
-                    </TableCell>
-                    <TableCell className={order.driver_paid_for_client ? "text-red-600" : ""}>
-                      {order.order_amount_lbp.toLocaleString()} LL
-                    </TableCell>
+                    <TableCell>${order.order_amount_usd.toFixed(2)}</TableCell>
+                    <TableCell>{order.order_amount_lbp.toLocaleString()} LL</TableCell>
                     <TableCell>
                       <Badge variant={order.prepaid_by_company ? "default" : "outline"}>
                         {order.prepaid_by_company ? "Cash" : "Statement"}
                       </Badge>
-                    </TableCell>
-                    <TableCell>
-                      {order.driver_paid_for_client ? <Badge variant="destructive">Yes</Badge> : "No"}
                     </TableCell>
                     <TableCell className="text-xs">
                       {order.fulfillment === "InHouse" 
@@ -287,19 +283,6 @@ const EcomOrders = () => {
                         hour: '2-digit', 
                         minute: '2-digit' 
                       })}
-                    </TableCell>
-                    <TableCell>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setSelectedOrder(order);
-                          setDialogOpen(true);
-                        }}
-                      >
-                        <Pencil className="h-4 w-4" />
-                      </Button>
                     </TableCell>
                   </TableRow>
                 ))}

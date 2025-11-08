@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import Layout from '@/components/Layout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -8,33 +8,20 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Truck, Plus, DollarSign, FileText, ArrowDownLeft, Trash2 } from 'lucide-react';
+import { Truck, Plus, DollarSign, FileText, ArrowDownLeft } from 'lucide-react';
 import CreateDriverDialog from '@/components/drivers/CreateDriverDialog';
 import DriverRemittanceDialog from '@/components/drivers/DriverRemittanceDialog';
 import TakeBackCashDialog from '@/components/drivers/TakeBackCashDialog';
-import { toast } from 'sonner'; // Using sonner for toasts as per AI_RULES.md
+import { toast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from '@/components/ui/alert-dialog';
 
 const Drivers = () => {
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [selectedDriver, setSelectedDriver] = useState<any>(null);
   const [viewStatementDriver, setViewStatementDriver] = useState<any>(null);
   const [takeBackCashDriver, setTakeBackCashDriver] = useState<any>(null);
-  const [deleteDriverId, setDeleteDriverId] = useState<string | null>(null); // State for delete confirmation
   const [dateFrom, setDateFrom] = useState(new Date().toISOString().split('T')[0]);
   const [dateTo, setDateTo] = useState(new Date().toISOString().split('T')[0]);
-
-  const queryClient = useQueryClient();
 
   const { data: drivers, isLoading, refetch } = useQuery({
     queryKey: ['drivers'],
@@ -107,33 +94,6 @@ const Drivers = () => {
   };
 
   const statementTotals = calculateStatementTotals();
-
-  const deleteDriverMutation = useMutation({
-    mutationFn: async (driverId: string) => {
-      const { error } = await supabase
-        .from('drivers')
-        .delete()
-        .eq('id', driverId);
-      
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['drivers'] });
-      toast.success("Driver Deleted", {
-        description: "The driver has been deleted successfully.",
-      });
-      setDeleteDriverId(null);
-    },
-    onError: (error: any) => {
-      toast.error("Error", {
-        description: error.message,
-      });
-    },
-  });
-
-  const handleDelete = (driverId: string) => {
-    setDeleteDriverId(driverId);
-  };
 
   return (
     <Layout>
@@ -214,13 +174,6 @@ const Drivers = () => {
                           >
                             <ArrowDownLeft className="mr-1 h-3 w-3" />
                             Take Cash
-                          </Button>
-                          <Button 
-                            size="sm" 
-                            variant="destructive" 
-                            onClick={() => handleDelete(driver.id)}
-                          >
-                            <Trash2 className="h-3 w-3" />
                           </Button>
                         </div>
                       </TableCell>
@@ -350,26 +303,6 @@ const Drivers = () => {
           onOpenChange={(open) => !open && setTakeBackCashDriver(null)}
         />
       )}
-
-      <AlertDialog open={!!deleteDriverId} onOpenChange={() => setDeleteDriverId(null)}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete Driver</AlertDialogTitle>
-            <AlertDialogDescription>
-              Are you sure you want to delete this driver? This action cannot be undone.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={() => deleteDriverId && deleteDriverMutation.mutate(deleteDriverId)}
-              className="bg-destructive text-destructive-foreground"
-            >
-              Delete
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
     </Layout>
   );
 };

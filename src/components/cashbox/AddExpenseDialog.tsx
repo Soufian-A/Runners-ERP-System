@@ -8,7 +8,6 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { toast } from 'sonner';
-import { updateCashboxDaily } from '@/lib/cashbox'; // Import the new utility
 
 interface AddExpenseDialogProps {
   open: boolean;
@@ -38,42 +37,23 @@ const AddExpenseDialog = ({ open, onOpenChange, date }: AddExpenseDialogProps) =
 
   const mutation = useMutation({
     mutationFn: async () => {
-      const amountNum = parseFloat(amount);
-      if (isNaN(amountNum) || amountNum <= 0) {
-        throw new Error('Please enter a valid amount');
-      }
-      if (!categoryId) {
-        throw new Error('Please select an expense category');
-      }
-
-      // Insert into daily_expenses
       const expenseData = {
         date,
         category_id: categoryId,
-        amount_usd: currency === 'USD' ? amountNum : 0,
-        amount_lbp: currency === 'LBP' ? amountNum : 0,
+        amount_usd: currency === 'USD' ? Number(amount) : 0,
+        amount_lbp: currency === 'LBP' ? Number(amount) : 0,
         notes: notes || null,
       };
 
-      const { error: expenseError } = await supabase
+      const { error } = await supabase
         .from('daily_expenses')
         .insert(expenseData);
 
-      if (expenseError) throw expenseError;
-
-      // Update cashbox_daily using the new utility
-      const expenseCategory = categories?.find(cat => cat.id === categoryId)?.name || 'Unknown Expense';
-      await updateCashboxDaily({
-        date,
-        cashOutUsdChange: currency === 'USD' ? amountNum : 0,
-        cashOutLbpChange: currency === 'LBP' ? amountNum : 0,
-        note: `Expense (${expenseCategory}) - ${amountNum} ${currency}${notes ? ` - ${notes}` : ''}`,
-      });
+      if (error) throw error;
     },
     onSuccess: () => {
       toast.success('Expense added successfully');
       queryClient.invalidateQueries({ queryKey: ['daily-expenses'] });
-      queryClient.invalidateQueries({ queryKey: ['cashbox'] }); // Invalidate cashbox to reflect changes
       setCategoryId('');
       setAmount('');
       setNotes('');
@@ -85,6 +65,10 @@ const AddExpenseDialog = ({ open, onOpenChange, date }: AddExpenseDialogProps) =
   });
 
   const handleSubmit = () => {
+    if (!categoryId || !amount || Number(amount) <= 0) {
+      toast.error('Please select a category and enter a valid amount');
+      return;
+    }
     mutation.mutate();
   };
 

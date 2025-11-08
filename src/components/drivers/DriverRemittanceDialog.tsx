@@ -13,7 +13,6 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { updateCashboxDaily } from '@/lib/cashbox'; // Import the new utility
 
 interface DriverRemittanceDialogProps {
   driver: any;
@@ -60,14 +59,35 @@ const DriverRemittanceDialog = ({ driver, open, onOpenChange }: DriverRemittance
         totalLBP += Number(order.order_amount_lbp) + Number(order.driver_paid_amount_lbp);
       }
 
-      // Record cashbox in using the new utility
+      // Record cashbox in
       const today = new Date().toISOString().split('T')[0];
-      await updateCashboxDaily({
-        date: today,
-        cashInUsdChange: totalUSD,
-        cashInLbpChange: totalLBP,
-        note: `Remittance from driver ${driver.name} for ${ordersToRemit.length} orders`,
-      });
+      const { data: cashbox } = await supabase
+        .from('cashbox_daily')
+        .select('*')
+        .eq('date', today)
+        .maybeSingle();
+
+      if (cashbox) {
+        await supabase
+          .from('cashbox_daily')
+          .update({
+            cash_in_usd: Number(cashbox.cash_in_usd) + totalUSD,
+            cash_in_lbp: Number(cashbox.cash_in_lbp) + totalLBP,
+          })
+          .eq('id', cashbox.id);
+      } else {
+        await supabase.from('cashbox_daily').insert({
+          date: today,
+          opening_usd: 0,
+          opening_lbp: 0,
+          cash_in_usd: totalUSD,
+          cash_in_lbp: totalLBP,
+          cash_out_usd: 0,
+          cash_out_lbp: 0,
+          closing_usd: totalUSD,
+          closing_lbp: totalLBP,
+        });
+      }
 
       // Debit driver wallet
       await supabase.from('driver_transactions').insert({
@@ -111,7 +131,6 @@ const DriverRemittanceDialog = ({ driver, open, onOpenChange }: DriverRemittance
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['drivers'] });
       queryClient.invalidateQueries({ queryKey: ['driver-pending-orders'] });
-      queryClient.invalidateQueries({ queryKey: ['cashbox'] }); // Invalidate cashbox to reflect changes
       toast({
         title: "Remittance Recorded",
         description: "Driver remittance has been recorded successfully.",
