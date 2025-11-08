@@ -333,14 +333,12 @@ const Drivers = () => {
                             </TableCell>
                             <TableCell className="py-1.5">
                               {row.order?.driver_paid_for_client ? (
-                                <div className="text-xs">
-                                  <Badge variant="outline" className="mb-1">Paid</Badge>
-                                  <div>${Number(row.order.driver_paid_amount_usd || 0).toFixed(2)} / {Number(row.order.driver_paid_amount_lbp || 0).toLocaleString()} LBP</div>
-                                  {row.order.driver_paid_reason && <div className="text-muted-foreground">{row.order.driver_paid_reason}</div>}
-                                </div>
-                              ) : '-'}
+                                <Badge variant="outline">Yes</Badge>
+                              ) : (
+                                <span className="text-muted-foreground">No</span>
+                              )}
                             </TableCell>
-                            <TableCell className="py-1.5 max-w-xs truncate">{row.note || row.order?.notes || '-'}</TableCell>
+                            <TableCell className="py-1.5 max-w-xs truncate">{row.note || '-'}</TableCell>
                             <TableCell className="py-1.5">
                               <Button
                                 size="sm"
