@@ -51,15 +51,22 @@ const DriverRemittanceDialog = ({ driver, open, onOpenChange }: DriverRemittance
         throw new Error('No orders selected');
       }
 
-      let totalUSD = 0;
-      let totalLBP = 0;
+      let totalCollectedUSD = 0;
+      let totalCollectedLBP = 0;
+      let totalOrderAmountUSD = 0;
+      let totalOrderAmountLBP = 0;
 
       for (const order of ordersToRemit) {
-        totalUSD += Number(order.order_amount_usd) + Number(order.driver_paid_amount_usd);
-        totalLBP += Number(order.order_amount_lbp) + Number(order.driver_paid_amount_lbp);
+        // Total collected = order amount + driver paid amount
+        totalCollectedUSD += Number(order.order_amount_usd) + Number(order.driver_paid_amount_usd);
+        totalCollectedLBP += Number(order.order_amount_lbp) + Number(order.driver_paid_amount_lbp);
+        
+        // Order amount only (for client credit)
+        totalOrderAmountUSD += Number(order.order_amount_usd);
+        totalOrderAmountLBP += Number(order.order_amount_lbp);
       }
 
-      // Record cashbox in
+      // Record cashbox in (total collected from driver)
       const today = new Date().toISOString().split('T')[0];
       const { data: cashbox } = await supabase
         .from('cashbox_daily')
@@ -71,8 +78,8 @@ const DriverRemittanceDialog = ({ driver, open, onOpenChange }: DriverRemittance
         await supabase
           .from('cashbox_daily')
           .update({
-            cash_in_usd: Number(cashbox.cash_in_usd) + totalUSD,
-            cash_in_lbp: Number(cashbox.cash_in_lbp) + totalLBP,
+            cash_in_usd: Number(cashbox.cash_in_usd) + totalCollectedUSD,
+            cash_in_lbp: Number(cashbox.cash_in_lbp) + totalCollectedLBP,
           })
           .eq('id', cashbox.id);
       } else {
@@ -80,12 +87,12 @@ const DriverRemittanceDialog = ({ driver, open, onOpenChange }: DriverRemittance
           date: today,
           opening_usd: 0,
           opening_lbp: 0,
-          cash_in_usd: totalUSD,
-          cash_in_lbp: totalLBP,
+          cash_in_usd: totalCollectedUSD,
+          cash_in_lbp: totalCollectedLBP,
           cash_out_usd: 0,
           cash_out_lbp: 0,
-          closing_usd: totalUSD,
-          closing_lbp: totalLBP,
+          closing_usd: totalCollectedUSD,
+          closing_lbp: totalCollectedLBP,
         });
       }
 
@@ -93,8 +100,8 @@ const DriverRemittanceDialog = ({ driver, open, onOpenChange }: DriverRemittance
       await supabase.from('driver_transactions').insert({
         driver_id: driver.id,
         type: 'Debit',
-        amount_usd: totalUSD,
-        amount_lbp: totalLBP,
+        amount_usd: totalCollectedUSD,
+        amount_lbp: totalCollectedLBP,
         note: `Remittance for ${ordersToRemit.length} orders`,
       });
 
@@ -108,10 +115,37 @@ const DriverRemittanceDialog = ({ driver, open, onOpenChange }: DriverRemittance
         await supabase
           .from('drivers')
           .update({
-            wallet_usd: Number(currentDriver.wallet_usd) - totalUSD,
-            wallet_lbp: Number(currentDriver.wallet_lbp) - totalLBP,
+            wallet_usd: Number(currentDriver.wallet_usd) - totalCollectedUSD,
+            wallet_lbp: Number(currentDriver.wallet_lbp) - totalCollectedLBP,
           })
           .eq('id', driver.id);
+      }
+
+      // Credit client accounts for order amounts (they've been paid)
+      // Group orders by client
+      const ordersByClient = ordersToRemit.reduce((acc: any, order: any) => {
+        if (!acc[order.client_id]) {
+          acc[order.client_id] = [];
+        }
+        acc[order.client_id].push(order);
+        return acc;
+      }, {});
+
+      // Create credit transactions for each client
+      for (const [clientId, clientOrders] of Object.entries(ordersByClient)) {
+        const clientTotalUSD = (clientOrders as any[]).reduce((sum, o) => sum + Number(o.order_amount_usd), 0);
+        const clientTotalLBP = (clientOrders as any[]).reduce((sum, o) => sum + Number(o.order_amount_lbp), 0);
+        
+        if (clientTotalUSD > 0 || clientTotalLBP > 0) {
+          const orderIds = (clientOrders as any[]).map(o => o.order_id).join(', ');
+          await supabase.from('client_transactions').insert({
+            client_id: clientId,
+            type: 'Credit',
+            amount_usd: clientTotalUSD,
+            amount_lbp: clientTotalLBP,
+            note: `Payment for orders: ${orderIds}`,
+          });
+        }
       }
 
       // Update orders

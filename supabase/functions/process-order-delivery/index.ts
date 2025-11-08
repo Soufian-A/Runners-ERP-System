@@ -171,81 +171,88 @@ Deno.serve(async (req) => {
       // Normal delivery scenario - driver collects payment
       console.log('Processing normal delivery scenario')
       
-      // 1. Credit driver wallet with delivery fees (driver earned this)
-      if (order.driver_id && (Number(order.delivery_fee_usd) > 0 || Number(order.delivery_fee_lbp) > 0)) {
-        console.log('Creating driver transaction for delivery fee:', {
-          driver_id: order.driver_id,
-          delivery_fee_usd: order.delivery_fee_usd,
-          delivery_fee_lbp: order.delivery_fee_lbp
-        })
+      // 1. Credit driver wallet with delivery fee + order amount (driver collected everything)
+      if (order.driver_id) {
+        const driverCreditUsd = Number(order.delivery_fee_usd) + Number(order.order_amount_usd);
+        const driverCreditLbp = Number(order.delivery_fee_lbp) + Number(order.order_amount_lbp);
         
-        const { error: driverTxError } = await supabaseClient
-          .from('driver_transactions')
-          .insert({
+        if (driverCreditUsd > 0 || driverCreditLbp > 0) {
+          console.log('Creating driver transaction for delivery fee + order amount:', {
             driver_id: order.driver_id,
-            type: 'Credit',
-            amount_usd: Number(order.delivery_fee_usd),
-            amount_lbp: Number(order.delivery_fee_lbp),
-            order_ref: order.order_id,
-            note: `Delivery fee for ${order.order_id}`,
-          })
-
-        if (driverTxError) {
-          console.error('Error creating driver transaction:', driverTxError)
-          throw driverTxError
-        }
-
-        // Update driver wallet balance
-        const { data: driver, error: driverFetchError } = await supabaseClient
-          .from('drivers')
-          .select('wallet_usd, wallet_lbp')
-          .eq('id', order.driver_id)
-          .single()
-
-        if (driverFetchError) {
-          console.error('Error fetching driver:', driverFetchError)
-          throw driverFetchError
-        }
-
-        if (driver) {
-          const newWalletUsd = Number(driver.wallet_usd) + Number(order.delivery_fee_usd)
-          const newWalletLbp = Number(driver.wallet_lbp) + Number(order.delivery_fee_lbp)
-          
-          console.log('Updating driver wallet:', {
-            old_usd: driver.wallet_usd,
-            new_usd: newWalletUsd,
-            old_lbp: driver.wallet_lbp,
-            new_lbp: newWalletLbp
+            total_usd: driverCreditUsd,
+            total_lbp: driverCreditLbp
           })
           
-          const { error: walletError } = await supabaseClient
-            .from('drivers')
-            .update({
-              wallet_usd: newWalletUsd,
-              wallet_lbp: newWalletLbp,
+          const { error: driverTxError } = await supabaseClient
+            .from('driver_transactions')
+            .insert({
+              driver_id: order.driver_id,
+              type: 'Credit',
+              amount_usd: driverCreditUsd,
+              amount_lbp: driverCreditLbp,
+              order_ref: order.order_id,
+              note: `Delivery for ${order.order_id} (Fee: $${order.delivery_fee_usd}/${order.delivery_fee_lbp} LBP + Amount: $${order.order_amount_usd}/${order.order_amount_lbp} LBP)`,
             })
-            .eq('id', order.driver_id)
 
-          if (walletError) {
-            console.error('Error updating driver wallet:', walletError)
-            throw walletError
+          if (driverTxError) {
+            console.error('Error creating driver transaction:', driverTxError)
+            throw driverTxError
           }
-        }
 
-        // Set driver_remit_status to Pending so it shows up for remittance
-        const { error: remitError } = await supabaseClient
-          .from('orders')
-          .update({ driver_remit_status: 'Pending' })
-          .eq('id', orderId)
+          // Update driver wallet balance
+          const { data: driver, error: driverFetchError } = await supabaseClient
+            .from('drivers')
+            .select('wallet_usd, wallet_lbp')
+            .eq('id', order.driver_id)
+            .single()
 
-        if (remitError) {
-          console.error('Error updating remit status:', remitError)
-          throw remitError
+          if (driverFetchError) {
+            console.error('Error fetching driver:', driverFetchError)
+            throw driverFetchError
+          }
+
+          if (driver) {
+            const newWalletUsd = Number(driver.wallet_usd) + driverCreditUsd
+            const newWalletLbp = Number(driver.wallet_lbp) + driverCreditLbp
+            
+            console.log('Updating driver wallet:', {
+              old_usd: driver.wallet_usd,
+              new_usd: newWalletUsd,
+              old_lbp: driver.wallet_lbp,
+              new_lbp: newWalletLbp
+            })
+            
+            const { error: walletError } = await supabaseClient
+              .from('drivers')
+              .update({
+                wallet_usd: newWalletUsd,
+                wallet_lbp: newWalletLbp,
+              })
+              .eq('id', order.driver_id)
+
+            if (walletError) {
+              console.error('Error updating driver wallet:', walletError)
+              throw walletError
+            }
+          }
+
+          // Set driver_remit_status to Pending so it shows up for remittance
+          const { error: remitError } = await supabaseClient
+            .from('orders')
+            .update({ driver_remit_status: 'Pending' })
+            .eq('id', orderId)
+
+          if (remitError) {
+            console.error('Error updating remit status:', remitError)
+            throw remitError
+          }
+          
+          console.log('Driver wallet and remit status updated successfully')
+        } else {
+          console.log('Skipping driver transaction - no amounts to credit')
         }
-        
-        console.log('Driver wallet and remit status updated successfully')
       } else {
-        console.log('Skipping driver transaction - no driver assigned or no delivery fee')
+        console.log('Skipping driver transaction - no driver assigned')
       }
 
       // 2. Debit client account with order amount (client owes this)
