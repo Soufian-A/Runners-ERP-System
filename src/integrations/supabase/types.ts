@@ -104,6 +104,54 @@ export type Database = {
         }
         Relationships: []
       }
+      client_payments: {
+        Row: {
+          amount_lbp: number | null
+          amount_usd: number | null
+          client_id: string
+          created_at: string
+          created_by: string | null
+          id: string
+          notes: string | null
+          order_refs: string[] | null
+          payment_date: string
+          payment_method: string | null
+          period_from: string
+          period_to: string
+          statement_id: string
+        }
+        Insert: {
+          amount_lbp?: number | null
+          amount_usd?: number | null
+          client_id: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          notes?: string | null
+          order_refs?: string[] | null
+          payment_date?: string
+          payment_method?: string | null
+          period_from: string
+          period_to: string
+          statement_id: string
+        }
+        Update: {
+          amount_lbp?: number | null
+          amount_usd?: number | null
+          client_id?: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          notes?: string | null
+          order_refs?: string[] | null
+          payment_date?: string
+          payment_method?: string | null
+          period_from?: string
+          period_to?: string
+          statement_id?: string
+        }
+        Relationships: []
+      }
       client_rules: {
         Row: {
           allow_override: boolean | null
@@ -213,6 +261,36 @@ export type Database = {
           name?: string
           phone?: string | null
           type?: Database["public"]["Enums"]["client_type"]
+        }
+        Relationships: []
+      }
+      company_settings: {
+        Row: {
+          company_address: string | null
+          company_email: string | null
+          company_name: string | null
+          company_phone: string | null
+          id: string
+          logo_url: string | null
+          updated_at: string
+        }
+        Insert: {
+          company_address?: string | null
+          company_email?: string | null
+          company_name?: string | null
+          company_phone?: string | null
+          id?: string
+          logo_url?: string | null
+          updated_at?: string
+        }
+        Update: {
+          company_address?: string | null
+          company_email?: string | null
+          company_name?: string | null
+          company_phone?: string | null
+          id?: string
+          logo_url?: string | null
+          updated_at?: string
         }
         Relationships: []
       }
@@ -613,6 +691,7 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      generate_statement_id: { Args: never; Returns: string }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
