@@ -22,7 +22,6 @@ export function ClientStatementReport() {
       const { data, error } = await supabase
         .from('clients')
         .select('*')
-        .eq('type', 'Ecom')
         .order('name');
       if (error) throw error;
       return data;
@@ -43,7 +42,6 @@ export function ClientStatementReport() {
           third_parties(name)
         `)
         .eq('client_id', selectedClient)
-        .eq('order_type', 'ecom')
         .gte('created_at', dateFrom)
         .lte('created_at', dateTo + 'T23:59:59')
         .order('created_at', { ascending: false });
@@ -65,12 +63,21 @@ export function ClientStatementReport() {
 
     const deliveredOrders = orders.filter(o => o.status === 'Delivered');
 
+    // For instant orders, client owes order_amount + delivery_fee when driver paid for them
+    // For ecom orders, use amount_due_to_client_usd
+    const totalDueToClient = deliveredOrders.reduce((sum, o) => {
+      if (o.order_type === 'instant' && o.driver_paid_for_client) {
+        return sum + Number(o.order_amount_usd || 0) + Number(o.delivery_fee_usd || 0);
+      }
+      return sum + Number(o.amount_due_to_client_usd || 0);
+    }, 0);
+
     return {
       totalOrders: orders.length,
       deliveredOrders: deliveredOrders.length,
       totalOrderAmount: deliveredOrders.reduce((sum, o) => sum + Number(o.order_amount_usd || 0), 0),
       totalDeliveryFees: deliveredOrders.reduce((sum, o) => sum + Number(o.delivery_fee_usd || 0), 0),
-      totalDueToClient: deliveredOrders.reduce((sum, o) => sum + Number(o.amount_due_to_client_usd || 0), 0),
+      totalDueToClient,
     };
   };
 
@@ -89,7 +96,7 @@ export function ClientStatementReport() {
         <CardContent className="space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="client">E-commerce Client</Label>
+              <Label htmlFor="client">Client</Label>
               <Select value={selectedClient} onValueChange={setSelectedClient}>
                 <SelectTrigger id="client">
                   <SelectValue placeholder="Select client..." />
@@ -172,45 +179,65 @@ export function ClientStatementReport() {
                     <TableHeader>
                       <TableRow>
                         <TableHead>Date</TableHead>
-                        <TableHead>Voucher</TableHead>
+                        <TableHead>Order ID</TableHead>
+                        <TableHead>Type</TableHead>
                         <TableHead>Customer</TableHead>
                         <TableHead>Address</TableHead>
                         <TableHead>Order Amount</TableHead>
                         <TableHead>Delivery Fee</TableHead>
+                        <TableHead>Driver Paid</TableHead>
                         <TableHead>Due to Client</TableHead>
                         <TableHead>Status</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {orders.map((order: any) => (
-                        <TableRow key={order.id}>
-                          <TableCell className="text-xs">
-                            {format(new Date(order.created_at), 'MMM dd, HH:mm')}
-                          </TableCell>
-                          <TableCell>{order.voucher_no || '-'}</TableCell>
-                          <TableCell>
-                            <div className="flex flex-col text-xs">
-                              <span>{order.customers?.phone}</span>
-                              {order.customers?.name && (
-                                <span className="text-muted-foreground">{order.customers.name}</span>
+                      {orders.map((order: any) => {
+                        const dueToClient = order.order_type === 'instant' && order.driver_paid_for_client
+                          ? Number(order.order_amount_usd || 0) + Number(order.delivery_fee_usd || 0)
+                          : Number(order.amount_due_to_client_usd || 0);
+                        
+                        return (
+                          <TableRow key={order.id}>
+                            <TableCell className="text-xs">
+                              {format(new Date(order.created_at), 'MMM dd, HH:mm')}
+                            </TableCell>
+                            <TableCell className="text-xs">{order.order_id}</TableCell>
+                            <TableCell>
+                              <Badge variant="outline" className="text-xs">
+                                {order.order_type}
+                              </Badge>
+                            </TableCell>
+                            <TableCell>
+                              <div className="flex flex-col text-xs">
+                                <span>{order.customers?.phone}</span>
+                                {order.customers?.name && (
+                                  <span className="text-muted-foreground">{order.customers.name}</span>
+                                )}
+                              </div>
+                            </TableCell>
+                            <TableCell className="max-w-[200px] truncate text-xs">
+                              {order.address}
+                            </TableCell>
+                            <TableCell>${order.order_amount_usd.toFixed(2)}</TableCell>
+                            <TableCell>${order.delivery_fee_usd.toFixed(2)}</TableCell>
+                            <TableCell>
+                              {order.driver_paid_for_client ? (
+                                <Badge variant="destructive" className="text-xs">Yes</Badge>
+                              ) : (
+                                <span className="text-xs text-muted-foreground">No</span>
                               )}
-                            </div>
-                          </TableCell>
-                          <TableCell className="max-w-[200px] truncate text-xs">
-                            {order.address}
-                          </TableCell>
-                          <TableCell>${order.order_amount_usd.toFixed(2)}</TableCell>
-                          <TableCell>${order.delivery_fee_usd.toFixed(2)}</TableCell>
-                          <TableCell className="font-medium">
-                            ${order.amount_due_to_client_usd?.toFixed(2) || '0.00'}
-                          </TableCell>
-                          <TableCell>
-                            <Badge variant={order.status === 'Delivered' ? 'default' : 'secondary'}>
-                              {order.status}
-                            </Badge>
-                          </TableCell>
-                        </TableRow>
-                      ))}
+                            </TableCell>
+                            <TableCell className="font-medium">
+                              ${dueToClient.toFixed(2)}
+                            </TableCell>
+                            <TableCell>
+                              <Badge variant={order.status === 'Delivered' ? 'default' : 'secondary'}>
+                                {order.status}
+                              </Badge>
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
                     </TableBody>
                   </Table>
                 </div>
