@@ -63,12 +63,21 @@ export function ClientStatementReport() {
 
     const deliveredOrders = orders.filter(o => o.status === 'Delivered');
 
-    // For instant orders, client owes order_amount + delivery_fee when driver paid for them
-    // For ecom orders, use amount_due_to_client_usd
+    // For instant orders:
+    // - If driver paid for client: client owes order_amount + delivery_fee (driver didn't collect either)
+    // - If driver collected: client owes order_amount only (we keep delivery fee)
+    // For ecom orders: use amount_due_to_client_usd (based on fee rule)
     const totalDueToClient = deliveredOrders.reduce((sum, o) => {
-      if (o.order_type === 'instant' && o.driver_paid_for_client) {
-        return sum + Number(o.order_amount_usd || 0) + Number(o.delivery_fee_usd || 0);
+      if (o.order_type === 'instant') {
+        if (o.driver_paid_for_client) {
+          // Driver paid for client and didn't collect delivery fee either
+          return sum + Number(o.order_amount_usd || 0) + Number(o.delivery_fee_usd || 0);
+        } else {
+          // Driver collected from customer, client owes order amount only
+          return sum + Number(o.order_amount_usd || 0);
+        }
       }
+      // Ecom orders use fee rule calculation
       return sum + Number(o.amount_due_to_client_usd || 0);
     }, 0);
 
@@ -192,9 +201,19 @@ export function ClientStatementReport() {
                     </TableHeader>
                     <TableBody>
                       {orders.map((order: any) => {
-                        const dueToClient = order.order_type === 'instant' && order.driver_paid_for_client
-                          ? Number(order.order_amount_usd || 0) + Number(order.delivery_fee_usd || 0)
-                          : Number(order.amount_due_to_client_usd || 0);
+                        let dueToClient = 0;
+                        if (order.order_type === 'instant') {
+                          if (order.driver_paid_for_client) {
+                            // Driver paid and didn't collect delivery fee
+                            dueToClient = Number(order.order_amount_usd || 0) + Number(order.delivery_fee_usd || 0);
+                          } else {
+                            // Driver collected, client owes order amount only
+                            dueToClient = Number(order.order_amount_usd || 0);
+                          }
+                        } else {
+                          // Ecom uses fee rule
+                          dueToClient = Number(order.amount_due_to_client_usd || 0);
+                        }
                         
                         return (
                           <TableRow key={order.id}>
