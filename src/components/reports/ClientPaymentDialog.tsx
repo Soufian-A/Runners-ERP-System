@@ -43,14 +43,36 @@ export function ClientPaymentDialog({
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('Not authenticated');
 
-      // 1. Generate statement ID
+      // 1. Get client's current balance to determine if this is cash in or cash out
+      const { data: transactions } = await supabase
+        .from('client_transactions')
+        .select('type, amount_usd, amount_lbp')
+        .eq('client_id', clientId);
+
+      let balanceUsd = 0;
+      let balanceLbp = 0;
+      
+      transactions?.forEach((tx: any) => {
+        if (tx.type === 'Debit') {
+          balanceUsd += Number(tx.amount_usd);
+          balanceLbp += Number(tx.amount_lbp);
+        } else {
+          balanceUsd -= Number(tx.amount_usd);
+          balanceLbp -= Number(tx.amount_lbp);
+        }
+      });
+
+      // Determine if this is cash in (client pays us) or cash out (we pay client)
+      const isCashIn = balanceUsd > 0 || balanceLbp > 0;
+
+      // 2. Generate statement ID
       const { data: statementIdData, error: statementError } = await supabase
         .rpc('generate_statement_id');
       
       if (statementError) throw statementError;
       const statementId = statementIdData as string;
 
-      // 2. Create client payment record
+      // 3. Create client payment record
       const { error: paymentError } = await supabase
         .from('client_payments')
         .insert({
@@ -68,7 +90,7 @@ export function ClientPaymentDialog({
 
       if (paymentError) throw paymentError;
 
-      // 3. Create client transaction (Credit - reducing what client owes us)
+      // 4. Create client transaction (Credit - settling balance)
       const { error: transactionError } = await supabase
         .from('client_transactions')
         .insert({
@@ -76,13 +98,15 @@ export function ClientPaymentDialog({
           type: 'Credit',
           amount_usd: Number(amountUsd),
           amount_lbp: Number(amountLbp),
-          note: `Payment received - Statement ${statementId}`,
+          note: isCashIn 
+            ? `Payment received - Statement ${statementId}` 
+            : `Payment made to client - Statement ${statementId}`,
           order_ref: statementId,
         });
 
       if (transactionError) throw transactionError;
 
-      // 4. Update cashbox - add to cash_in
+      // 5. Update cashbox based on payment direction
       const today = new Date().toISOString().split('T')[0];
       
       const { data: existingCashbox } = await supabase
@@ -92,14 +116,23 @@ export function ClientPaymentDialog({
         .single();
 
       if (existingCashbox) {
+        const updates = isCashIn 
+          ? {
+              cash_in_usd: Number(existingCashbox.cash_in_usd) + Number(amountUsd),
+              cash_in_lbp: Number(existingCashbox.cash_in_lbp) + Number(amountLbp),
+              closing_usd: Number(existingCashbox.opening_usd) + Number(existingCashbox.cash_in_usd) + Number(amountUsd) - Number(existingCashbox.cash_out_usd),
+              closing_lbp: Number(existingCashbox.opening_lbp) + Number(existingCashbox.cash_in_lbp) + Number(amountLbp) - Number(existingCashbox.cash_out_lbp),
+            }
+          : {
+              cash_out_usd: Number(existingCashbox.cash_out_usd) + Number(amountUsd),
+              cash_out_lbp: Number(existingCashbox.cash_out_lbp) + Number(amountLbp),
+              closing_usd: Number(existingCashbox.opening_usd) + Number(existingCashbox.cash_in_usd) - Number(existingCashbox.cash_out_usd) - Number(amountUsd),
+              closing_lbp: Number(existingCashbox.opening_lbp) + Number(existingCashbox.cash_in_lbp) - Number(existingCashbox.cash_out_lbp) - Number(amountLbp),
+            };
+
         const { error: cashboxError } = await supabase
           .from('cashbox_daily')
-          .update({
-            cash_in_usd: Number(existingCashbox.cash_in_usd) + Number(amountUsd),
-            cash_in_lbp: Number(existingCashbox.cash_in_lbp) + Number(amountLbp),
-            closing_usd: Number(existingCashbox.opening_usd) + Number(existingCashbox.cash_in_usd) + Number(amountUsd) - Number(existingCashbox.cash_out_usd),
-            closing_lbp: Number(existingCashbox.opening_lbp) + Number(existingCashbox.cash_in_lbp) + Number(amountLbp) - Number(existingCashbox.cash_out_lbp),
-          })
+          .update(updates)
           .eq('date', today);
 
         if (cashboxError) throw cashboxError;
@@ -110,19 +143,21 @@ export function ClientPaymentDialog({
             date: today,
             opening_usd: 0,
             opening_lbp: 0,
-            cash_in_usd: Number(amountUsd),
-            cash_in_lbp: Number(amountLbp),
-            cash_out_usd: 0,
-            cash_out_lbp: 0,
-            closing_usd: Number(amountUsd),
-            closing_lbp: Number(amountLbp),
-            notes: `Client payment from ${clientName}`,
+            cash_in_usd: isCashIn ? Number(amountUsd) : 0,
+            cash_in_lbp: isCashIn ? Number(amountLbp) : 0,
+            cash_out_usd: isCashIn ? 0 : Number(amountUsd),
+            cash_out_lbp: isCashIn ? 0 : Number(amountLbp),
+            closing_usd: isCashIn ? Number(amountUsd) : -Number(amountUsd),
+            closing_lbp: isCashIn ? Number(amountLbp) : -Number(amountLbp),
+            notes: isCashIn 
+              ? `Client payment from ${clientName}` 
+              : `Payment to client ${clientName}`,
           });
 
         if (cashboxError) throw cashboxError;
       }
 
-      // 5. Create accounting entry
+      // 6. Create accounting entry
       const { error: accountingError } = await supabase
         .from('accounting_entries')
         .insert({
@@ -130,7 +165,9 @@ export function ClientPaymentDialog({
           amount_usd: Number(amountUsd),
           amount_lbp: Number(amountLbp),
           order_ref: statementId,
-          memo: `Payment from ${clientName} - ${statementId}`,
+          memo: isCashIn 
+            ? `Payment from ${clientName} - ${statementId}` 
+            : `Payment to ${clientName} - ${statementId}`,
         });
 
       if (accountingError) throw accountingError;
