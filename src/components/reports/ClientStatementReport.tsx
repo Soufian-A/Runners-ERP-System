@@ -7,14 +7,29 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { FileText, Download } from 'lucide-react';
+import { FileText, Download, DollarSign } from 'lucide-react';
 import { format } from 'date-fns';
 import { Badge } from '@/components/ui/badge';
+import { ClientPaymentDialog } from './ClientPaymentDialog';
 
 export function ClientStatementReport() {
   const [selectedClient, setSelectedClient] = useState('');
   const [dateFrom, setDateFrom] = useState(new Date().toISOString().split('T')[0]);
   const [dateTo, setDateTo] = useState(new Date().toISOString().split('T')[0]);
+  const [paymentDialogOpen, setPaymentDialogOpen] = useState(false);
+
+  const { data: companySettings } = useQuery({
+    queryKey: ['company-settings'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('company_settings')
+        .select('*')
+        .limit(1)
+        .maybeSingle();
+      if (error && error.code !== 'PGRST116') throw error;
+      return data;
+    },
+  });
 
   const { data: clients } = useQuery({
     queryKey: ['clients-for-statement'],
@@ -92,9 +107,22 @@ export function ClientStatementReport() {
 
   const totals = calculateTotals();
   const selectedClientData = clients?.find(c => c.id === selectedClient);
+  const orderIds = orders?.map(o => o.order_id) || [];
 
   return (
     <div className="space-y-6">
+      {paymentDialogOpen && selectedClientData && (
+        <ClientPaymentDialog
+          open={paymentDialogOpen}
+          onOpenChange={setPaymentDialogOpen}
+          clientId={selectedClient}
+          clientName={selectedClientData.name}
+          amountDue={totals.totalDueToClient}
+          dateFrom={dateFrom}
+          dateTo={dateTo}
+          orderIds={orderIds}
+        />
+      )}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
@@ -146,6 +174,15 @@ export function ClientStatementReport() {
       {selectedClient && (
         <Card>
           <CardHeader>
+            {companySettings?.logo_url && (
+              <div className="mb-4 flex justify-center">
+                <img 
+                  src={companySettings.logo_url} 
+                  alt="Company Logo" 
+                  className="max-h-16 object-contain"
+                />
+              </div>
+            )}
             <div className="flex items-center justify-between">
               <div>
                 <CardTitle>Statement for {selectedClientData?.name}</CardTitle>
@@ -153,10 +190,21 @@ export function ClientStatementReport() {
                   Period: {format(new Date(dateFrom), 'MMM dd, yyyy')} - {format(new Date(dateTo), 'MMM dd, yyyy')}
                 </p>
               </div>
-              <Button variant="outline" size="sm">
-                <Download className="mr-2 h-4 w-4" />
-                Export PDF
-              </Button>
+              <div className="flex gap-2">
+                <Button 
+                  variant="default" 
+                  size="sm"
+                  onClick={() => setPaymentDialogOpen(true)}
+                  disabled={!orders || orders.length === 0 || totals.totalDueToClient === 0}
+                >
+                  <DollarSign className="mr-2 h-4 w-4" />
+                  Record Payment
+                </Button>
+                <Button variant="outline" size="sm">
+                  <Download className="mr-2 h-4 w-4" />
+                  Export PDF
+                </Button>
+              </div>
             </div>
           </CardHeader>
           <CardContent>
