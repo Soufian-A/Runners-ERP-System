@@ -107,7 +107,7 @@ export function ClientStatementReport() {
 
   const totals = calculateTotals();
   const selectedClientData = clients?.find(c => c.id === selectedClient);
-  const orderIds = orders?.map(o => o.order_id) || [];
+  const orderIds = orders?.map(o => o.order_type === 'ecom' ? (o.voucher_no || o.order_id) : o.order_id) || [];
 
   return (
     <div className="space-y-6">
@@ -268,7 +268,7 @@ export function ClientStatementReport() {
                             <TableCell className="text-xs">
                               {format(new Date(order.created_at), 'MMM dd, HH:mm')}
                             </TableCell>
-                            <TableCell className="text-xs">{order.order_id}</TableCell>
+                            <TableCell className="text-xs">{order.order_type === 'ecom' ? (order.voucher_no || order.order_id) : order.order_id}</TableCell>
                             <TableCell>
                               <Badge variant="outline" className="text-xs">
                                 {order.order_type}

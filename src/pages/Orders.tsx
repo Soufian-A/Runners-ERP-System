@@ -190,7 +190,7 @@ const Orders = () => {
                             setDialogOpen(true);
                           }}
                         >
-                          {order.order_id}
+                          {order.order_type === 'ecom' ? (order.voucher_no || order.order_id) : order.order_id}
                         </TableCell>
                         <TableCell>{order.voucher_no || "-"}</TableCell>
                         <TableCell>{order.clients?.name}</TableCell>
@@ -265,7 +265,7 @@ const Orders = () => {
                             setDialogOpen(true);
                           }}
                         >
-                          {order.order_id}
+                          {order.order_type === 'ecom' ? (order.voucher_no || order.order_id) : order.order_id}
                         </TableCell>
                         <TableCell>{order.clients?.name}</TableCell>
                         <TableCell>{order.drivers?.name || "-"}</TableCell>

@@ -245,7 +245,7 @@ export default function EditOrderDialog({ order, open, onOpenChange }: EditOrder
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center justify-between">
-              <span>Edit Order: {order.order_id}</span>
+              <span>Edit Order: {order.order_type === 'ecom' ? order.voucher_no || order.order_id : order.order_id}</span>
               <Badge variant={order.order_type === "ecom" ? "default" : "secondary"}>{order.order_type.toUpperCase()}</Badge>
             </DialogTitle>
           </DialogHeader>
@@ -461,7 +461,7 @@ export default function EditOrderDialog({ order, open, onOpenChange }: EditOrder
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete Order {order.order_id}?</AlertDialogTitle>
+            <AlertDialogTitle>Delete Order {order.order_type === 'ecom' ? order.voucher_no || order.order_id : order.order_id}?</AlertDialogTitle>
             <AlertDialogDescription>This action cannot be undone. This will permanently delete the order and all associated data.</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

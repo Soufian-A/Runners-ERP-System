@@ -135,9 +135,8 @@ export function EcomOrderForm() {
       const { data: client } = await supabase.from("clients").select("*, client_rules(*)").eq("id", rowData.client_id).single();
       if (!client) throw new Error("Client not found");
 
-      const prefix = client.name.substring(0, 3).toUpperCase();
-      const timestamp = Date.now().toString().slice(-6);
-      const order_id = `${prefix}-${timestamp}`;
+      // For ecom orders, use voucher_no as the order_id reference
+      const order_id = rowData.voucher_no;
 
       const totalWithDelivery = parseFloat(rowData.total_with_delivery_usd) || 0;
       const deliveryFee = parseFloat(rowData.delivery_fee_usd) || 0;

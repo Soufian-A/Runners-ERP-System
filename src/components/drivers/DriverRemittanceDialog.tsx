@@ -137,7 +137,7 @@ const DriverRemittanceDialog = ({ driver, open, onOpenChange }: DriverRemittance
         const clientTotalLBP = (clientOrders as any[]).reduce((sum, o) => sum + Number(o.order_amount_lbp), 0);
         
         if (clientTotalUSD > 0 || clientTotalLBP > 0) {
-          const orderIds = (clientOrders as any[]).map(o => o.order_id).join(', ');
+          const orderIds = (clientOrders as any[]).map(o => o.order_type === 'ecom' ? (o.voucher_no || o.order_id) : o.order_id).join(', ');
           await supabase.from('client_transactions').insert({
             client_id: clientId,
             type: 'Credit',
@@ -230,7 +230,7 @@ const DriverRemittanceDialog = ({ driver, open, onOpenChange }: DriverRemittance
                         htmlFor={order.id}
                         className="text-sm font-medium cursor-pointer"
                       >
-                        {order.order_id}
+                        {order.order_type === 'ecom' ? (order.voucher_no || order.order_id) : order.order_id}
                       </Label>
                       <p className="text-sm text-muted-foreground">
                         Amount: ${Number(order.order_amount_usd).toFixed(2)} /{' '}

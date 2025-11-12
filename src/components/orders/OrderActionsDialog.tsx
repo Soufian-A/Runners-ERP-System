@@ -313,7 +313,7 @@ const OrderActionsDialog = ({ order, open, onOpenChange }: OrderActionsDialogPro
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Order Actions - {order?.order_id}</DialogTitle>
+          <DialogTitle>Order Actions - {order?.order_type === 'ecom' ? order?.voucher_no || order?.order_id : order?.order_id}</DialogTitle>
           <DialogDescription>
             Manage order status, prepayments, and driver transactions
           </DialogDescription>
