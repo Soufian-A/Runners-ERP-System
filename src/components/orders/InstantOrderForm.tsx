@@ -257,6 +257,8 @@ export function InstantOrderForm() {
     const [open, setOpen] = useState(false);
     const [searchValue, setSearchValue] = useState("");
 
+    console.log("AddressField - addresses available:", addresses.length, addresses);
+
     const filteredAddresses = addresses.filter((addr): addr is string => 
       typeof addr === 'string' && addr.toLowerCase().includes(searchValue.toLowerCase())
     );
