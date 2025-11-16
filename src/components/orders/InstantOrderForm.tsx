@@ -59,14 +59,17 @@ export function InstantOrderForm() {
     },
   });
 
-  const { data: addresses = [] } = useQuery({
+  const { data: addresses = [], isLoading: addressesLoading } = useQuery({
     queryKey: ["address-areas"],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("address_areas")
         .select("name")
         .order("name");
-      if (error) throw error;
+      if (error) {
+        console.error("Error fetching address areas:", error);
+        throw error;
+      }
       return data.map((area) => area.name).filter((name): name is string => typeof name === 'string' && name.length > 0);
     },
   });
