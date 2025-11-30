@@ -45,10 +45,26 @@ const Cashbox = () => {
     },
   });
 
+  const { data: incomeEntries } = useQuery({
+    queryKey: ['daily-income', selectedDate],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('accounting_entries')
+        .select('amount_usd, amount_lbp, category, ts')
+        .eq('category', 'DeliveryIncome')
+        .gte('ts', selectedDate)
+        .lte('ts', selectedDate + 'T23:59:59');
+      if (error) throw error;
+      return data;
+    },
+  });
+
   const totalExpensesUSD = expenses?.reduce((sum, exp) => sum + Number(exp.amount_usd || 0), 0) || 0;
   const totalExpensesLBP = expenses?.reduce((sum, exp) => sum + Number(exp.amount_lbp || 0), 0) || 0;
-  const revenueUSD = Number(cashbox?.cash_in_usd || 0);
-  const revenueLBP = Number(cashbox?.cash_in_lbp || 0);
+
+  const revenueUSD = incomeEntries?.reduce((sum: number, entry: any) => sum + Number(entry.amount_usd || 0), 0) || 0;
+  const revenueLBP = incomeEntries?.reduce((sum: number, entry: any) => sum + Number(entry.amount_lbp || 0), 0) || 0;
+
   const profitUSD = revenueUSD - totalExpensesUSD;
   const profitLBP = revenueLBP - totalExpensesLBP;
 
