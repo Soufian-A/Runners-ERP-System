@@ -186,6 +186,7 @@ export function ClientPaymentDialog({
     },
     onSuccess: (statementId) => {
       queryClient.invalidateQueries({ queryKey: ['client-statement'] });
+      queryClient.invalidateQueries({ queryKey: ['client-statement-payments'] });
       queryClient.invalidateQueries({ queryKey: ['client-payments'] });
       queryClient.invalidateQueries({ queryKey: ['cashbox-daily'] });
       toast({
