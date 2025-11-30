@@ -74,22 +74,33 @@ export function InstantOrderForm() {
     },
   });
 
-  const addNewRow = () => {
-    setNewRows([
-      ...newRows,
-      {
-        id: `new-${Date.now()}`,
-        client_id: "",
-        address: "",
-        driver_id: "",
-        order_amount_usd: "",
-        order_amount_lbp: "",
-        delivery_fee_usd: "",
-        delivery_fee_lbp: "",
-        notes: "",
-        driver_paid_for_client: false,
-      },
-    ]);
+  const addNewRow = (duplicateLast = false) => {
+    const lastRow = newRows[newRows.length - 1];
+    const newRow = duplicateLast && lastRow ? {
+      id: `new-${Date.now()}`,
+      client_id: lastRow.client_id,
+      address: lastRow.address,
+      driver_id: lastRow.driver_id,
+      order_amount_usd: lastRow.order_amount_usd,
+      order_amount_lbp: lastRow.order_amount_lbp,
+      delivery_fee_usd: lastRow.delivery_fee_usd,
+      delivery_fee_lbp: lastRow.delivery_fee_lbp,
+      notes: "",
+      driver_paid_for_client: lastRow.driver_paid_for_client,
+    } : {
+      id: `new-${Date.now()}`,
+      client_id: lastRow?.client_id || "",
+      address: lastRow?.address || "",
+      driver_id: lastRow?.driver_id || "",
+      order_amount_usd: "",
+      order_amount_lbp: "",
+      delivery_fee_usd: lastRow?.delivery_fee_usd || "",
+      delivery_fee_lbp: lastRow?.delivery_fee_lbp || "",
+      notes: "",
+      driver_paid_for_client: false,
+    };
+    
+    setNewRows([...newRows, newRow]);
   };
 
   const updateRow = (id: string, field: keyof NewOrderRow, value: any) => {
@@ -143,17 +154,18 @@ export function InstantOrderForm() {
       toast.success("Order created");
       setNewRows((currentRows) => {
         const filtered = currentRows.filter((r) => r.id !== rowId);
-        // If we just removed the last row, add a new empty one
+        // If we just removed the last row, add a new one with pre-filled values
         if (filtered.length === 0) {
+          const savedRow = currentRows.find((r) => r.id === rowId);
           return [{
             id: `new-${Date.now()}`,
-            client_id: "",
-            address: "",
-            driver_id: "",
+            client_id: savedRow?.client_id || "",
+            address: savedRow?.address || "",
+            driver_id: savedRow?.driver_id || "",
             order_amount_usd: "",
             order_amount_lbp: "",
-            delivery_fee_usd: "",
-            delivery_fee_lbp: "",
+            delivery_fee_usd: savedRow?.delivery_fee_usd || "",
+            delivery_fee_lbp: savedRow?.delivery_fee_lbp || "",
             notes: "",
             driver_paid_for_client: false,
           }];
@@ -257,9 +269,7 @@ export function InstantOrderForm() {
     const [open, setOpen] = useState(false);
     const [searchValue, setSearchValue] = useState("");
 
-    console.log("AddressField - addresses available:", addresses.length, addresses);
-
-    const filteredAddresses = addresses.filter((addr): addr is string => 
+    const filteredAddresses = addresses.filter((addr): addr is string =>
       typeof addr === 'string' && addr.toLowerCase().includes(searchValue.toLowerCase())
     );
 
@@ -349,10 +359,16 @@ export function InstantOrderForm() {
     <div className="space-y-2">
       <div className="flex justify-between items-center">
         <h3 className="text-sm font-semibold">Quick Instant Order Entry</h3>
-        <Button onClick={addNewRow} size="sm" variant="outline" tabIndex={-1}>
-          <Plus className="h-4 w-4 mr-1" />
-          Add Row
-        </Button>
+        <div className="flex gap-2">
+          <Button onClick={() => addNewRow(true)} size="sm" variant="outline" tabIndex={-1} title="Duplicate last row (Ctrl+D)">
+            <Plus className="h-4 w-4 mr-1" />
+            Duplicate Row
+          </Button>
+          <Button onClick={() => addNewRow(false)} size="sm" variant="outline" tabIndex={-1}>
+            <Plus className="h-4 w-4 mr-1" />
+            Add Row
+          </Button>
+        </div>
       </div>
 
       <div className="border rounded-lg overflow-x-auto">
@@ -375,7 +391,21 @@ export function InstantOrderForm() {
             {newRows.map((row, rowIndex) => {
               const baseTabIndex = rowIndex * 100;
               return (
-                <TableRow key={row.id} className="bg-accent/20">
+                <TableRow 
+                  key={row.id} 
+                  className="bg-accent/20"
+                  onKeyDown={(e) => {
+                    if ((e.ctrlKey || e.metaKey) && e.key === 'd') {
+                      e.preventDefault();
+                      addNewRow(true);
+                    } else if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+                      e.preventDefault();
+                      if (row.client_id && row.address) {
+                        createOrderMutation.mutate(row);
+                      }
+                    }
+                  }}
+                >
                   <TableCell>
                     <ComboboxField 
                       value={row.client_id} 
