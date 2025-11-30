@@ -153,7 +153,6 @@ export function ClientStatementReport() {
 
   const selectedClientData = clients?.find(c => c.id === selectedClient);
   const orderIds = orders?.map(o => o.order_type === 'ecom' ? (o.voucher_no || o.order_id) : o.order_id) || [];
-  const totalDueAmount = displayNetUsd + (displayNetLbp / 89500); // Rough conversion for payment dialog
 
   return (
     <div className="space-y-6">
@@ -163,7 +162,9 @@ export function ClientStatementReport() {
           onOpenChange={setPaymentDialogOpen}
           clientId={selectedClient}
           clientName={selectedClientData.name}
-          amountDue={totalDueAmount}
+          amountDue={0}
+          amountDueUsd={displayNetUsd}
+          amountDueLbp={displayNetLbp}
           dateFrom={dateFrom}
           dateTo={dateTo}
           orderIds={orderIds}
