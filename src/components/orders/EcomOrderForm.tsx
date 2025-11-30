@@ -165,15 +165,17 @@ export function EcomOrderForm() {
       return rowData.id;
     },
     onSuccess: (rowId) => {
+      console.log('Order created successfully', { rowId });
       queryClient.invalidateQueries({ queryKey: ["orders"] });
       queryClient.invalidateQueries({ queryKey: ["ecom-orders"] });
       queryClient.invalidateQueries({ queryKey: ["customers"] });
-      toast.success("Order created");
+      toast.success("E-commerce order created successfully!");
       setNewRows(newRows.filter((r) => r.id !== rowId));
       if (newRows.length === 1) addNewRow();
     },
     onError: (error: Error) => {
-      toast.error(error.message);
+      console.error('Error creating order:', error);
+      toast.error(`Failed to create order: ${error.message}`);
     },
   });
 
@@ -356,8 +358,17 @@ export function EcomOrderForm() {
                   </div>
                 </TableCell>
                 <TableCell>
-                  <Button size="sm" onClick={() => createOrderMutation.mutate(row)} disabled={!row.client_id || !row.customer_phone} className="h-8 text-xs">
-                    Save
+                  <Button 
+                    size="sm" 
+                    onClick={() => {
+                      console.log('Save button clicked', { row, isValid: !!(row.client_id && row.customer_phone) });
+                      createOrderMutation.mutate(row);
+                    }} 
+                    disabled={!row.client_id || !row.customer_phone || createOrderMutation.isPending} 
+                    className="h-8 text-xs"
+                    title={!row.client_id ? 'Please select a client' : !row.customer_phone ? 'Please enter customer phone' : 'Save order'}
+                  >
+                    {createOrderMutation.isPending ? 'Saving...' : 'Save'}
                   </Button>
                 </TableCell>
               </TableRow>
