@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -13,15 +13,23 @@ interface GiveDriverCashDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   date: string;
+  preselectedDriver?: any;
 }
 
-export default function GiveDriverCashDialog({ open, onOpenChange, date }: GiveDriverCashDialogProps) {
+export default function GiveDriverCashDialog({ open, onOpenChange, date, preselectedDriver }: GiveDriverCashDialogProps) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const [driverId, setDriverId] = useState('');
+  const [driverId, setDriverId] = useState(preselectedDriver?.id || '');
   const [currency, setCurrency] = useState<'USD' | 'LBP'>('USD');
   const [amount, setAmount] = useState('');
   const [notes, setNotes] = useState('');
+
+  // Update driverId when preselectedDriver changes
+  useEffect(() => {
+    if (preselectedDriver?.id) {
+      setDriverId(preselectedDriver.id);
+    }
+  }, [preselectedDriver]);
 
   const { data: drivers } = useQuery({
     queryKey: ['drivers'],
