@@ -12,6 +12,8 @@ import { FileText, Download, FileSpreadsheet } from 'lucide-react';
 import { format } from 'date-fns';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ClientStatementReport } from '@/components/reports/ClientStatementReport';
+import { DriverStatementIssuer } from '@/components/reports/DriverStatementIssuer';
+import { StatementHistory } from '@/components/reports/StatementHistory';
 import { PaymentHistoryTab } from '@/components/reports/PaymentHistoryTab';
 import { CompanyLogoSettings } from '@/components/reports/CompanyLogoSettings';
 
@@ -99,8 +101,10 @@ const Reports = () => {
         </div>
 
         <Tabs defaultValue="client-statements" className="w-full">
-          <TabsList className="grid w-full grid-cols-4">
+          <TabsList className="grid w-full grid-cols-6">
             <TabsTrigger value="client-statements">Client Statements</TabsTrigger>
+            <TabsTrigger value="driver-statements">Driver Statements</TabsTrigger>
+            <TabsTrigger value="statement-history">Statement History</TabsTrigger>
             <TabsTrigger value="payment-history">Payment History</TabsTrigger>
             <TabsTrigger value="company-settings">Company Info</TabsTrigger>
             <TabsTrigger value="transaction-reports">Transaction Reports</TabsTrigger>
@@ -108,6 +112,14 @@ const Reports = () => {
 
           <TabsContent value="client-statements">
             <ClientStatementReport />
+          </TabsContent>
+
+          <TabsContent value="driver-statements">
+            <DriverStatementIssuer />
+          </TabsContent>
+
+          <TabsContent value="statement-history">
+            <StatementHistory />
           </TabsContent>
 
           <TabsContent value="payment-history">
