@@ -74,10 +74,10 @@ export function ClientStatementReport() {
 
       const { data, error } = await supabase
         .from('client_payments')
-        .select('amount_usd, amount_lbp, payment_date')
+        .select('amount_usd, amount_lbp, period_from, period_to')
         .eq('client_id', selectedClient)
-        .gte('payment_date', dateFrom)
-        .lte('payment_date', dateTo + 'T23:59:59');
+        .eq('period_from', dateFrom)
+        .eq('period_to', dateTo);
 
       if (error) throw error;
       return data || [];
@@ -147,6 +147,10 @@ export function ClientStatementReport() {
 
   const safeNetDueUsd = netDueUsd < 0 ? 0 : netDueUsd;
   const safeNetDueLbp = netDueLbp < 0 ? 0 : netDueLbp;
+
+  const isClientOwesUs = netDueUsd < 0 || netDueLbp < 0;
+  const displayNetUsd = Math.abs(netDueUsd);
+  const displayNetLbp = Math.abs(netDueLbp);
 
   const selectedClientData = clients?.find(c => c.id === selectedClient);
   const orderIds = orders?.map(o => o.order_type === 'ecom' ? (o.voucher_no || o.order_id) : o.order_id) || [];
@@ -369,15 +373,17 @@ export function ClientStatementReport() {
 
                 <div className="mt-6 flex justify-end">
                   <div className="rounded-md bg-primary/10 p-6 border-2 border-primary">
-                    <p className="text-sm text-muted-foreground mb-2">Net Amount Due to Client</p>
+                    <p className="text-sm text-muted-foreground mb-2">
+                      {isClientOwesUs ? 'Net Amount Client Owes Us' : 'Net Amount Due to Client'}
+                    </p>
                     <p className="font-bold text-2xl text-primary">
-                      ${totals.totalDueToClientUsd.toFixed(2)}
+                      ${displayNetUsd.toFixed(2)}
                     </p>
                     <p className="font-bold text-2xl text-primary mt-1">
-                      LL {totals.totalDueToClientLbp.toLocaleString()}
+                      LL {displayNetLbp.toLocaleString()}
                     </p>
                     <p className="text-xs text-muted-foreground mt-1">
-                      Based on {totals.deliveredOrders} delivered orders
+                      Based on {totals.deliveredOrders} delivered orders and recorded payments
                     </p>
                   </div>
                 </div>
