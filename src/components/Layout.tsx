@@ -2,7 +2,7 @@ import { ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
-import { Package, LogOut, Home, FileText, Truck, Users, DollarSign, BarChart3, ShoppingCart, Zap } from 'lucide-react';
+import { Package, LogOut, Home, FileText, Truck, Users, DollarSign, BarChart3, ShoppingCart, Zap, History } from 'lucide-react';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -28,6 +28,7 @@ const Layout = ({ children }: LayoutProps) => {
     { icon: Truck, label: 'Drivers', path: '/drivers' },
     { icon: DollarSign, label: 'Cashbox', path: '/cashbox' },
     { icon: BarChart3, label: 'Reports', path: '/reports' },
+    { icon: History, label: 'Transactions', path: '/transactions' },
   ];
 
   return (
