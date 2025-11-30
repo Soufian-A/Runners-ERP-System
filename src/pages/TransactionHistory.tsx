@@ -16,7 +16,7 @@ import { toast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
 import { Textarea } from '@/components/ui/textarea';
 
-type TransactionType = 'driver' | 'client' | 'cashbox' | 'payment';
+type TransactionType = 'driver' | 'client' | 'cashbox' | 'payment' | 'expense';
 
 interface UnifiedTransaction {
   id: string;
@@ -24,7 +24,7 @@ interface UnifiedTransaction {
   timestamp: string;
   entityName: string;
   entityType: string;
-  transactionType: 'Credit' | 'Debit' | 'Capital In' | 'Capital Out' | 'Expense' | 'Payment';
+  transactionType: 'Credit' | 'Debit' | 'Capital In' | 'Capital Out' | 'Expense' | 'Payment' | 'Daily Expense';
   amountUsd: number;
   amountLbp: number;
   orderRef?: string;
@@ -143,6 +143,32 @@ const TransactionHistory = () => {
         });
       }
 
+      // Fetch daily expenses
+      let expenseQuery = supabase
+        .from('daily_expenses')
+        .select('*, expense_categories(name, category_group)')
+        .order('date', { ascending: false });
+      
+      if (dateFrom) expenseQuery = expenseQuery.gte('date', dateFrom);
+      if (dateTo) expenseQuery = expenseQuery.lte('date', dateTo);
+
+      const { data: expenses } = await expenseQuery;
+      
+      expenses?.forEach(expense => {
+        unified.push({
+          id: expense.id,
+          type: 'expense',
+          timestamp: expense.date,
+          entityName: expense.expense_categories?.name || 'Unknown Category',
+          entityType: expense.expense_categories?.category_group || 'Expense',
+          transactionType: 'Daily Expense',
+          amountUsd: Number(expense.amount_usd || 0),
+          amountLbp: Number(expense.amount_lbp || 0),
+          note: expense.notes || undefined,
+          rawData: expense,
+        });
+      });
+
       // Fetch cashbox transactions
       let cashboxQuery = supabase
         .from('cashbox_daily')
@@ -234,6 +260,8 @@ const TransactionHistory = () => {
         await supabase.from('client_transactions').delete().eq('id', transaction.id);
       } else if (transaction.type === 'payment') {
         await supabase.from('client_payments').delete().eq('id', transaction.id);
+      } else if (transaction.type === 'expense') {
+        await supabase.from('daily_expenses').delete().eq('id', transaction.id);
       }
     },
     onSuccess: () => {
@@ -241,6 +269,7 @@ const TransactionHistory = () => {
       queryClient.invalidateQueries({ queryKey: ['all-transactions'] });
       queryClient.invalidateQueries({ queryKey: ['drivers'] });
       queryClient.invalidateQueries({ queryKey: ['clients'] });
+      queryClient.invalidateQueries({ queryKey: ['expenses'] });
       setDeleteTransaction(null);
     },
     onError: (error: Error) => {
@@ -318,12 +347,22 @@ const TransactionHistory = () => {
             notes: editNote,
           })
           .eq('id', editTransaction.id);
+      } else if (editTransaction.type === 'expense') {
+        await supabase
+          .from('daily_expenses')
+          .update({
+            amount_usd: newAmountUsd,
+            amount_lbp: newAmountLbp,
+            notes: editNote,
+          })
+          .eq('id', editTransaction.id);
       }
     },
     onSuccess: () => {
       toast({ title: 'Success', description: 'Transaction updated successfully' });
       queryClient.invalidateQueries({ queryKey: ['all-transactions'] });
       queryClient.invalidateQueries({ queryKey: ['drivers'] });
+      queryClient.invalidateQueries({ queryKey: ['expenses'] });
       setEditTransaction(null);
     },
     onError: (error: Error) => {
@@ -397,6 +436,7 @@ const TransactionHistory = () => {
                     <SelectItem value="driver">Driver</SelectItem>
                     <SelectItem value="client">Client</SelectItem>
                     <SelectItem value="payment">Payment</SelectItem>
+                    <SelectItem value="expense">Expense</SelectItem>
                     <SelectItem value="cashbox">Cashbox</SelectItem>
                   </SelectContent>
                 </Select>
@@ -478,12 +518,13 @@ const TransactionHistory = () => {
                         </TableCell>
                         <TableCell>
                           <div className="flex gap-1">
-                            {tx.type !== 'cashbox' && (
+                            {tx.type !== 'cashbox' ? (
                               <>
                                 <Button
                                   size="sm"
                                   variant="ghost"
                                   onClick={() => handleEdit(tx)}
+                                  title="Edit"
                                 >
                                   <Pencil className="h-3 w-3" />
                                 </Button>
@@ -491,10 +532,13 @@ const TransactionHistory = () => {
                                   size="sm"
                                   variant="ghost"
                                   onClick={() => setDeleteTransaction(tx)}
+                                  title="Delete"
                                 >
                                   <Trash2 className="h-3 w-3" />
                                 </Button>
                               </>
+                            ) : (
+                              <span className="text-xs text-muted-foreground">N/A</span>
                             )}
                           </div>
                         </TableCell>
