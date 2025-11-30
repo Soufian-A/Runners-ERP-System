@@ -16,6 +16,8 @@ interface ClientPaymentDialogProps {
   clientId: string;
   clientName: string;
   amountDue: number;
+  amountDueUsd: number;
+  amountDueLbp: number;
   dateFrom: string;
   dateTo: string;
   orderIds: string[];
@@ -27,14 +29,16 @@ export function ClientPaymentDialog({
   clientId,
   clientName,
   amountDue,
+  amountDueUsd,
+  amountDueLbp,
   dateFrom,
   dateTo,
   orderIds,
 }: ClientPaymentDialogProps) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const [amountUsd, setAmountUsd] = useState(amountDue.toFixed(2));
-  const [amountLbp, setAmountLbp] = useState('0');
+  const [amountUsd, setAmountUsd] = useState(amountDueUsd.toFixed(2));
+  const [amountLbp, setAmountLbp] = useState(amountDueLbp.toString());
   const [paymentMethod, setPaymentMethod] = useState('cash');
   const [notes, setNotes] = useState('');
 
@@ -195,8 +199,8 @@ export function ClientPaymentDialog({
       });
       onOpenChange(false);
       // Reset form
-      setAmountUsd(amountDue.toFixed(2));
-      setAmountLbp('0');
+      setAmountUsd(amountDueUsd.toFixed(2));
+      setAmountLbp(amountDueLbp.toString());
       setPaymentMethod('cash');
       setNotes('');
     },
@@ -236,7 +240,12 @@ export function ClientPaymentDialog({
             </div>
             <div className="pt-2 border-t">
               <p className="text-sm text-muted-foreground">Total Amount Due</p>
-              <p className="text-2xl font-bold text-primary">${amountDue.toFixed(2)}</p>
+              {amountDueUsd > 0 && (
+                <p className="text-2xl font-bold text-primary">${amountDueUsd.toFixed(2)}</p>
+              )}
+              {amountDueLbp > 0 && (
+                <p className="text-2xl font-bold text-primary">LL {amountDueLbp.toLocaleString()}</p>
+              )}
             </div>
           </div>
 
