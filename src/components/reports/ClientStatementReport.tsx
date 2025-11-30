@@ -145,16 +145,15 @@ export function ClientStatementReport() {
   const netDueUsd = totals.totalDueToClientUsd - totalPaymentsUsd;
   const netDueLbp = totals.totalDueToClientLbp - totalPaymentsLbp;
 
-  const safeNetDueUsd = netDueUsd < 0 ? 0 : netDueUsd;
-  const safeNetDueLbp = netDueLbp < 0 ? 0 : netDueLbp;
-
-  const isClientOwesUs = netDueUsd < 0 || netDueLbp < 0;
+  // Positive balance = client owes us (driver paid scenario)
+  // Negative balance = we owe client (normal scenario where we need to pay them)
+  const isClientOwesUs = netDueUsd > 0 || netDueLbp > 0;
   const displayNetUsd = Math.abs(netDueUsd);
   const displayNetLbp = Math.abs(netDueLbp);
 
   const selectedClientData = clients?.find(c => c.id === selectedClient);
   const orderIds = orders?.map(o => o.order_type === 'ecom' ? (o.voucher_no || o.order_id) : o.order_id) || [];
-  const totalDueAmount = safeNetDueUsd + (safeNetDueLbp / 89500); // Rough conversion for payment dialog
+  const totalDueAmount = displayNetUsd + (displayNetLbp / 89500); // Rough conversion for payment dialog
 
   return (
     <div className="space-y-6">
@@ -242,7 +241,7 @@ export function ClientStatementReport() {
                   variant="default" 
                   size="sm"
                   onClick={() => setPaymentDialogOpen(true)}
-                  disabled={!orders || orders.length === 0 || (safeNetDueUsd === 0 && safeNetDueLbp === 0)}
+                  disabled={!orders || orders.length === 0 || (displayNetUsd === 0 && displayNetLbp === 0)}
                 >
                   <DollarSign className="mr-2 h-4 w-4" />
                   Record Payment
@@ -275,11 +274,11 @@ export function ClientStatementReport() {
                   </div>
                   <div>
                     <p className="text-sm text-muted-foreground">Amount Due (USD)</p>
-                    <p className="text-2xl font-bold text-primary">${safeNetDueUsd.toFixed(2)}</p>
+                    <p className="text-2xl font-bold text-primary">${displayNetUsd.toFixed(2)}</p>
                   </div>
                   <div>
                     <p className="text-sm text-muted-foreground">Amount Due (LBP)</p>
-                    <p className="text-2xl font-bold text-primary">LL {safeNetDueLbp.toLocaleString()}</p>
+                    <p className="text-2xl font-bold text-primary">LL {displayNetLbp.toLocaleString()}</p>
                   </div>
                 </div>
 
