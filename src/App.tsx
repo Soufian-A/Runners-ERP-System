@@ -12,6 +12,7 @@ import Drivers from "./pages/Drivers";
 import CRM from "./pages/CRM";
 import Cashbox from "./pages/Cashbox";
 import Reports from "./pages/Reports";
+import TransactionHistory from "./pages/TransactionHistory";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -32,6 +33,7 @@ const App = () => (
           <Route path="/clients" element={<CRM />} />
           <Route path="/cashbox" element={<Cashbox />} />
           <Route path="/reports" element={<Reports />} />
+          <Route path="/transactions" element={<TransactionHistory />} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
         </Routes>
