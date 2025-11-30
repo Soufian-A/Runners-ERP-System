@@ -43,7 +43,30 @@ export function ClientPaymentDialog({
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('Not authenticated');
 
-      // 1. Get client's current balance to determine if this is cash in or cash out
+      // 1. Fetch orders to check for driver_paid_for_client scenarios
+      const { data: orders } = await supabase
+        .from('orders')
+        .select('order_id, driver_paid_for_client, order_amount_usd, order_amount_lbp, delivery_fee_usd, delivery_fee_lbp')
+        .in('order_id', orderIds);
+
+      // Calculate driver-paid amounts and delivery fees
+      let driverPaidOrderAmountUsd = 0;
+      let driverPaidOrderAmountLbp = 0;
+      let deliveryFeeUsd = 0;
+      let deliveryFeeLbp = 0;
+
+      orders?.forEach((order: any) => {
+        if (order.driver_paid_for_client) {
+          driverPaidOrderAmountUsd += Number(order.order_amount_usd || 0);
+          driverPaidOrderAmountLbp += Number(order.order_amount_lbp || 0);
+        }
+        deliveryFeeUsd += Number(order.delivery_fee_usd || 0);
+        deliveryFeeLbp += Number(order.delivery_fee_lbp || 0);
+      });
+
+      const hasDriverPaidOrders = driverPaidOrderAmountUsd > 0 || driverPaidOrderAmountLbp > 0;
+
+      // 2. Get client's current balance to determine if this is cash in or cash out
       const { data: transactions } = await supabase
         .from('client_transactions')
         .select('type, amount_usd, amount_lbp')
@@ -62,17 +85,17 @@ export function ClientPaymentDialog({
         }
       });
 
-      // Determine if this is cash in (client pays us) or cash out (we pay client)
-      const isCashIn = balanceUsd > 0 || balanceLbp > 0;
+      // For driver-paid scenarios, this is always cash in (client pays us back)
+      const isCashIn = hasDriverPaidOrders || balanceUsd > 0 || balanceLbp > 0;
 
-      // 2. Generate statement ID
+      // 3. Generate statement ID
       const { data: statementIdData, error: statementError } = await supabase
         .rpc('generate_statement_id');
       
       if (statementError) throw statementError;
       const statementId = statementIdData as string;
 
-      // 3. Create client payment record
+      // 4. Create client payment record
       const { error: paymentError } = await supabase
         .from('client_payments')
         .insert({
@@ -90,7 +113,7 @@ export function ClientPaymentDialog({
 
       if (paymentError) throw paymentError;
 
-      // 4. Create client transaction (Credit - settling balance)
+      // 5. Create client transaction (Credit - settling balance)
       const { error: transactionError } = await supabase
         .from('client_transactions')
         .insert({
@@ -98,15 +121,17 @@ export function ClientPaymentDialog({
           type: 'Credit',
           amount_usd: Number(amountUsd),
           amount_lbp: Number(amountLbp),
-          note: isCashIn 
-            ? `Payment received - Statement ${statementId}` 
-            : `Payment made to client - Statement ${statementId}`,
+          note: hasDriverPaidOrders
+            ? `Payment received (Driver-paid reimbursement) - Statement ${statementId}`
+            : isCashIn 
+              ? `Payment received - Statement ${statementId}` 
+              : `Payment made to client - Statement ${statementId}`,
           order_ref: statementId,
         });
 
       if (transactionError) throw transactionError;
 
-      // 5. Update cashbox based on payment direction
+      // 6. Update cashbox based on payment direction
       const today = new Date().toISOString().split('T')[0];
       
       const { data: existingCashbox } = await supabase
@@ -157,20 +182,38 @@ export function ClientPaymentDialog({
         if (cashboxError) throw cashboxError;
       }
 
-      // 6. Create accounting entry
-      const { error: accountingError } = await supabase
-        .from('accounting_entries')
-        .insert({
-          category: 'OtherIncome',
-          amount_usd: Number(amountUsd),
-          amount_lbp: Number(amountLbp),
-          order_ref: statementId,
-          memo: isCashIn 
-            ? `Payment from ${clientName} - ${statementId}` 
-            : `Payment to ${clientName} - ${statementId}`,
-        });
+      // 7. Create accounting entries
+      if (hasDriverPaidOrders) {
+        // For driver-paid orders: record delivery fees as income
+        if (deliveryFeeUsd > 0 || deliveryFeeLbp > 0) {
+          const { error: deliveryIncomeError } = await supabase
+            .from('accounting_entries')
+            .insert({
+              category: 'DeliveryIncome',
+              amount_usd: deliveryFeeUsd,
+              amount_lbp: deliveryFeeLbp,
+              order_ref: statementId,
+              memo: `Delivery fees from ${clientName} (Driver-paid orders) - ${statementId}`,
+            });
 
-      if (accountingError) throw accountingError;
+          if (deliveryIncomeError) throw deliveryIncomeError;
+        }
+      } else {
+        // Regular payment: record as other income
+        const { error: accountingError } = await supabase
+          .from('accounting_entries')
+          .insert({
+            category: 'OtherIncome',
+            amount_usd: Number(amountUsd),
+            amount_lbp: Number(amountLbp),
+            order_ref: statementId,
+            memo: isCashIn 
+              ? `Payment from ${clientName} - ${statementId}` 
+              : `Payment to ${clientName} - ${statementId}`,
+          });
+
+        if (accountingError) throw accountingError;
+      }
 
       return statementId;
     },
