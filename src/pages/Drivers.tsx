@@ -8,12 +8,11 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Truck, Plus, DollarSign, FileText, ArrowDownLeft, ArrowUpRight, Trash2 } from 'lucide-react';
+import { Truck, Plus, DollarSign, FileText, Trash2 } from 'lucide-react';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import CreateDriverDialog from '@/components/drivers/CreateDriverDialog';
 import DriverRemittanceDialog from '@/components/drivers/DriverRemittanceDialog';
-import TakeBackCashDialog from '@/components/drivers/TakeBackCashDialog';
-import GiveDriverCashDialog from '@/components/cashbox/GiveDriverCashDialog';
+import DriverCashSettlementDialog from '@/components/drivers/DriverCashSettlementDialog';
 import { toast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
 
@@ -21,8 +20,7 @@ const Drivers = () => {
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [selectedDriver, setSelectedDriver] = useState<any>(null);
   const [viewStatementDriver, setViewStatementDriver] = useState<any>(null);
-  const [takeBackCashDriver, setTakeBackCashDriver] = useState<any>(null);
-  const [giveCashDriver, setGiveCashDriver] = useState<any>(null);
+  const [settleCashDriver, setSettleCashDriver] = useState<any>(null);
   const [dateFrom, setDateFrom] = useState(new Date().toISOString().split('T')[0]);
   const [dateTo, setDateTo] = useState(new Date().toISOString().split('T')[0]);
   const [deleteTransactionId, setDeleteTransactionId] = useState<string | null>(null);
@@ -227,18 +225,10 @@ const Drivers = () => {
                           <Button
                             size="sm"
                             variant="outline"
-                            onClick={() => setGiveCashDriver(driver)}
+                            onClick={() => setSettleCashDriver(driver)}
                           >
-                            <ArrowUpRight className="mr-1 h-3 w-3" />
-                            Give Cash
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => setTakeBackCashDriver(driver)}
-                          >
-                            <ArrowDownLeft className="mr-1 h-3 w-3" />
-                            Take Cash
+                            <DollarSign className="mr-1 h-3 w-3" />
+                            Settle Cash
                           </Button>
                         </div>
                       </TableCell>
@@ -395,20 +385,11 @@ const Drivers = () => {
         />
       )}
 
-      {takeBackCashDriver && (
-        <TakeBackCashDialog
-          driver={takeBackCashDriver}
-          open={!!takeBackCashDriver}
-          onOpenChange={(open) => !open && setTakeBackCashDriver(null)}
-        />
-      )}
-
-      {giveCashDriver && (
-        <GiveDriverCashDialog
-          open={!!giveCashDriver}
-          onOpenChange={(open) => !open && setGiveCashDriver(null)}
-          date={new Date().toISOString().split('T')[0]}
-          preselectedDriver={giveCashDriver}
+      {settleCashDriver && (
+        <DriverCashSettlementDialog
+          driver={settleCashDriver}
+          open={!!settleCashDriver}
+          onOpenChange={(open) => !open && setSettleCashDriver(null)}
         />
       )}
 
