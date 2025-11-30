@@ -182,39 +182,6 @@ export function ClientPaymentDialog({
         if (cashboxError) throw cashboxError;
       }
 
-      // 7. Create accounting entries
-      if (hasDriverPaidOrders) {
-        // For driver-paid orders: record delivery fees as income
-        if (deliveryFeeUsd > 0 || deliveryFeeLbp > 0) {
-          const { error: deliveryIncomeError } = await supabase
-            .from('accounting_entries')
-            .insert({
-              category: 'DeliveryIncome',
-              amount_usd: deliveryFeeUsd,
-              amount_lbp: deliveryFeeLbp,
-              order_ref: statementId,
-              memo: `Delivery fees from ${clientName} (Driver-paid orders) - ${statementId}`,
-            });
-
-          if (deliveryIncomeError) throw deliveryIncomeError;
-        }
-      } else {
-        // Regular payment: record as other income
-        const { error: accountingError } = await supabase
-          .from('accounting_entries')
-          .insert({
-            category: 'OtherIncome',
-            amount_usd: Number(amountUsd),
-            amount_lbp: Number(amountLbp),
-            order_ref: statementId,
-            memo: isCashIn 
-              ? `Payment from ${clientName} - ${statementId}` 
-              : `Payment to ${clientName} - ${statementId}`,
-          });
-
-        if (accountingError) throw accountingError;
-      }
-
       return statementId;
     },
     onSuccess: (statementId) => {
