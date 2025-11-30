@@ -165,6 +165,18 @@ Deno.serve(async (req) => {
           }
         }
       }
+
+      // Set driver_remit_status to Pending for driver-paid orders too
+      // (driver needs to be reimbursed for what they paid + earn delivery fee)
+      const { error: remitError } = await supabaseClient
+        .from('orders')
+        .update({ driver_remit_status: 'Pending' })
+        .eq('id', orderId)
+
+      if (remitError) {
+        console.error('Error updating remit status:', remitError)
+        throw remitError
+      }
       
       console.log('Driver-paid-for-client scenario processed successfully')
     } else {
