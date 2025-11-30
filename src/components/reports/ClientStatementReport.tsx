@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -7,12 +7,16 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { FileText, Download, DollarSign } from 'lucide-react';
+import { FileText, Download, DollarSign, CheckCircle } from 'lucide-react';
 import { format } from 'date-fns';
 import { Badge } from '@/components/ui/badge';
 import { ClientPaymentDialog } from './ClientPaymentDialog';
+import { toast } from 'sonner';
+import { useAuth } from '@/hooks/useAuth';
 
 export function ClientStatementReport() {
+  const { user } = useAuth();
+  const queryClient = useQueryClient();
   const [selectedClient, setSelectedClient] = useState('');
   const [dateFrom, setDateFrom] = useState(new Date().toISOString().split('T')[0]);
   const [dateTo, setDateTo] = useState(new Date().toISOString().split('T')[0]);
@@ -48,6 +52,20 @@ export function ClientStatementReport() {
     queryFn: async () => {
       if (!selectedClient) return null;
 
+      // Get all statement IDs that include orders in this period
+      const { data: statementsData } = await supabase
+        .from('client_statements')
+        .select('order_refs, status')
+        .eq('client_id', selectedClient);
+
+      // Get all order refs that are in paid statements
+      const paidOrderRefs = new Set<string>();
+      statementsData?.forEach(stmt => {
+        if (stmt.status === 'paid' && stmt.order_refs) {
+          stmt.order_refs.forEach((ref: string) => paidOrderRefs.add(ref));
+        }
+      });
+
       const { data, error } = await supabase
         .from('orders')
         .select(`
@@ -62,7 +80,14 @@ export function ClientStatementReport() {
         .order('created_at', { ascending: false });
 
       if (error) throw error;
-      return data;
+
+      // Filter out orders already in paid statements
+      const filteredData = data?.filter(order => {
+        const orderRef = order.order_type === 'ecom' ? (order.voucher_no || order.order_id) : order.order_id;
+        return !paidOrderRefs.has(orderRef);
+      }) || [];
+
+      return filteredData;
     },
     enabled: !!selectedClient,
   });
@@ -154,6 +179,53 @@ export function ClientStatementReport() {
   const selectedClientData = clients?.find(c => c.id === selectedClient);
   const orderIds = orders?.map(o => o.order_type === 'ecom' ? (o.voucher_no || o.order_id) : o.order_id) || [];
 
+  const issueStatementMutation = useMutation({
+    mutationFn: async () => {
+      if (!selectedClient || !orders || orders.length === 0) {
+        throw new Error('No orders to include in statement');
+      }
+
+      // Generate statement ID
+      const { data: statementIdData, error: idError } = await supabase
+        .rpc('generate_client_statement_id');
+
+      if (idError) throw idError;
+
+      // Insert statement
+      const { error: insertError } = await supabase
+        .from('client_statements')
+        .insert({
+          client_id: selectedClient,
+          statement_id: statementIdData,
+          period_from: dateFrom,
+          period_to: dateTo,
+          total_orders: totals.totalOrders,
+          total_delivered: totals.deliveredOrders,
+          total_order_amount_usd: totals.totalOrderAmountUsd,
+          total_order_amount_lbp: totals.totalOrderAmountLbp,
+          total_delivery_fees_usd: totals.totalDeliveryFeesUsd,
+          total_delivery_fees_lbp: totals.totalDeliveryFeesLbp,
+          net_due_usd: displayNetUsd * (isClientOwesUs ? -1 : 1),
+          net_due_lbp: displayNetLbp * (isClientOwesUs ? -1 : 1),
+          order_refs: orderIds,
+          status: 'unpaid',
+          created_by: user?.id,
+        });
+
+      if (insertError) throw insertError;
+
+      return statementIdData;
+    },
+    onSuccess: (statementId) => {
+      toast.success(`Statement ${statementId} issued successfully`);
+      queryClient.invalidateQueries({ queryKey: ['client-statement'] });
+      queryClient.invalidateQueries({ queryKey: ['client-statements-history'] });
+    },
+    onError: (error) => {
+      toast.error(`Failed to issue statement: ${error.message}`);
+    },
+  });
+
   return (
     <div className="space-y-6">
       {paymentDialogOpen && selectedClientData && (
@@ -240,6 +312,15 @@ export function ClientStatementReport() {
               <div className="flex gap-2">
                 <Button 
                   variant="default" 
+                  size="sm"
+                  onClick={() => issueStatementMutation.mutate()}
+                  disabled={!orders || orders.length === 0 || issueStatementMutation.isPending}
+                >
+                  <CheckCircle className="mr-2 h-4 w-4" />
+                  {issueStatementMutation.isPending ? 'Issuing...' : 'Issue Statement'}
+                </Button>
+                <Button 
+                  variant="secondary" 
                   size="sm"
                   onClick={() => setPaymentDialogOpen(true)}
                   disabled={!orders || orders.length === 0 || (displayNetUsd === 0 && displayNetLbp === 0)}

@@ -187,6 +187,83 @@ export type Database = {
           },
         ]
       }
+      client_statements: {
+        Row: {
+          client_id: string
+          created_by: string | null
+          id: string
+          issued_date: string
+          net_due_lbp: number | null
+          net_due_usd: number | null
+          notes: string | null
+          order_refs: string[] | null
+          paid_date: string | null
+          payment_method: string | null
+          period_from: string
+          period_to: string
+          statement_id: string
+          status: string
+          total_delivered: number | null
+          total_delivery_fees_lbp: number | null
+          total_delivery_fees_usd: number | null
+          total_order_amount_lbp: number | null
+          total_order_amount_usd: number | null
+          total_orders: number | null
+        }
+        Insert: {
+          client_id: string
+          created_by?: string | null
+          id?: string
+          issued_date?: string
+          net_due_lbp?: number | null
+          net_due_usd?: number | null
+          notes?: string | null
+          order_refs?: string[] | null
+          paid_date?: string | null
+          payment_method?: string | null
+          period_from: string
+          period_to: string
+          statement_id: string
+          status?: string
+          total_delivered?: number | null
+          total_delivery_fees_lbp?: number | null
+          total_delivery_fees_usd?: number | null
+          total_order_amount_lbp?: number | null
+          total_order_amount_usd?: number | null
+          total_orders?: number | null
+        }
+        Update: {
+          client_id?: string
+          created_by?: string | null
+          id?: string
+          issued_date?: string
+          net_due_lbp?: number | null
+          net_due_usd?: number | null
+          notes?: string | null
+          order_refs?: string[] | null
+          paid_date?: string | null
+          payment_method?: string | null
+          period_from?: string
+          period_to?: string
+          statement_id?: string
+          status?: string
+          total_delivered?: number | null
+          total_delivery_fees_lbp?: number | null
+          total_delivery_fees_usd?: number | null
+          total_order_amount_lbp?: number | null
+          total_order_amount_usd?: number | null
+          total_orders?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "client_statements_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       client_transactions: {
         Row: {
           amount_lbp: number | null
@@ -352,6 +429,83 @@ export type Database = {
             columns: ["category_id"]
             isOneToOne: false
             referencedRelation: "expense_categories"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      driver_statements: {
+        Row: {
+          created_by: string | null
+          driver_id: string
+          id: string
+          issued_date: string
+          net_due_lbp: number | null
+          net_due_usd: number | null
+          notes: string | null
+          order_refs: string[] | null
+          paid_date: string | null
+          payment_method: string | null
+          period_from: string
+          period_to: string
+          statement_id: string
+          status: string
+          total_collected_lbp: number | null
+          total_collected_usd: number | null
+          total_delivery_fees_lbp: number | null
+          total_delivery_fees_usd: number | null
+          total_driver_paid_refund_lbp: number | null
+          total_driver_paid_refund_usd: number | null
+        }
+        Insert: {
+          created_by?: string | null
+          driver_id: string
+          id?: string
+          issued_date?: string
+          net_due_lbp?: number | null
+          net_due_usd?: number | null
+          notes?: string | null
+          order_refs?: string[] | null
+          paid_date?: string | null
+          payment_method?: string | null
+          period_from: string
+          period_to: string
+          statement_id: string
+          status?: string
+          total_collected_lbp?: number | null
+          total_collected_usd?: number | null
+          total_delivery_fees_lbp?: number | null
+          total_delivery_fees_usd?: number | null
+          total_driver_paid_refund_lbp?: number | null
+          total_driver_paid_refund_usd?: number | null
+        }
+        Update: {
+          created_by?: string | null
+          driver_id?: string
+          id?: string
+          issued_date?: string
+          net_due_lbp?: number | null
+          net_due_usd?: number | null
+          notes?: string | null
+          order_refs?: string[] | null
+          paid_date?: string | null
+          payment_method?: string | null
+          period_from?: string
+          period_to?: string
+          statement_id?: string
+          status?: string
+          total_collected_lbp?: number | null
+          total_collected_usd?: number | null
+          total_delivery_fees_lbp?: number | null
+          total_delivery_fees_usd?: number | null
+          total_driver_paid_refund_lbp?: number | null
+          total_driver_paid_refund_usd?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "driver_statements_driver_id_fkey"
+            columns: ["driver_id"]
+            isOneToOne: false
+            referencedRelation: "drivers"
             referencedColumns: ["id"]
           },
         ]
@@ -691,6 +845,8 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      generate_client_statement_id: { Args: never; Returns: string }
+      generate_driver_statement_id: { Args: never; Returns: string }
       generate_statement_id: { Args: never; Returns: string }
       has_role: {
         Args: {
