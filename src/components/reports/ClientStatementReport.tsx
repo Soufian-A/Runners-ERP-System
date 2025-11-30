@@ -67,6 +67,24 @@ export function ClientStatementReport() {
     enabled: !!selectedClient,
   });
 
+  const { data: payments } = useQuery({
+    queryKey: ['client-statement-payments', selectedClient, dateFrom, dateTo],
+    queryFn: async () => {
+      if (!selectedClient) return [];
+
+      const { data, error } = await supabase
+        .from('client_payments')
+        .select('amount_usd, amount_lbp, payment_date')
+        .eq('client_id', selectedClient)
+        .gte('payment_date', dateFrom)
+        .lte('payment_date', dateTo + 'T23:59:59');
+
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!selectedClient,
+  });
+
   const calculateTotals = () => {
     if (!orders) return { 
       totalOrders: 0,
@@ -120,9 +138,19 @@ export function ClientStatementReport() {
   };
 
   const totals = calculateTotals();
+
+  const totalPaymentsUsd = payments?.reduce((sum: number, p: any) => sum + Number(p.amount_usd || 0), 0) ?? 0;
+  const totalPaymentsLbp = payments?.reduce((sum: number, p: any) => sum + Number(p.amount_lbp || 0), 0) ?? 0;
+
+  const netDueUsd = totals.totalDueToClientUsd - totalPaymentsUsd;
+  const netDueLbp = totals.totalDueToClientLbp - totalPaymentsLbp;
+
+  const safeNetDueUsd = netDueUsd < 0 ? 0 : netDueUsd;
+  const safeNetDueLbp = netDueLbp < 0 ? 0 : netDueLbp;
+
   const selectedClientData = clients?.find(c => c.id === selectedClient);
   const orderIds = orders?.map(o => o.order_type === 'ecom' ? (o.voucher_no || o.order_id) : o.order_id) || [];
-  const totalDueAmount = totals.totalDueToClientUsd + (totals.totalDueToClientLbp / 89500); // Rough conversion for payment dialog
+  const totalDueAmount = safeNetDueUsd + (safeNetDueLbp / 89500); // Rough conversion for payment dialog
 
   return (
     <div className="space-y-6">
@@ -210,7 +238,7 @@ export function ClientStatementReport() {
                   variant="default" 
                   size="sm"
                   onClick={() => setPaymentDialogOpen(true)}
-                  disabled={!orders || orders.length === 0 || (totals.totalDueToClientUsd === 0 && totals.totalDueToClientLbp === 0)}
+                  disabled={!orders || orders.length === 0 || (safeNetDueUsd === 0 && safeNetDueLbp === 0)}
                 >
                   <DollarSign className="mr-2 h-4 w-4" />
                   Record Payment
@@ -243,11 +271,11 @@ export function ClientStatementReport() {
                   </div>
                   <div>
                     <p className="text-sm text-muted-foreground">Amount Due (USD)</p>
-                    <p className="text-2xl font-bold text-primary">${totals.totalDueToClientUsd.toFixed(2)}</p>
+                    <p className="text-2xl font-bold text-primary">${safeNetDueUsd.toFixed(2)}</p>
                   </div>
                   <div>
                     <p className="text-sm text-muted-foreground">Amount Due (LBP)</p>
-                    <p className="text-2xl font-bold text-primary">LL {totals.totalDueToClientLbp.toLocaleString()}</p>
+                    <p className="text-2xl font-bold text-primary">LL {safeNetDueLbp.toLocaleString()}</p>
                   </div>
                 </div>
 
