@@ -10,10 +10,13 @@ import { BulkActionsBar } from "@/components/orders/BulkActionsBar";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { LayoutGrid, List, Settings, Search } from "lucide-react";
+import { LayoutGrid, List, Settings, Search, Pencil, Trash2 } from "lucide-react";
 import EditOrderDialog from "@/components/orders/EditOrderDialog";
 import CreateOrderDialog from "@/components/orders/CreateOrderDialog";
 import { AddressSettingsDialog } from "@/components/orders/AddressSettingsDialog";
+import { useMutation } from "@tanstack/react-query";
+import { toast } from "@/hooks/use-toast";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 
 interface Order {
   id: string;
@@ -46,6 +49,7 @@ const InstantOrders = () => {
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [addressSettingsOpen, setAddressSettingsOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  const [deleteOrderId, setDeleteOrderId] = useState<string | null>(null);
 
   const { data: orders, isLoading } = useQuery({
     queryKey: ["instant-orders"],
@@ -134,6 +138,26 @@ const InstantOrders = () => {
     }
   };
 
+  const deleteOrderMutation = useMutation({
+    mutationFn: async (orderId: string) => {
+      const { error } = await supabase
+        .from('orders')
+        .delete()
+        .eq('id', orderId);
+      
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast({ title: 'Success', description: 'Order deleted successfully' });
+      queryClient.invalidateQueries({ queryKey: ['orders'] });
+      queryClient.invalidateQueries({ queryKey: ['instant-orders'] });
+      setDeleteOrderId(null);
+    },
+    onError: (error: Error) => {
+      toast({ title: 'Error', description: error.message, variant: 'destructive' });
+    },
+  });
+
   return (
     <Layout>
       <div className="space-y-6">
@@ -200,18 +224,12 @@ const InstantOrders = () => {
                   <TableHead>Notes</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead>Created</TableHead>
+                  <TableHead className="w-[120px]">Actions</TableHead>
                 </TableRow>
               </TableHeader>
-              <TableBody>
+                <TableBody>
                 {filteredOrders?.map((order) => (
-                  <TableRow 
-                    key={order.id} 
-                    className="hover:bg-muted/50 cursor-pointer"
-                    onClick={() => {
-                      setSelectedOrder(order);
-                      setDialogOpen(true);
-                    }}
-                  >
+                  <TableRow key={order.id} className="hover:bg-muted/50">
                     <TableCell onClick={(e) => e.stopPropagation()}>
                       <Checkbox checked={selectedIds.includes(order.id)} onCheckedChange={() => toggleSelect(order.id)} />
                     </TableCell>
@@ -223,9 +241,36 @@ const InstantOrders = () => {
                     <TableCell>${order.delivery_fee_usd?.toFixed(2) || "0.00"}</TableCell>
                     <TableCell>{order.delivery_fee_lbp?.toLocaleString() || "0"} LL</TableCell>
                     <TableCell className="max-w-[150px] truncate">{order.notes || "-"}</TableCell>
-                    <TableCell onClick={(e) => e.stopPropagation()}>{getStatusBadge(order.status)}</TableCell>
+                    <TableCell>{getStatusBadge(order.status)}</TableCell>
                     <TableCell className="text-xs whitespace-nowrap">
                       {new Date(order.created_at).toLocaleDateString()} {new Date(order.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex gap-1">
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setSelectedOrder(order);
+                            setDialogOpen(true);
+                          }}
+                          title="Edit"
+                        >
+                          <Pencil className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setDeleteOrderId(order.id);
+                          }}
+                          title="Delete"
+                        >
+                          <Trash2 className="h-4 w-4 text-destructive" />
+                        </Button>
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))}
@@ -250,6 +295,23 @@ const InstantOrders = () => {
         {createDialogOpen && <CreateOrderDialog open={createDialogOpen} onOpenChange={setCreateDialogOpen} orderType="instant" />}
 
         <AddressSettingsDialog open={addressSettingsOpen} onOpenChange={setAddressSettingsOpen} />
+
+        <AlertDialog open={!!deleteOrderId} onOpenChange={(open) => !open && setDeleteOrderId(null)}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Delete Order</AlertDialogTitle>
+              <AlertDialogDescription>
+                Are you sure you want to delete this order? This will also delete all related transactions and cannot be undone.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogAction onClick={() => deleteOrderId && deleteOrderMutation.mutate(deleteOrderId)}>
+                Delete
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </div>
     </Layout>
   );

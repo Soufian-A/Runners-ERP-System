@@ -107,6 +107,10 @@ export function InstantOrderForm() {
     setNewRows(newRows.map((row) => (row.id === id ? { ...row, [field]: value } : row)));
   };
 
+  const removeRow = (id: string) => {
+    setNewRows(newRows.filter(row => row.id !== id));
+  };
+
   const createOrderMutation = useMutation({
     mutationFn: async (rowData: NewOrderRow) => {
       const { data: client } = await supabase.from("clients").select("*, client_rules(*)").eq("id", rowData.client_id).single();
@@ -359,16 +363,10 @@ export function InstantOrderForm() {
     <div className="space-y-2">
       <div className="flex justify-between items-center">
         <h3 className="text-sm font-semibold">Quick Instant Order Entry</h3>
-        <div className="flex gap-2">
-          <Button onClick={() => addNewRow(true)} size="sm" variant="outline" tabIndex={-1} title="Duplicate last row (Ctrl+D)">
-            <Plus className="h-4 w-4 mr-1" />
-            Duplicate Row
-          </Button>
-          <Button onClick={() => addNewRow(false)} size="sm" variant="outline" tabIndex={-1}>
-            <Plus className="h-4 w-4 mr-1" />
-            Add Row
-          </Button>
-        </div>
+        <Button onClick={() => addNewRow(false)} size="sm" variant="outline" tabIndex={-1}>
+          <Plus className="h-4 w-4 mr-1" />
+          Add Row
+        </Button>
       </div>
 
       <div className="border rounded-lg overflow-x-auto">
@@ -384,7 +382,7 @@ export function InstantOrderForm() {
               <TableHead className="w-[90px]">Fee USD</TableHead>
               <TableHead className="w-[150px]">Notes</TableHead>
               <TableHead className="w-[80px]">Driver Paid</TableHead>
-              <TableHead className="w-[80px]">Action</TableHead>
+              <TableHead className="w-[140px]">Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -486,15 +484,26 @@ export function InstantOrderForm() {
                     </div>
                   </TableCell>
                   <TableCell>
-                    <Button 
-                      size="sm" 
-                      onClick={() => createOrderMutation.mutate(row)} 
-                      disabled={!row.client_id || !row.address} 
-                      className="h-8 text-xs"
-                      tabIndex={baseTabIndex + 10}
-                    >
-                      Save
-                    </Button>
+                    <div className="flex gap-1">
+                      <Button 
+                        size="sm" 
+                        onClick={() => createOrderMutation.mutate(row)} 
+                        disabled={!row.client_id || !row.address} 
+                        className="h-8 text-xs"
+                        tabIndex={baseTabIndex + 10}
+                      >
+                        Save
+                      </Button>
+                      <Button 
+                        size="sm" 
+                        variant="destructive"
+                        onClick={() => removeRow(row.id)} 
+                        className="h-8 text-xs"
+                        tabIndex={-1}
+                      >
+                        Delete
+                      </Button>
+                    </div>
                   </TableCell>
                 </TableRow>
               );
