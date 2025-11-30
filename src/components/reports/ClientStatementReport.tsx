@@ -70,9 +70,12 @@ export function ClientStatementReport() {
   const calculateTotals = () => {
     if (!orders) return { 
       totalOrders: 0,
-      totalOrderAmount: 0, 
-      totalDeliveryFees: 0, 
-      totalDueToClient: 0,
+      totalOrderAmountUsd: 0,
+      totalOrderAmountLbp: 0, 
+      totalDeliveryFeesUsd: 0,
+      totalDeliveryFeesLbp: 0, 
+      totalDueToClientUsd: 0,
+      totalDueToClientLbp: 0,
       deliveredOrders: 0 
     };
 
@@ -81,33 +84,45 @@ export function ClientStatementReport() {
     // For instant orders:
     // - If driver paid for client: client owes order_amount + delivery_fee (driver didn't collect either)
     // - If driver collected: client owes order_amount only (we keep delivery fee)
-    // For ecom orders: use amount_due_to_client_usd (based on fee rule)
-    const totalDueToClient = deliveredOrders.reduce((sum, o) => {
+    // For ecom orders: use amount_due_to_client_usd/lbp (based on fee rule)
+    const totalDueToClientUsd = deliveredOrders.reduce((sum, o) => {
       if (o.order_type === 'instant') {
         if (o.driver_paid_for_client) {
-          // Driver paid for client and didn't collect delivery fee either
           return sum + Number(o.order_amount_usd || 0) + Number(o.delivery_fee_usd || 0);
         } else {
-          // Driver collected from customer, client owes order amount only
           return sum + Number(o.order_amount_usd || 0);
         }
       }
-      // Ecom orders use fee rule calculation
       return sum + Number(o.amount_due_to_client_usd || 0);
+    }, 0);
+
+    const totalDueToClientLbp = deliveredOrders.reduce((sum, o) => {
+      if (o.order_type === 'instant') {
+        if (o.driver_paid_for_client) {
+          return sum + Number(o.order_amount_lbp || 0) + Number(o.delivery_fee_lbp || 0);
+        } else {
+          return sum + Number(o.order_amount_lbp || 0);
+        }
+      }
+      return sum + Number(o.amount_due_to_client_usd || 0); // Note: ecom doesn't have _lbp field
     }, 0);
 
     return {
       totalOrders: orders.length,
       deliveredOrders: deliveredOrders.length,
-      totalOrderAmount: deliveredOrders.reduce((sum, o) => sum + Number(o.order_amount_usd || 0), 0),
-      totalDeliveryFees: deliveredOrders.reduce((sum, o) => sum + Number(o.delivery_fee_usd || 0), 0),
-      totalDueToClient,
+      totalOrderAmountUsd: deliveredOrders.reduce((sum, o) => sum + Number(o.order_amount_usd || 0), 0),
+      totalOrderAmountLbp: deliveredOrders.reduce((sum, o) => sum + Number(o.order_amount_lbp || 0), 0),
+      totalDeliveryFeesUsd: deliveredOrders.reduce((sum, o) => sum + Number(o.delivery_fee_usd || 0), 0),
+      totalDeliveryFeesLbp: deliveredOrders.reduce((sum, o) => sum + Number(o.delivery_fee_lbp || 0), 0),
+      totalDueToClientUsd,
+      totalDueToClientLbp,
     };
   };
 
   const totals = calculateTotals();
   const selectedClientData = clients?.find(c => c.id === selectedClient);
   const orderIds = orders?.map(o => o.order_type === 'ecom' ? (o.voucher_no || o.order_id) : o.order_id) || [];
+  const totalDueAmount = totals.totalDueToClientUsd + (totals.totalDueToClientLbp / 89500); // Rough conversion for payment dialog
 
   return (
     <div className="space-y-6">
@@ -117,7 +132,7 @@ export function ClientStatementReport() {
           onOpenChange={setPaymentDialogOpen}
           clientId={selectedClient}
           clientName={selectedClientData.name}
-          amountDue={totals.totalDueToClient}
+          amountDue={totalDueAmount}
           dateFrom={dateFrom}
           dateTo={dateTo}
           orderIds={orderIds}
@@ -195,7 +210,7 @@ export function ClientStatementReport() {
                   variant="default" 
                   size="sm"
                   onClick={() => setPaymentDialogOpen(true)}
-                  disabled={!orders || orders.length === 0 || totals.totalDueToClient === 0}
+                  disabled={!orders || orders.length === 0 || (totals.totalDueToClientUsd === 0 && totals.totalDueToClientLbp === 0)}
                 >
                   <DollarSign className="mr-2 h-4 w-4" />
                   Record Payment
@@ -212,7 +227,7 @@ export function ClientStatementReport() {
               <p className="text-center text-muted-foreground">Loading...</p>
             ) : orders && orders.length > 0 ? (
               <>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6 p-4 bg-muted/50 rounded-lg">
+                <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6 p-4 bg-muted/50 rounded-lg">
                   <div>
                     <p className="text-sm text-muted-foreground">Total Orders</p>
                     <p className="text-2xl font-bold">{totals.totalOrders}</p>
@@ -223,11 +238,16 @@ export function ClientStatementReport() {
                   </div>
                   <div>
                     <p className="text-sm text-muted-foreground">Total Delivery Fees</p>
-                    <p className="text-2xl font-bold">${totals.totalDeliveryFees.toFixed(2)}</p>
+                    <p className="text-lg font-bold">${totals.totalDeliveryFeesUsd.toFixed(2)}</p>
+                    <p className="text-sm font-semibold">LL {totals.totalDeliveryFeesLbp.toLocaleString()}</p>
                   </div>
                   <div>
-                    <p className="text-sm text-muted-foreground">Amount Due to Client</p>
-                    <p className="text-2xl font-bold text-primary">${totals.totalDueToClient.toFixed(2)}</p>
+                    <p className="text-sm text-muted-foreground">Amount Due (USD)</p>
+                    <p className="text-2xl font-bold text-primary">${totals.totalDueToClientUsd.toFixed(2)}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-muted-foreground">Amount Due (LBP)</p>
+                    <p className="text-2xl font-bold text-primary">LL {totals.totalDueToClientLbp.toLocaleString()}</p>
                   </div>
                 </div>
 
@@ -240,27 +260,32 @@ export function ClientStatementReport() {
                         <TableHead>Type</TableHead>
                         <TableHead>Customer</TableHead>
                         <TableHead>Address</TableHead>
-                        <TableHead>Order Amount</TableHead>
-                        <TableHead>Delivery Fee</TableHead>
+                        <TableHead>Order USD</TableHead>
+                        <TableHead>Order LBP</TableHead>
+                        <TableHead>Fee USD</TableHead>
+                        <TableHead>Fee LBP</TableHead>
                         <TableHead>Driver Paid</TableHead>
-                        <TableHead>Due to Client</TableHead>
+                        <TableHead>Due USD</TableHead>
+                        <TableHead>Due LBP</TableHead>
                         <TableHead>Status</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
                       {orders.map((order: any) => {
-                        let dueToClient = 0;
+                        let dueToClientUsd = 0;
+                        let dueToClientLbp = 0;
+                        
                         if (order.order_type === 'instant') {
                           if (order.driver_paid_for_client) {
-                            // Driver paid and didn't collect delivery fee
-                            dueToClient = Number(order.order_amount_usd || 0) + Number(order.delivery_fee_usd || 0);
+                            dueToClientUsd = Number(order.order_amount_usd || 0) + Number(order.delivery_fee_usd || 0);
+                            dueToClientLbp = Number(order.order_amount_lbp || 0) + Number(order.delivery_fee_lbp || 0);
                           } else {
-                            // Driver collected, client owes order amount only
-                            dueToClient = Number(order.order_amount_usd || 0);
+                            dueToClientUsd = Number(order.order_amount_usd || 0);
+                            dueToClientLbp = Number(order.order_amount_lbp || 0);
                           }
                         } else {
-                          // Ecom uses fee rule
-                          dueToClient = Number(order.amount_due_to_client_usd || 0);
+                          dueToClientUsd = Number(order.amount_due_to_client_usd || 0);
+                          dueToClientLbp = 0; // Ecom doesn't have LBP field
                         }
                         
                         return (
@@ -285,8 +310,10 @@ export function ClientStatementReport() {
                             <TableCell className="max-w-[200px] truncate text-xs">
                               {order.address}
                             </TableCell>
-                            <TableCell>${order.order_amount_usd.toFixed(2)}</TableCell>
-                            <TableCell>${order.delivery_fee_usd.toFixed(2)}</TableCell>
+                            <TableCell className="text-xs">${order.order_amount_usd.toFixed(2)}</TableCell>
+                            <TableCell className="text-xs">LL {Number(order.order_amount_lbp || 0).toLocaleString()}</TableCell>
+                            <TableCell className="text-xs">${order.delivery_fee_usd.toFixed(2)}</TableCell>
+                            <TableCell className="text-xs">LL {Number(order.delivery_fee_lbp || 0).toLocaleString()}</TableCell>
                             <TableCell>
                               {order.driver_paid_for_client ? (
                                 <Badge variant="destructive" className="text-xs">Yes</Badge>
@@ -294,8 +321,11 @@ export function ClientStatementReport() {
                                 <span className="text-xs text-muted-foreground">No</span>
                               )}
                             </TableCell>
-                            <TableCell className="font-medium">
-                              ${dueToClient.toFixed(2)}
+                            <TableCell className="font-medium text-xs">
+                              ${dueToClientUsd.toFixed(2)}
+                            </TableCell>
+                            <TableCell className="font-medium text-xs">
+                              LL {dueToClientLbp.toLocaleString()}
                             </TableCell>
                             <TableCell>
                               <Badge variant={order.status === 'Delivered' ? 'default' : 'secondary'}>
@@ -312,8 +342,11 @@ export function ClientStatementReport() {
                 <div className="mt-6 flex justify-end">
                   <div className="rounded-md bg-primary/10 p-6 border-2 border-primary">
                     <p className="text-sm text-muted-foreground mb-2">Net Amount Due to Client</p>
-                    <p className="font-bold text-3xl text-primary">
-                      ${totals.totalDueToClient.toFixed(2)}
+                    <p className="font-bold text-2xl text-primary">
+                      ${totals.totalDueToClientUsd.toFixed(2)}
+                    </p>
+                    <p className="font-bold text-2xl text-primary mt-1">
+                      LL {totals.totalDueToClientLbp.toLocaleString()}
                     </p>
                     <p className="text-xs text-muted-foreground mt-1">
                       Based on {totals.deliveredOrders} delivered orders
