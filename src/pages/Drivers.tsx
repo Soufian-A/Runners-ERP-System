@@ -218,17 +218,19 @@ const Drivers = () => {
                             size="sm"
                             variant="outline"
                             onClick={() => setSelectedDriver(driver)}
+                            title="Collect payment from driver for delivered orders"
                           >
                             <DollarSign className="mr-1 h-3 w-3" />
-                            Remit
+                            Collect Payment
                           </Button>
                           <Button
                             size="sm"
                             variant="outline"
                             onClick={() => setSettleCashDriver(driver)}
+                            title="Give or take working capital cash"
                           >
                             <DollarSign className="mr-1 h-3 w-3" />
-                            Settle Cash
+                            Give/Take Cash
                           </Button>
                         </div>
                       </TableCell>

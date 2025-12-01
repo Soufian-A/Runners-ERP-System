@@ -10,9 +10,13 @@ import {
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
-import { ScrollArea } from '@/components/ui/scroll-area';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Input } from '@/components/ui/input';
+import { Badge } from '@/components/ui/badge';
+import { format } from 'date-fns';
+import { Search } from 'lucide-react';
+import { useAuth } from '@/hooks/useAuth';
 
 interface DriverRemittanceDialogProps {
   driver: any;
@@ -22,8 +26,10 @@ interface DriverRemittanceDialogProps {
 
 const DriverRemittanceDialog = ({ driver, open, onOpenChange }: DriverRemittanceDialogProps) => {
   const { toast } = useToast();
+  const { user } = useAuth();
   const queryClient = useQueryClient();
   const [selectedOrders, setSelectedOrders] = useState<string[]>([]);
+  const [searchTerm, setSearchTerm] = useState('');
 
   const { data: pendingOrders, isLoading } = useQuery({
     queryKey: ['driver-pending-orders', driver?.id],
@@ -206,15 +212,45 @@ const DriverRemittanceDialog = ({ driver, open, onOpenChange }: DriverRemittance
           })
           .eq('id', order.id);
       }
+
+      // Auto-generate driver statement
+      const { data: statementIdData } = await supabase.rpc('generate_driver_statement_id');
+      
+      if (statementIdData) {
+        const orderRefs = ordersToRemit.map(o => o.order_type === 'ecom' ? (o.voucher_no || o.order_id) : o.order_id);
+        
+        await supabase.from('driver_statements').insert({
+          driver_id: driver.id,
+          statement_id: statementIdData,
+          period_from: new Date(Math.min(...ordersToRemit.map((o: any) => new Date(o.delivered_at).getTime()))).toISOString().split('T')[0],
+          period_to: new Date(Math.max(...ordersToRemit.map((o: any) => new Date(o.delivered_at).getTime()))).toISOString().split('T')[0],
+          total_collected_usd: totalCollectedUSD,
+          total_collected_lbp: totalCollectedLBP,
+          total_delivery_fees_usd: totalDeliveryFeeUSD,
+          total_delivery_fees_lbp: totalDeliveryFeeLBP,
+          total_driver_paid_refund_usd: totalDriverPaidRefundUSD,
+          total_driver_paid_refund_lbp: totalDriverPaidRefundLBP,
+          net_due_usd: totalCollectedUSD - totalDriverPaidRefundUSD,
+          net_due_lbp: totalCollectedLBP - totalDriverPaidRefundLBP,
+          order_refs: orderRefs,
+          status: 'paid',
+          paid_date: now,
+          payment_method: 'Cash',
+          created_by: user?.id,
+        });
+      }
+    
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['drivers'] });
       queryClient.invalidateQueries({ queryKey: ['driver-pending-orders'] });
+      queryClient.invalidateQueries({ queryKey: ['driver-statements'] });
       toast({
-        title: "Remittance Recorded",
-        description: "Driver remittance has been recorded successfully.",
+        title: "Remittance Recorded & Statement Issued",
+        description: "Driver remittance and statement have been created successfully.",
       });
       setSelectedOrders([]);
+      setSearchTerm('');
       onOpenChange(false);
     },
     onError: (error: any) => {
@@ -264,169 +300,182 @@ const DriverRemittanceDialog = ({ driver, open, onOpenChange }: DriverRemittance
   const totals = calculateTotals();
 
   const handleSelectAll = () => {
-    if (selectedOrders.length === pendingOrders?.length) {
+    const filtered = filteredOrders || [];
+    if (selectedOrders.length === filtered.length) {
       setSelectedOrders([]);
     } else {
-      setSelectedOrders(pendingOrders?.map((o: any) => o.id) || []);
+      setSelectedOrders(filtered.map((o: any) => o.id));
     }
   };
 
+  // Filter orders based on search
+  const filteredOrders = pendingOrders?.filter((order: any) => {
+    if (!searchTerm) return true;
+    const search = searchTerm.toLowerCase();
+    const orderRef = order.order_type === 'ecom' ? (order.voucher_no || order.order_id) : order.order_id;
+    return (
+      orderRef.toLowerCase().includes(search) ||
+      order.clients?.name?.toLowerCase().includes(search) ||
+      order.customers?.phone?.toLowerCase().includes(search) ||
+      order.address?.toLowerCase().includes(search)
+    );
+  });
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl">
+      <DialogContent className="max-w-6xl max-h-[90vh]">
         <DialogHeader>
-          <DialogTitle>Driver Remittance - {driver?.name}</DialogTitle>
+          <DialogTitle>Collect Payment from Driver - {driver?.name}</DialogTitle>
           <DialogDescription>
-            Select orders to collect remittance for
+            Select delivered orders to collect payment for. This will automatically generate a statement.
           </DialogDescription>
         </DialogHeader>
 
         {isLoading ? (
           <p className="text-sm text-muted-foreground">Loading orders...</p>
         ) : pendingOrders && pendingOrders.length > 0 ? (
-          <>
-            <div className="flex justify-between items-center mb-2">
-              <p className="text-sm text-muted-foreground">{pendingOrders.length} pending order(s)</p>
-              <Button variant="outline" size="sm" onClick={handleSelectAll}>
-                {selectedOrders.length === pendingOrders.length ? 'Deselect All' : 'Select All'}
-              </Button>
+          <div className="space-y-4">
+            <div className="flex items-center gap-4">
+              <div className="relative flex-1">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder="Search by order ID, client, customer, or address..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="pl-10"
+                />
+              </div>
+              <div className="flex items-center gap-2">
+                <p className="text-sm text-muted-foreground">
+                  {selectedOrders.length} of {filteredOrders?.length || 0} selected
+                </p>
+                <Button variant="outline" size="sm" onClick={handleSelectAll}>
+                  {selectedOrders.length === filteredOrders?.length ? 'Deselect All' : 'Select All'}
+                </Button>
+              </div>
             </div>
 
-            <ScrollArea className="h-[400px] w-full rounded-md border p-4">
-              <div className="space-y-3">
-                {pendingOrders.map((order: any) => (
-                  <div
-                    key={order.id}
-                    className="flex items-start space-x-3 space-y-0 rounded-md border p-3"
-                  >
-                    <Checkbox
-                      id={order.id}
-                      checked={selectedOrders.includes(order.id)}
-                      onCheckedChange={() => handleToggleOrder(order.id)}
-                      className="mt-1"
-                    />
-                    <div className="space-y-1 flex-1">
-                      <div className="flex items-center justify-between">
-                        <Label
-                          htmlFor={order.id}
-                          className="text-sm font-semibold cursor-pointer"
-                        >
-                          {order.order_type === 'ecom' ? (order.voucher_no || order.order_id) : order.order_id}
-                        </Label>
-                        {order.driver_paid_for_client && (
-                          <span className="text-xs bg-orange-100 text-orange-800 px-2 py-0.5 rounded">Driver Paid</span>
-                        )}
-                      </div>
+            <div className="border rounded-md">
+              <div className="max-h-[400px] overflow-auto">
+                <Table>
+                  <TableHeader className="sticky top-0 bg-background z-10">
+                    <TableRow>
+                      <TableHead className="w-12">
+                        <Checkbox
+                          checked={selectedOrders.length === filteredOrders?.length && filteredOrders.length > 0}
+                          onCheckedChange={handleSelectAll}
+                        />
+                      </TableHead>
+                      <TableHead>Order ID</TableHead>
+                      <TableHead>Date</TableHead>
+                      <TableHead>Client</TableHead>
+                      <TableHead>Customer</TableHead>
+                      <TableHead>Order $ / LL</TableHead>
+                      <TableHead>Fee $ / LL</TableHead>
+                      <TableHead>Total to Collect</TableHead>
+                      <TableHead>Status</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {filteredOrders?.map((order: any) => {
+                      const totalUsd = Number(order.order_amount_usd) + Number(order.delivery_fee_usd);
+                      const totalLbp = Number(order.order_amount_lbp) + Number(order.delivery_fee_lbp);
                       
-                      <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
-                        <div>
-                          <span className="text-muted-foreground">Client:</span>{' '}
-                          <span className="font-medium">{order.clients?.name || '-'}</span>
-                        </div>
-                        {order.customers && (
-                          <div>
-                            <span className="text-muted-foreground">Customer:</span>{' '}
-                            <span className="font-medium">{order.customers.phone}</span>
-                          </div>
-                        )}
-                        <div>
-                          <span className="text-muted-foreground">Order Amount:</span>{' '}
-                          <span className="font-medium">
-                            ${Number(order.order_amount_usd).toFixed(2)} / LL {Number(order.order_amount_lbp).toLocaleString()}
-                          </span>
-                        </div>
-                        <div>
-                          <span className="text-muted-foreground">Delivery Fee:</span>{' '}
-                          <span className="font-medium">
-                            ${Number(order.delivery_fee_usd).toFixed(2)} / LL {Number(order.delivery_fee_lbp).toLocaleString()}
-                          </span>
-                        </div>
-                        {order.driver_paid_for_client && (
-                          <div className="col-span-2">
-                            <span className="text-muted-foreground">Driver Paid Amount:</span>{' '}
-                            <span className="font-medium text-orange-600">
-                              ${Number(order.driver_paid_amount_usd).toFixed(2)} / LL {Number(order.driver_paid_amount_lbp).toLocaleString()}
-                            </span>
-                          </div>
-                        )}
-                        <div className="col-span-2">
-                          <span className="text-muted-foreground">Address:</span>{' '}
-                          <span className="font-medium">{order.address}</span>
-                        </div>
-                        {order.notes && (
-                          <div className="col-span-2">
-                            <span className="text-muted-foreground">Notes:</span>{' '}
-                            <span className="font-medium">{order.notes}</span>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                ))}
+                      return (
+                        <TableRow 
+                          key={order.id}
+                          className={selectedOrders.includes(order.id) ? 'bg-muted/50' : ''}
+                        >
+                          <TableCell>
+                            <Checkbox
+                              checked={selectedOrders.includes(order.id)}
+                              onCheckedChange={() => handleToggleOrder(order.id)}
+                            />
+                          </TableCell>
+                          <TableCell className="font-mono text-sm">
+                            {order.order_type === 'ecom' ? (order.voucher_no || order.order_id) : order.order_id}
+                          </TableCell>
+                          <TableCell className="text-sm">
+                            {order.delivered_at ? format(new Date(order.delivered_at), 'MMM dd, HH:mm') : '-'}
+                          </TableCell>
+                          <TableCell className="text-sm">{order.clients?.name || '-'}</TableCell>
+                          <TableCell className="text-sm">
+                            {order.customers ? (order.customers.name || order.customers.phone) : '-'}
+                          </TableCell>
+                          <TableCell className="text-sm">
+                            ${Number(order.order_amount_usd).toFixed(2)} / {Number(order.order_amount_lbp).toLocaleString()} LL
+                          </TableCell>
+                          <TableCell className="text-sm text-green-600">
+                            ${Number(order.delivery_fee_usd).toFixed(2)} / {Number(order.delivery_fee_lbp).toLocaleString()} LL
+                          </TableCell>
+                          <TableCell className="font-semibold text-sm">
+                            <div>${totalUsd.toFixed(2)}</div>
+                            <div className="text-muted-foreground">{totalLbp.toLocaleString()} LL</div>
+                          </TableCell>
+                          <TableCell>
+                            {order.driver_paid_for_client && (
+                              <Badge variant="outline" className="text-orange-600">
+                                Driver Paid
+                              </Badge>
+                            )}
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
               </div>
-            </ScrollArea>
+            </div>
 
             {selectedOrders.length > 0 && (
               <div className="rounded-md bg-muted p-4 space-y-3">
-                <div className="flex items-center justify-between">
-                  <p className="font-semibold text-lg">Total to Collect from Driver:</p>
-                  <div className="text-right">
-                    <p className="text-lg font-bold text-primary">
-                      ${totals.totalCollectionUsd.toFixed(2)}
-                    </p>
-                    <p className="text-lg font-bold text-primary">
-                      LL {totals.totalCollectionLbp.toLocaleString()}
-                    </p>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  <div>
+                    <p className="text-xs text-muted-foreground">Orders Selected</p>
+                    <p className="text-xl font-bold">{selectedOrders.length}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">Total Collection</p>
+                    <p className="text-lg font-bold text-primary">${totals.totalCollectionUsd.toFixed(2)}</p>
+                    <p className="text-sm text-muted-foreground">{totals.totalCollectionLbp.toLocaleString()} LL</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">Delivery Fees (Income)</p>
+                    <p className="text-lg font-bold text-green-600">${totals.deliveryFeesUsd.toFixed(2)}</p>
+                    <p className="text-sm text-muted-foreground">{totals.deliveryFeesLbp.toLocaleString()} LL</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">To Clients</p>
+                    <p className="text-lg font-bold">${totals.orderAmountsUsd.toFixed(2)}</p>
+                    <p className="text-sm text-muted-foreground">{totals.orderAmountsLbp.toLocaleString()} LL</p>
                   </div>
                 </div>
-                
-                <div className="text-xs space-y-1 border-t pt-2">
-                  <p className="font-medium mb-1">Breakdown of what will happen:</p>
-                  <div className="grid grid-cols-2 gap-2">
-                    <div>
-                      <span className="text-muted-foreground">→ To Clients (order amounts):</span>
-                    </div>
-                    <div className="text-right">
-                      <span className="font-medium">${totals.orderAmountsUsd.toFixed(2)} / LL {totals.orderAmountsLbp.toLocaleString()}</span>
-                    </div>
-                    
-                    <div>
-                      <span className="text-muted-foreground">→ To Income (delivery fees):</span>
-                    </div>
-                    <div className="text-right">
-                      <span className="font-medium">${totals.deliveryFeesUsd.toFixed(2)} / LL {totals.deliveryFeesLbp.toLocaleString()}</span>
-                    </div>
-                    
-                    {(totals.driverPaidUsd > 0 || totals.driverPaidLbp > 0) && (
-                      <>
-                        <div>
-                          <span className="text-muted-foreground">→ Refund to Driver (paid on behalf):</span>
-                        </div>
-                        <div className="text-right">
-                          <span className="font-medium text-orange-600">${totals.driverPaidUsd.toFixed(2)} / LL {totals.driverPaidLbp.toLocaleString()}</span>
-                        </div>
-                      </>
-                    )}
+                {(totals.driverPaidUsd > 0 || totals.driverPaidLbp > 0) && (
+                  <div className="border-t pt-2">
+                    <p className="text-xs text-muted-foreground">Driver Paid Refund (will be credited back to driver)</p>
+                    <p className="text-base font-semibold text-orange-600">
+                      ${totals.driverPaidUsd.toFixed(2)} / {totals.driverPaidLbp.toLocaleString()} LL
+                    </p>
                   </div>
-                  <p className="text-muted-foreground pt-1 italic">
-                    {selectedOrders.length} order(s) will be marked as collected
-                  </p>
-                </div>
+                )}
               </div>
             )}
 
             <div className="flex justify-end gap-2">
-              <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+              <Button type="button" variant="outline" onClick={() => {
+                onOpenChange(false);
+                setSearchTerm('');
+              }}>
                 Cancel
               </Button>
               <Button
                 onClick={() => remittanceMutation.mutate()}
                 disabled={selectedOrders.length === 0 || remittanceMutation.isPending}
               >
-                {remittanceMutation.isPending ? 'Processing...' : 'Record Remittance'}
+                {remittanceMutation.isPending ? 'Processing...' : `Collect Payment & Issue Statement`}
               </Button>
             </div>
-          </>
+          </div>
         ) : (
           <p className="text-sm text-muted-foreground">No pending orders to remit.</p>
         )}
