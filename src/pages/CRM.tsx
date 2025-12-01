@@ -43,6 +43,28 @@ const CRM = () => {
     },
   });
 
+  const { data: clientBalances } = useQuery({
+    queryKey: ['client-balances'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('client_transactions')
+        .select('client_id, type, amount_usd, amount_lbp');
+      if (error) throw error;
+      
+      // Calculate balances for each client
+      const balances = new Map<string, { usd: number; lbp: number }>();
+      data?.forEach((tx: any) => {
+        const current = balances.get(tx.client_id) || { usd: 0, lbp: 0 };
+        const multiplier = tx.type === 'Credit' ? 1 : -1;
+        balances.set(tx.client_id, {
+          usd: current.usd + Number(tx.amount_usd || 0) * multiplier,
+          lbp: current.lbp + Number(tx.amount_lbp || 0) * multiplier,
+        });
+      });
+      return balances;
+    },
+  });
+
   const deleteClientMutation = useMutation({
     mutationFn: async (clientId: string) => {
       const { error } = await supabase
@@ -149,6 +171,8 @@ Fee Rule: ${client.client_rules?.[0]?.fee_rule || 'N/A'}
                   <TableHead>Type</TableHead>
                   <TableHead>Contact</TableHead>
                   <TableHead>Phone</TableHead>
+                  <TableHead>Balance USD</TableHead>
+                  <TableHead>Balance LBP</TableHead>
                   <TableHead>Currency</TableHead>
                   <TableHead>Fee Rule</TableHead>
                   <TableHead>Actions</TableHead>
@@ -157,51 +181,60 @@ Fee Rule: ${client.client_rules?.[0]?.fee_rule || 'N/A'}
               <TableBody>
                 {isLoading ? (
                   <TableRow>
-                    <TableCell colSpan={7} className="text-center">Loading...</TableCell>
+                    <TableCell colSpan={9} className="text-center">Loading...</TableCell>
                   </TableRow>
                 ) : filteredClients && filteredClients.length > 0 ? (
-                  filteredClients.map((client) => (
-                    <TableRow key={client.id}>
-                      <TableCell className="font-medium">{client.name}</TableCell>
-                      <TableCell>
-                        <Badge variant="outline">{client.type}</Badge>
-                      </TableCell>
-                      <TableCell>{client.contact_name}</TableCell>
-                      <TableCell>{client.phone}</TableCell>
-                      <TableCell>{client.default_currency}</TableCell>
-                      <TableCell>
-                        {client.client_rules?.[0]?.fee_rule || 'N/A'}
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex gap-1">
-                          <Button 
-                            variant="ghost" 
-                            size="sm"
-                            onClick={() => copyClientInfo(client)}
-                          >
-                            <Copy className="h-4 w-4" />
-                          </Button>
-                          <Button 
-                            variant="ghost" 
-                            size="sm"
-                            onClick={() => handleEdit(client)}
-                          >
-                            <Pencil className="h-4 w-4" />
-                          </Button>
-                          <Button 
-                            variant="ghost" 
-                            size="sm"
-                            onClick={() => handleDelete(client.id)}
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ))
+                  filteredClients.map((client) => {
+                    const balance = clientBalances?.get(client.id) || { usd: 0, lbp: 0 };
+                    return (
+                      <TableRow key={client.id}>
+                        <TableCell className="font-medium">{client.name}</TableCell>
+                        <TableCell>
+                          <Badge variant="outline">{client.type}</Badge>
+                        </TableCell>
+                        <TableCell>{client.contact_name}</TableCell>
+                        <TableCell>{client.phone}</TableCell>
+                        <TableCell className={Number(balance.usd) < 0 ? 'text-red-600' : ''}>
+                          ${Number(balance.usd).toFixed(2)}
+                        </TableCell>
+                        <TableCell className={Number(balance.lbp) < 0 ? 'text-red-600' : ''}>
+                          {Number(balance.lbp).toLocaleString()} LL
+                        </TableCell>
+                        <TableCell>{client.default_currency}</TableCell>
+                        <TableCell>
+                          {client.client_rules?.[0]?.fee_rule || 'N/A'}
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex gap-1">
+                            <Button 
+                              variant="ghost" 
+                              size="sm"
+                              onClick={() => copyClientInfo(client)}
+                            >
+                              <Copy className="h-4 w-4" />
+                            </Button>
+                            <Button 
+                              variant="ghost" 
+                              size="sm"
+                              onClick={() => handleEdit(client)}
+                            >
+                              <Pencil className="h-4 w-4" />
+                            </Button>
+                            <Button 
+                              variant="ghost" 
+                              size="sm"
+                              onClick={() => handleDelete(client.id)}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })
                 ) : (
                   <TableRow>
-                    <TableCell colSpan={7} className="text-center">No clients found</TableCell>
+                    <TableCell colSpan={9} className="text-center">No clients found</TableCell>
                   </TableRow>
                 )}
               </TableBody>
