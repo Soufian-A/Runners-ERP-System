@@ -8,17 +8,14 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { FileText, Download, FileSpreadsheet } from 'lucide-react';
+import { FileText, Download, BarChart3, Settings } from 'lucide-react';
 import { format } from 'date-fns';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { ClientStatementReport } from '@/components/reports/ClientStatementReport';
-import { DriverStatementIssuer } from '@/components/reports/DriverStatementIssuer';
-import { StatementHistory } from '@/components/reports/StatementHistory';
 import { PaymentHistoryTab } from '@/components/reports/PaymentHistoryTab';
 import { CompanyLogoSettings } from '@/components/reports/CompanyLogoSettings';
 
 const Reports = () => {
-  const [reportType, setReportType] = useState('driver-statement');
+  const [reportType, setReportType] = useState('driver-transactions');
   const [selectedEntity, setSelectedEntity] = useState('');
   const [dateFrom, setDateFrom] = useState(new Date().toISOString().split('T')[0]);
   const [dateTo, setDateTo] = useState(new Date().toISOString().split('T')[0]);
@@ -46,7 +43,7 @@ const Reports = () => {
     queryFn: async () => {
       if (!selectedEntity) return null;
 
-      if (reportType === 'driver-statement') {
+      if (reportType === 'driver-transactions') {
         const { data, error } = await supabase
           .from('driver_transactions')
           .select('*')
@@ -57,7 +54,7 @@ const Reports = () => {
         
         if (error) throw error;
         return data;
-      } else if (reportType === 'client-statement') {
+      } else if (reportType === 'client-transactions') {
         const { data, error } = await supabase
           .from('client_transactions')
           .select('*')
@@ -96,39 +93,25 @@ const Reports = () => {
     <Layout>
       <div className="space-y-6">
         <div>
-          <h1 className="text-3xl font-bold">Reports & Statements</h1>
-          <p className="text-muted-foreground mt-1">Generate statements and view analytics</p>
+          <h1 className="text-3xl font-bold">Reports & Analytics</h1>
+          <p className="text-muted-foreground mt-1">View transaction history and analytics</p>
         </div>
 
-        <Tabs defaultValue="client-statements" className="w-full">
-          <TabsList className="grid w-full grid-cols-6">
-            <TabsTrigger value="client-statements">Client Statements</TabsTrigger>
-            <TabsTrigger value="driver-statements">Driver Statements</TabsTrigger>
-            <TabsTrigger value="statement-history">Statement History</TabsTrigger>
-            <TabsTrigger value="payment-history">Payment History</TabsTrigger>
-            <TabsTrigger value="company-settings">Company Info</TabsTrigger>
-            <TabsTrigger value="transaction-reports">Transaction Reports</TabsTrigger>
+        <Tabs defaultValue="transaction-reports" className="w-full">
+          <TabsList className="grid w-full grid-cols-3">
+            <TabsTrigger value="transaction-reports">
+              <BarChart3 className="mr-2 h-4 w-4" />
+              Transaction Reports
+            </TabsTrigger>
+            <TabsTrigger value="payment-history">
+              <FileText className="mr-2 h-4 w-4" />
+              Payment History
+            </TabsTrigger>
+            <TabsTrigger value="company-settings">
+              <Settings className="mr-2 h-4 w-4" />
+              Company Info
+            </TabsTrigger>
           </TabsList>
-
-          <TabsContent value="client-statements">
-            <ClientStatementReport />
-          </TabsContent>
-
-          <TabsContent value="driver-statements">
-            <DriverStatementIssuer />
-          </TabsContent>
-
-          <TabsContent value="statement-history">
-            <StatementHistory />
-          </TabsContent>
-
-          <TabsContent value="payment-history">
-            <PaymentHistoryTab />
-          </TabsContent>
-
-          <TabsContent value="company-settings">
-            <CompanyLogoSettings />
-          </TabsContent>
 
           <TabsContent value="transaction-reports">
             <div className="space-y-6">
@@ -148,22 +131,22 @@ const Reports = () => {
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="driver-statement">Driver Statement</SelectItem>
-                          <SelectItem value="client-statement">Client Statement</SelectItem>
+                          <SelectItem value="driver-transactions">Driver Transactions</SelectItem>
+                          <SelectItem value="client-transactions">Client Transactions</SelectItem>
                         </SelectContent>
                       </Select>
                     </div>
 
                     <div className="space-y-2">
                       <Label htmlFor="entity">
-                        {reportType === 'driver-statement' ? 'Driver' : 'Client'}
+                        {reportType === 'driver-transactions' ? 'Driver' : 'Client'}
                       </Label>
                       <Select value={selectedEntity} onValueChange={setSelectedEntity}>
                         <SelectTrigger id="entity">
                           <SelectValue placeholder="Select..." />
                         </SelectTrigger>
                         <SelectContent>
-                          {reportType === 'driver-statement'
+                          {reportType === 'driver-transactions'
                             ? drivers?.map((driver) => (
                                 <SelectItem key={driver.id} value={driver.id}>
                                   {driver.name}
@@ -279,6 +262,14 @@ const Reports = () => {
                 </Card>
               )}
             </div>
+          </TabsContent>
+
+          <TabsContent value="payment-history">
+            <PaymentHistoryTab />
+          </TabsContent>
+
+          <TabsContent value="company-settings">
+            <CompanyLogoSettings />
           </TabsContent>
         </Tabs>
       </div>

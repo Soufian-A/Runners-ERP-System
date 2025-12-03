@@ -6,10 +6,12 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Users, Plus, Copy, Pencil, Trash2, Search } from 'lucide-react';
+import { Users, Plus, Copy, Pencil, Trash2, Search, FileText } from 'lucide-react';
 import { Input } from '@/components/ui/input';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import CreateClientDialog from '@/components/clients/CreateClientDialog';
 import EditClientDialog from '@/components/clients/EditClientDialog';
+import { ClientStatementsTab } from '@/components/clients/ClientStatementsTab';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -51,7 +53,6 @@ const CRM = () => {
         .select('client_id, type, amount_usd, amount_lbp');
       if (error) throw error;
       
-      // Calculate balances for each client
       const balances = new Map<string, { usd: number; lbp: number }>();
       data?.forEach((tx: any) => {
         const current = balances.get(tx.client_id) || { usd: 0, lbp: 0 };
@@ -137,7 +138,7 @@ Fee Rule: ${client.client_rules?.[0]?.fee_rule || 'N/A'}
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-3xl font-bold">CRM</h1>
-            <p className="text-muted-foreground mt-1">Manage client accounts and relationships</p>
+            <p className="text-muted-foreground mt-1">Manage clients and statements</p>
           </div>
           <Button onClick={() => setIsCreateDialogOpen(true)}>
             <Plus className="mr-2 h-4 w-4" />
@@ -145,102 +146,121 @@ Fee Rule: ${client.client_rules?.[0]?.fee_rule || 'N/A'}
           </Button>
         </div>
 
-        <Card>
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <CardTitle className="flex items-center gap-2">
-                <Users className="h-5 w-5" />
-                Client List
-              </CardTitle>
-              <div className="relative w-72">
-                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                <Input
-                  placeholder="Search clients..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="pl-10"
-                />
-              </div>
-            </div>
-          </CardHeader>
-          <CardContent>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Name</TableHead>
-                  <TableHead>Type</TableHead>
-                  <TableHead>Contact</TableHead>
-                  <TableHead>Phone</TableHead>
-                  <TableHead>Balance USD</TableHead>
-                  <TableHead>Balance LBP</TableHead>
-                  <TableHead>Currency</TableHead>
-                  <TableHead>Fee Rule</TableHead>
-                  <TableHead>Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {isLoading ? (
-                  <TableRow>
-                    <TableCell colSpan={9} className="text-center">Loading...</TableCell>
-                  </TableRow>
-                ) : filteredClients && filteredClients.length > 0 ? (
-                  filteredClients.map((client) => {
-                    const balance = clientBalances?.get(client.id) || { usd: 0, lbp: 0 };
-                    return (
-                      <TableRow key={client.id}>
-                        <TableCell className="font-medium">{client.name}</TableCell>
-                        <TableCell>
-                          <Badge variant="outline">{client.type}</Badge>
-                        </TableCell>
-                        <TableCell>{client.contact_name}</TableCell>
-                        <TableCell>{client.phone}</TableCell>
-                        <TableCell className={Number(balance.usd) < 0 ? 'text-red-600' : ''}>
-                          ${Number(balance.usd).toFixed(2)}
-                        </TableCell>
-                        <TableCell className={Number(balance.lbp) < 0 ? 'text-red-600' : ''}>
-                          {Number(balance.lbp).toLocaleString()} LL
-                        </TableCell>
-                        <TableCell>{client.default_currency}</TableCell>
-                        <TableCell>
-                          {client.client_rules?.[0]?.fee_rule || 'N/A'}
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex gap-1">
-                            <Button 
-                              variant="ghost" 
-                              size="sm"
-                              onClick={() => copyClientInfo(client)}
-                            >
-                              <Copy className="h-4 w-4" />
-                            </Button>
-                            <Button 
-                              variant="ghost" 
-                              size="sm"
-                              onClick={() => handleEdit(client)}
-                            >
-                              <Pencil className="h-4 w-4" />
-                            </Button>
-                            <Button 
-                              variant="ghost" 
-                              size="sm"
-                              onClick={() => handleDelete(client.id)}
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-                          </div>
-                        </TableCell>
+        <Tabs defaultValue="list" className="w-full">
+          <TabsList className="grid w-full grid-cols-2">
+            <TabsTrigger value="list">
+              <Users className="mr-2 h-4 w-4" />
+              Client List
+            </TabsTrigger>
+            <TabsTrigger value="statements">
+              <FileText className="mr-2 h-4 w-4" />
+              Statements
+            </TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="list">
+            <Card>
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <CardTitle className="flex items-center gap-2">
+                    <Users className="h-5 w-5" />
+                    Client List
+                  </CardTitle>
+                  <div className="relative w-72">
+                    <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                    <Input
+                      placeholder="Search clients..."
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      className="pl-10"
+                    />
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Name</TableHead>
+                      <TableHead>Type</TableHead>
+                      <TableHead>Contact</TableHead>
+                      <TableHead>Phone</TableHead>
+                      <TableHead>Balance USD</TableHead>
+                      <TableHead>Balance LBP</TableHead>
+                      <TableHead>Currency</TableHead>
+                      <TableHead>Fee Rule</TableHead>
+                      <TableHead>Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {isLoading ? (
+                      <TableRow>
+                        <TableCell colSpan={9} className="text-center">Loading...</TableCell>
                       </TableRow>
-                    );
-                  })
-                ) : (
-                  <TableRow>
-                    <TableCell colSpan={9} className="text-center">No clients found</TableCell>
-                  </TableRow>
-                )}
-              </TableBody>
-            </Table>
-          </CardContent>
-        </Card>
+                    ) : filteredClients && filteredClients.length > 0 ? (
+                      filteredClients.map((client) => {
+                        const balance = clientBalances?.get(client.id) || { usd: 0, lbp: 0 };
+                        return (
+                          <TableRow key={client.id}>
+                            <TableCell className="font-medium">{client.name}</TableCell>
+                            <TableCell>
+                              <Badge variant="outline">{client.type}</Badge>
+                            </TableCell>
+                            <TableCell>{client.contact_name}</TableCell>
+                            <TableCell>{client.phone}</TableCell>
+                            <TableCell className={Number(balance.usd) < 0 ? 'text-red-600' : ''}>
+                              ${Number(balance.usd).toFixed(2)}
+                            </TableCell>
+                            <TableCell className={Number(balance.lbp) < 0 ? 'text-red-600' : ''}>
+                              {Number(balance.lbp).toLocaleString()} LL
+                            </TableCell>
+                            <TableCell>{client.default_currency}</TableCell>
+                            <TableCell>
+                              {client.client_rules?.[0]?.fee_rule || 'N/A'}
+                            </TableCell>
+                            <TableCell>
+                              <div className="flex gap-1">
+                                <Button 
+                                  variant="ghost" 
+                                  size="sm"
+                                  onClick={() => copyClientInfo(client)}
+                                >
+                                  <Copy className="h-4 w-4" />
+                                </Button>
+                                <Button 
+                                  variant="ghost" 
+                                  size="sm"
+                                  onClick={() => handleEdit(client)}
+                                >
+                                  <Pencil className="h-4 w-4" />
+                                </Button>
+                                <Button 
+                                  variant="ghost" 
+                                  size="sm"
+                                  onClick={() => handleDelete(client.id)}
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })
+                    ) : (
+                      <TableRow>
+                        <TableCell colSpan={9} className="text-center">No clients found</TableCell>
+                      </TableRow>
+                    )}
+                  </TableBody>
+                </Table>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="statements">
+            <ClientStatementsTab />
+          </TabsContent>
+        </Tabs>
       </div>
 
       <CreateClientDialog
