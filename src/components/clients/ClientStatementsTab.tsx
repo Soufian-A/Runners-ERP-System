@@ -297,7 +297,8 @@ export function ClientStatementsTab() {
     onSuccess: () => {
       toast.success('Payment recorded');
       queryClient.invalidateQueries({ queryKey: ['client-statements-history'] });
-      queryClient.invalidateQueries({ queryKey: ['client-balances'] });
+      queryClient.invalidateQueries({ queryKey: ['client-balances-all'] });
+      queryClient.invalidateQueries({ queryKey: ['client-pending-orders'] });
       queryClient.invalidateQueries({ queryKey: ['cashbox'] });
       setPaymentDialogOpen(false);
       setSelectedStatement(null);
