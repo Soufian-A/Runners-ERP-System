@@ -267,15 +267,15 @@ Deno.serve(async (req) => {
         console.log('Skipping driver transaction - no driver assigned')
       }
 
-      // 2. Debit client account with order amount (client owes this)
+      // 2. Credit client account with order amount (we owe them - we collected their customer's money)
       if (order.client_id && (order.order_amount_usd > 0 || order.order_amount_lbp > 0)) {
-        console.log('Creating client transaction for order amount')
+        console.log('Creating client transaction for order amount (Credit - we owe client)')
         
         const { error: clientTxError } = await supabaseClient
           .from('client_transactions')
           .insert({
             client_id: order.client_id,
-            type: 'Debit',
+            type: 'Credit',
             amount_usd: order.order_amount_usd,
             amount_lbp: order.order_amount_lbp,
             order_ref: order.order_id,
