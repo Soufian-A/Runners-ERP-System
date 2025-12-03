@@ -30,15 +30,19 @@ Deno.serve(async (req) => {
       .from('orders')
       .select('*, clients(name)')
       .eq('id', orderId)
-      .single()
+      .maybeSingle()
 
     if (orderError) {
       console.error('Error fetching order:', orderError)
-      throw orderError
+      throw new Error(`Failed to fetch order: ${orderError.message}`)
     }
 
     if (!order) {
-      throw new Error('Order not found')
+      console.log('Order not found, may have been deleted:', orderId)
+      return new Response(
+        JSON.stringify({ message: 'Order not found or already deleted' }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 }
+      )
     }
 
     console.log('Order found:', order.order_id, 'Status:', order.status)
