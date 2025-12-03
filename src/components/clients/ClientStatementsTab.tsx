@@ -11,10 +11,11 @@ import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { FileText, Download, CheckCircle, Search, DollarSign, History, ArrowUpRight, ArrowDownLeft } from 'lucide-react';
+import { FileText, Download, CheckCircle, Search, DollarSign, History, ArrowUpRight, ArrowDownLeft, Eye } from 'lucide-react';
 import { format } from 'date-fns';
 import { toast } from 'sonner';
 import { useAuth } from '@/hooks/useAuth';
+import { ClientStatementPreview } from './ClientStatementPreview';
 
 export function ClientStatementsTab() {
   const { user } = useAuth();
@@ -31,6 +32,7 @@ export function ClientStatementsTab() {
   const [paymentAmountUsd, setPaymentAmountUsd] = useState('');
   const [paymentAmountLbp, setPaymentAmountLbp] = useState('');
   const [recordPaymentMode, setRecordPaymentMode] = useState(false);
+  const [previewDialogOpen, setPreviewDialogOpen] = useState(false);
 
   const { data: clients } = useQuery({
     queryKey: ['clients-for-statement'],
@@ -516,6 +518,10 @@ export function ClientStatementsTab() {
                           <p className="font-bold text-lg">${totals.totalDueToClientUsd.toFixed(2)}</p>
                         </div>
                       </div>
+                      <Button variant="outline" onClick={() => setPreviewDialogOpen(true)}>
+                        <Eye className="mr-2 h-4 w-4" />
+                        Preview / Export
+                      </Button>
                       <Button onClick={() => issueStatementMutation.mutate()} disabled={issueStatementMutation.isPending}>
                         <FileText className="mr-2 h-4 w-4" />
                         {issueStatementMutation.isPending ? 'Processing...' : 'Issue Statement'}
@@ -664,6 +670,17 @@ export function ClientStatementsTab() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Statement Preview Dialog */}
+      <ClientStatementPreview
+        open={previewDialogOpen}
+        onOpenChange={setPreviewDialogOpen}
+        orders={orders?.filter(o => selectedOrders.includes(o.id)) || []}
+        clientName={selectedClientData?.name || ''}
+        dateFrom={dateFrom}
+        dateTo={dateTo}
+        totals={totals}
+      />
     </div>
   );
 }
