@@ -226,7 +226,8 @@ const EcomOrders = () => {
                   <TableHead className="w-[50px]"></TableHead>
                   <TableHead>Voucher</TableHead>
                   <TableHead>Client</TableHead>
-                  <TableHead>Customer</TableHead>
+                  <TableHead>Customer Name</TableHead>
+                  <TableHead>Phone</TableHead>
                   <TableHead>Address</TableHead>
                   <TableHead>Amount USD</TableHead>
                   <TableHead>Amount LBP</TableHead>
@@ -252,16 +253,8 @@ const EcomOrders = () => {
                       {order.voucher_no || "-"}
                     </TableCell>
                     <TableCell>{order.clients?.name}</TableCell>
-                    <TableCell>
-                      {order.customers ? (
-                        <div className="flex flex-col">
-                          <span className="text-xs">{order.customers.phone}</span>
-                          {order.customers.name && <span className="text-xs text-muted-foreground">{order.customers.name}</span>}
-                        </div>
-                      ) : (
-                        "-"
-                      )}
-                    </TableCell>
+                    <TableCell>{order.customers?.name || "-"}</TableCell>
+                    <TableCell>{order.customers?.phone || "-"}</TableCell>
                     <TableCell className="max-w-[200px] truncate">{order.address}</TableCell>
                     <TableCell>${order.order_amount_usd.toFixed(2)}</TableCell>
                     <TableCell>{order.order_amount_lbp.toLocaleString()} LL</TableCell>
