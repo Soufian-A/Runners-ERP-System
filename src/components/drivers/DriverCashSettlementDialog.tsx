@@ -25,6 +25,8 @@ export default function DriverCashSettlementDialog({ open, onOpenChange, driver 
   const [notes, setNotes] = useState('');
 
   // Auto-fill amounts and determine transaction type based on driver balance
+  // Positive wallet = driver has collected cash = driver owes us
+  // Negative wallet = we owe the driver
   useEffect(() => {
     if (driver && open) {
       const walletUsd = Number(driver.wallet_usd || 0);
@@ -34,22 +36,22 @@ export default function DriverCashSettlementDialog({ open, onOpenChange, driver 
       if (Math.abs(walletUsd) > Math.abs(walletLbp) / 89500) {
         // USD is the dominant currency
         if (walletUsd > 0) {
-          setTransactionType('give'); // We owe driver
+          setTransactionType('take'); // Driver owes us (positive = driver has cash)
           setAmountUsd(walletUsd.toFixed(2));
           setAmountLbp('0');
         } else if (walletUsd < 0) {
-          setTransactionType('take'); // Driver owes us
+          setTransactionType('give'); // We owe driver (negative = we owe)
           setAmountUsd(Math.abs(walletUsd).toFixed(2));
           setAmountLbp('0');
         }
       } else {
         // LBP is the dominant currency
         if (walletLbp > 0) {
-          setTransactionType('give'); // We owe driver
+          setTransactionType('take'); // Driver owes us (positive = driver has cash)
           setAmountLbp(walletLbp.toString());
           setAmountUsd('0');
         } else if (walletLbp < 0) {
-          setTransactionType('take'); // Driver owes us
+          setTransactionType('give'); // We owe driver (negative = we owe)
           setAmountLbp(Math.abs(walletLbp).toString());
           setAmountUsd('0');
         }
@@ -232,20 +234,20 @@ export default function DriverCashSettlementDialog({ open, onOpenChange, driver 
             <p className="text-sm font-medium">Current Driver Balance:</p>
             <div className="flex items-center gap-4">
               <div>
-                <p className={`text-lg font-bold ${walletUsd >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+              <p className={`text-lg font-bold ${walletUsd > 0 ? 'text-red-600' : walletUsd < 0 ? 'text-green-600' : ''}`}>
                   ${Math.abs(walletUsd).toFixed(2)}
                 </p>
                 <p className="text-xs text-muted-foreground">
-                  {walletUsd > 0 ? 'We owe driver' : walletUsd < 0 ? 'Driver owes us' : 'Settled'}
+                  {walletUsd > 0 ? 'Driver owes us' : walletUsd < 0 ? 'We owe driver' : 'Settled'}
                 </p>
               </div>
               <div className="h-8 w-px bg-border" />
               <div>
-                <p className={`text-lg font-bold ${walletLbp >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                <p className={`text-lg font-bold ${walletLbp > 0 ? 'text-red-600' : walletLbp < 0 ? 'text-green-600' : ''}`}>
                   LL {Math.abs(walletLbp).toLocaleString()}
                 </p>
                 <p className="text-xs text-muted-foreground">
-                  {walletLbp > 0 ? 'We owe driver' : walletLbp < 0 ? 'Driver owes us' : 'Settled'}
+                  {walletLbp > 0 ? 'Driver owes us' : walletLbp < 0 ? 'We owe driver' : 'Settled'}
                 </p>
               </div>
             </div>
