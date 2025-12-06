@@ -72,24 +72,24 @@ export function DriverStatementsTab() {
     enabled: !!selectedDriver,
   });
 
-  // Get statement history for the selected driver
+  // Get statement history - show all statements, optionally filtered by driver
   const { data: statementHistory, isLoading: loadingHistory } = useQuery({
-    queryKey: ['driver-statements-history', selectedDriver],
+    queryKey: ['driver-statements-history'],
     queryFn: async () => {
-      const query = supabase
+      const { data, error } = await supabase
         .from('driver_statements')
         .select(`*, drivers(name)`)
         .order('issued_date', { ascending: false });
       
-      if (selectedDriver) {
-        query.eq('driver_id', selectedDriver);
-      }
-      
-      const { data, error } = await query;
       if (error) throw error;
       return data;
     },
   });
+
+  // Filter history by selected driver if one is selected
+  const filteredHistory = selectedDriver 
+    ? statementHistory?.filter(s => s.driver_id === selectedDriver) 
+    : statementHistory;
 
   const filteredOrders = orders?.filter(order => {
     if (!searchTerm) return true;
@@ -231,6 +231,7 @@ export function DriverStatementsTab() {
       queryClient.invalidateQueries({ queryKey: ['driver-statements-history'] });
       queryClient.invalidateQueries({ queryKey: ['drivers'] });
       queryClient.invalidateQueries({ queryKey: ['cashbox'] });
+      queryClient.invalidateQueries({ queryKey: ['driver-transactions'] });
       setSelectedOrders([]);
     },
     onError: (error) => {
@@ -436,7 +437,7 @@ export function DriverStatementsTab() {
             <CardContent className="p-0">
               {loadingHistory ? (
                 <p className="text-center py-8 text-muted-foreground">Loading...</p>
-              ) : statementHistory && statementHistory.length > 0 ? (
+              ) : filteredHistory && filteredHistory.length > 0 ? (
                 <Table>
                   <TableHeader>
                     <TableRow>
@@ -452,7 +453,7 @@ export function DriverStatementsTab() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {statementHistory.map((statement) => (
+                    {filteredHistory.map((statement) => (
                       <TableRow key={statement.id}>
                         <TableCell className="font-mono text-sm">{statement.statement_id}</TableCell>
                         <TableCell>{statement.drivers?.name}</TableCell>
