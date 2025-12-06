@@ -234,7 +234,7 @@ export default function DriverCashSettlementDialog({ open, onOpenChange, driver 
             <p className="text-sm font-medium">Current Driver Balance:</p>
             <div className="flex items-center gap-4">
               <div>
-              <p className={`text-lg font-bold ${walletUsd > 0 ? 'text-red-600' : walletUsd < 0 ? 'text-green-600' : ''}`}>
+              <p className={`text-lg font-bold ${walletUsd > 0 ? 'text-green-600' : walletUsd < 0 ? 'text-red-600' : ''}`}>
                   ${Math.abs(walletUsd).toFixed(2)}
                 </p>
                 <p className="text-xs text-muted-foreground">
@@ -243,7 +243,7 @@ export default function DriverCashSettlementDialog({ open, onOpenChange, driver 
               </div>
               <div className="h-8 w-px bg-border" />
               <div>
-                <p className={`text-lg font-bold ${walletLbp > 0 ? 'text-red-600' : walletLbp < 0 ? 'text-green-600' : ''}`}>
+                <p className={`text-lg font-bold ${walletLbp > 0 ? 'text-green-600' : walletLbp < 0 ? 'text-red-600' : ''}`}>
                   LL {Math.abs(walletLbp).toLocaleString()}
                 </p>
                 <p className="text-xs text-muted-foreground">
