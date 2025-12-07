@@ -447,8 +447,8 @@ export function ClientStatementsTab() {
                           <TableHead>Order ID</TableHead>
                           <TableHead>Type</TableHead>
                           <TableHead>Customer</TableHead>
+                          <TableHead>Notes</TableHead>
                           <TableHead>Order USD</TableHead>
-                          <TableHead>Fee USD</TableHead>
                           <TableHead>Driver Paid</TableHead>
                           <TableHead>Due USD</TableHead>
                         </TableRow>
@@ -482,8 +482,10 @@ export function ClientStatementsTab() {
                                 <Badge variant="outline" className="text-xs">{order.order_type}</Badge>
                               </TableCell>
                               <TableCell className="py-1 text-xs">{order.customers?.name || order.customers?.phone}</TableCell>
+                              <TableCell className="py-1 text-xs max-w-[150px] truncate" title={order.notes || ''}>
+                                {order.notes || '-'}
+                              </TableCell>
                               <TableCell className="py-1 text-xs">${Number(order.order_amount_usd || 0).toFixed(2)}</TableCell>
-                              <TableCell className="py-1 text-xs">${Number(order.delivery_fee_usd || 0).toFixed(2)}</TableCell>
                               <TableCell className="py-1 text-xs">
                                 {order.driver_paid_for_client ? (
                                   <Badge variant="outline" className="text-xs text-blue-600">Yes</Badge>
