@@ -62,21 +62,23 @@ export function ClientStatementsTab() {
     },
   });
 
-  // Get pending orders for the selected client (excluding those in paid statements)
+  // Get pending orders for the selected client (excluding those already in ANY statement - paid OR unpaid)
   const { data: orders, isLoading } = useQuery({
     queryKey: ['client-pending-orders', selectedClient, dateFrom, dateTo],
     queryFn: async () => {
       if (!selectedClient) return [];
 
+      // Get ALL statements for this client (both paid and unpaid) to exclude their orders
       const { data: statementsData } = await supabase
         .from('client_statements')
-        .select('order_refs, status')
+        .select('order_refs')
         .eq('client_id', selectedClient);
 
-      const paidOrderRefs = new Set<string>();
+      // Collect ALL order refs that are already in any statement
+      const usedOrderRefs = new Set<string>();
       statementsData?.forEach(stmt => {
-        if (stmt.status === 'paid' && stmt.order_refs) {
-          stmt.order_refs.forEach((ref: string) => paidOrderRefs.add(ref));
+        if (stmt.order_refs) {
+          stmt.order_refs.forEach((ref: string) => usedOrderRefs.add(ref));
         }
       });
 
@@ -91,9 +93,10 @@ export function ClientStatementsTab() {
 
       if (error) throw error;
 
+      // Filter out orders already in ANY statement (prevents duplicate statements)
       return data?.filter(order => {
         const orderRef = order.order_type === 'ecom' ? (order.voucher_no || order.order_id) : order.order_id;
-        return !paidOrderRefs.has(orderRef);
+        return !usedOrderRefs.has(orderRef);
       }) || [];
     },
     enabled: !!selectedClient,

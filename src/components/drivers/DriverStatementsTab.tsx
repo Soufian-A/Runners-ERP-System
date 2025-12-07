@@ -39,21 +39,23 @@ export function DriverStatementsTab() {
     },
   });
 
-  // Get pending orders for the selected driver
+  // Get pending orders for the selected driver (excluding those already in ANY statement)
   const { data: orders, isLoading } = useQuery({
     queryKey: ['driver-pending-orders', selectedDriver, dateFrom, dateTo],
     queryFn: async () => {
       if (!selectedDriver) return [];
 
+      // Get ALL statements for this driver to exclude their orders (prevents duplicate statements)
       const { data: statementsData } = await supabase
         .from('driver_statements')
-        .select('order_refs, status')
+        .select('order_refs')
         .eq('driver_id', selectedDriver);
 
-      const paidOrderRefs = new Set<string>();
+      // Collect ALL order refs that are already in any statement
+      const usedOrderRefs = new Set<string>();
       statementsData?.forEach(stmt => {
-        if (stmt.status === 'paid' && stmt.order_refs) {
-          stmt.order_refs.forEach((ref: string) => paidOrderRefs.add(ref));
+        if (stmt.order_refs) {
+          stmt.order_refs.forEach((ref: string) => usedOrderRefs.add(ref));
         }
       });
 
@@ -67,7 +69,8 @@ export function DriverStatementsTab() {
         .order('delivered_at', { ascending: false });
 
       if (error) throw error;
-      return data?.filter(order => !paidOrderRefs.has(order.order_id)) || [];
+      // Filter out orders already in ANY statement (prevents duplicate statements)
+      return data?.filter(order => !usedOrderRefs.has(order.order_id)) || [];
     },
     enabled: !!selectedDriver,
   });
