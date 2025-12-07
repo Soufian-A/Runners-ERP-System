@@ -2,7 +2,8 @@ import { useRef } from 'react';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Copy, Download, X } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
+import { Copy, X } from 'lucide-react';
 import { format } from 'date-fns';
 import { toast } from 'sonner';
 
@@ -33,8 +34,11 @@ interface ClientStatementPreviewProps {
   totals: {
     totalOrders: number;
     totalOrderAmountUsd: number;
+    totalOrderAmountLbp: number;
     totalDeliveryFeesUsd: number;
+    totalDeliveryFeesLbp: number;
     totalDueToClientUsd: number;
+    totalDueToClientLbp: number;
   };
 }
 
@@ -54,11 +58,28 @@ export function ClientStatementPreview({
 
   const calculateDue = (order: Order) => {
     if (order.order_type === 'instant' || order.order_type === 'errand') {
-      return order.driver_paid_for_client 
-        ? Number(order.order_amount_usd || 0) + Number(order.delivery_fee_usd || 0)
-        : Number(order.order_amount_usd || 0);
+      if (order.driver_paid_for_client) {
+        return {
+          usd: Number(order.order_amount_usd || 0) + Number(order.delivery_fee_usd || 0),
+          lbp: Number(order.order_amount_lbp || 0) + Number(order.delivery_fee_lbp || 0),
+        };
+      }
+      return {
+        usd: Number(order.order_amount_usd || 0),
+        lbp: Number(order.order_amount_lbp || 0),
+      };
     }
-    return Number(order.amount_due_to_client_usd || 0);
+    return {
+      usd: Number(order.amount_due_to_client_usd || 0),
+      lbp: 0,
+    };
+  };
+
+  const formatAmount = (usd: number, lbp: number) => {
+    const parts = [];
+    if (usd > 0) parts.push(`$${usd.toFixed(2)}`);
+    if (lbp > 0) parts.push(`${lbp.toLocaleString()} LL`);
+    return parts.length > 0 ? parts.join(' / ') : '-';
   };
 
   const generateWhatsAppText = () => {
@@ -71,12 +92,20 @@ export function ClientStatementPreview({
       text += `─────────────────────\n`;
       instantOrders.forEach((order, idx) => {
         const due = calculateDue(order);
+        const orderUsd = Number(order.order_amount_usd || 0);
+        const orderLbp = Number(order.order_amount_lbp || 0);
+        const feeUsd = Number(order.delivery_fee_usd || 0);
+        const feeLbp = Number(order.delivery_fee_lbp || 0);
+        
         text += `\n${idx + 1}. *${order.order_id}*\n`;
         text += `   📅 ${format(new Date(order.created_at), 'MMM dd, yyyy')}\n`;
         text += `   📍 ${order.address}\n`;
         if (order.notes) text += `   📝 ${order.notes}\n`;
-        text += `   💰 Order: $${Number(order.order_amount_usd).toFixed(2)}\n`;
-        text += `   ✅ Due: *$${due.toFixed(2)}*\n`;
+        text += `   💰 Order: ${formatAmount(orderUsd, orderLbp)}\n`;
+        if (order.driver_paid_for_client) {
+          text += `   🚚 Delivery Fee: ${formatAmount(feeUsd, feeLbp)}\n`;
+        }
+        text += `   ✅ Due: *${formatAmount(due.usd, due.lbp)}*\n`;
       });
       text += `\n`;
     }
@@ -86,14 +115,13 @@ export function ClientStatementPreview({
       text += `─────────────────────\n`;
       ecomOrders.forEach((order, idx) => {
         const due = calculateDue(order);
-        const amountAfterFee = Number(order.order_amount_usd) - Number(order.delivery_fee_usd);
         text += `\n${idx + 1}. *${order.voucher_no || order.order_id}*\n`;
         text += `   👤 ${order.customers?.name || 'N/A'}\n`;
         text += `   📞 ${order.customers?.phone || 'N/A'}\n`;
         text += `   📍 ${order.address}\n`;
         text += `   💵 Order: $${Number(order.order_amount_usd).toFixed(2)}\n`;
         text += `   🚚 Delivery Fee: $${Number(order.delivery_fee_usd).toFixed(2)}\n`;
-        text += `   ✅ Due: *$${due.toFixed(2)}*\n`;
+        text += `   ✅ Due: *$${due.usd.toFixed(2)}*\n`;
       });
       text += `\n`;
     }
@@ -101,10 +129,9 @@ export function ClientStatementPreview({
     text += `━━━━━━━━━━━━━━━━━━━━━━━━\n`;
     text += `*SUMMARY*\n`;
     text += `Total Orders: ${totals.totalOrders}\n`;
-    text += `Order Amount: $${totals.totalOrderAmountUsd.toFixed(2)}\n`;
-    text += `Delivery Fees: $${totals.totalDeliveryFeesUsd.toFixed(2)}\n`;
+    text += `Order Amount: ${formatAmount(totals.totalOrderAmountUsd, totals.totalOrderAmountLbp)}\n`;
     text += `━━━━━━━━━━━━━━━━━━━━━━━━\n`;
-    text += `*NET DUE: $${totals.totalDueToClientUsd.toFixed(2)}*`;
+    text += `*NET DUE: ${formatAmount(totals.totalDueToClientUsd, totals.totalDueToClientLbp)}*`;
 
     return text;
   };
@@ -139,19 +166,43 @@ export function ClientStatementPreview({
                     <TableHead>Order ID</TableHead>
                     <TableHead>Address</TableHead>
                     <TableHead>Notes</TableHead>
+                    <TableHead>Driver Paid</TableHead>
                     <TableHead className="text-right">Order Amount</TableHead>
+                    <TableHead className="text-right">Fee</TableHead>
+                    <TableHead className="text-right">Due</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {instantOrders.map((order) => (
-                    <TableRow key={order.id} className="text-sm">
-                      <TableCell>{format(new Date(order.created_at), 'MMM dd')}</TableCell>
-                      <TableCell className="font-mono">{order.order_id}</TableCell>
-                      <TableCell className="max-w-[200px] truncate">{order.address}</TableCell>
-                      <TableCell className="max-w-[150px] truncate text-muted-foreground">{order.notes || '-'}</TableCell>
-                      <TableCell className="text-right font-semibold">${Number(order.order_amount_usd).toFixed(2)}</TableCell>
-                    </TableRow>
-                  ))}
+                  {instantOrders.map((order) => {
+                    const due = calculateDue(order);
+                    const orderUsd = Number(order.order_amount_usd || 0);
+                    const orderLbp = Number(order.order_amount_lbp || 0);
+                    const feeUsd = Number(order.delivery_fee_usd || 0);
+                    const feeLbp = Number(order.delivery_fee_lbp || 0);
+                    
+                    return (
+                      <TableRow key={order.id} className="text-sm">
+                        <TableCell>{format(new Date(order.created_at), 'MMM dd')}</TableCell>
+                        <TableCell className="font-mono">{order.order_id}</TableCell>
+                        <TableCell className="max-w-[150px] truncate">{order.address}</TableCell>
+                        <TableCell className="max-w-[120px] truncate text-muted-foreground">{order.notes || '-'}</TableCell>
+                        <TableCell>
+                          {order.driver_paid_for_client ? (
+                            <Badge variant="outline" className="text-xs text-blue-600">Yes</Badge>
+                          ) : '-'}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          {formatAmount(orderUsd, orderLbp)}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          {order.driver_paid_for_client ? formatAmount(feeUsd, feeLbp) : '-'}
+                        </TableCell>
+                        <TableCell className="text-right font-semibold">
+                          {formatAmount(due.usd, due.lbp)}
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
                 </TableBody>
               </Table>
             </div>
@@ -184,7 +235,7 @@ export function ClientStatementPreview({
                         <TableCell className="max-w-[150px] truncate">{order.address}</TableCell>
                         <TableCell className="text-right">${Number(order.order_amount_usd).toFixed(2)}</TableCell>
                         <TableCell className="text-right">${Number(order.delivery_fee_usd).toFixed(2)}</TableCell>
-                        <TableCell className="text-right font-semibold">${due.toFixed(2)}</TableCell>
+                        <TableCell className="text-right font-semibold">${due.usd.toFixed(2)}</TableCell>
                       </TableRow>
                     );
                   })}
@@ -195,22 +246,22 @@ export function ClientStatementPreview({
 
           {/* Summary */}
           <div className="border-t pt-4 mt-4">
-            <div className="grid grid-cols-4 gap-4 text-center">
+            <div className="grid grid-cols-3 gap-4 text-center">
               <div className="p-3 bg-muted rounded-lg">
                 <p className="text-xs text-muted-foreground">Total Orders</p>
                 <p className="text-xl font-bold">{totals.totalOrders}</p>
               </div>
               <div className="p-3 bg-muted rounded-lg">
                 <p className="text-xs text-muted-foreground">Order Amount</p>
-                <p className="text-xl font-bold">${totals.totalOrderAmountUsd.toFixed(2)}</p>
-              </div>
-              <div className="p-3 bg-muted rounded-lg">
-                <p className="text-xs text-muted-foreground">Delivery Fees</p>
-                <p className="text-xl font-bold">${totals.totalDeliveryFeesUsd.toFixed(2)}</p>
+                <p className="text-lg font-bold">
+                  {formatAmount(totals.totalOrderAmountUsd, totals.totalOrderAmountLbp)}
+                </p>
               </div>
               <div className="p-3 bg-primary/10 rounded-lg border-2 border-primary">
                 <p className="text-xs text-muted-foreground">Net Due</p>
-                <p className="text-2xl font-bold text-primary">${totals.totalDueToClientUsd.toFixed(2)}</p>
+                <p className="text-xl font-bold text-primary">
+                  {formatAmount(totals.totalDueToClientUsd, totals.totalDueToClientLbp)}
+                </p>
               </div>
             </div>
           </div>
