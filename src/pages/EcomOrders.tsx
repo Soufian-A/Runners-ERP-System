@@ -274,7 +274,14 @@ const EcomOrders = () => {
                         // Cash-based intent but not yet prepaid
                         <Badge variant="secondary">Cash (Pending)</Badge>
                       ) : (
-                        <Badge variant="outline">Statement</Badge>
+                        // Statement-based order
+                        order.driver_remit_status === 'Collected' ? (
+                          <Badge variant="default" className="bg-green-600">Completed</Badge>
+                        ) : order.status === 'Delivered' ? (
+                          <Badge variant="default">Collected</Badge>
+                        ) : (
+                          <Badge variant="outline">Statement</Badge>
+                        )
                       )}
                     </TableCell>
                     <TableCell className="text-xs">
