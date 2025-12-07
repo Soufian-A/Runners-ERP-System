@@ -367,8 +367,8 @@ export function EcomOrderForm() {
                   <div className="flex justify-center">
                     <Checkbox
                       checked={row.prepaid_by_company}
-                      onCheckedChange={(checked) => updateRow(row.id, "prepaid_by_company", checked)}
-                      title="Prepaid by Company"
+                      onCheckedChange={(checked) => updateRow(row.id, "prepaid_by_company", checked === true)}
+                      title="Cash-based order (will require prepayment)"
                     />
                   </div>
                 </TableCell>
