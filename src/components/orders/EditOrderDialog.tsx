@@ -475,24 +475,17 @@ export default function EditOrderDialog({ order, open, onOpenChange }: EditOrder
             <TabsContent value="payment" className="space-y-4">
               <div className="space-y-4">
                 {order.order_type === "ecom" && (
-                  <div className="space-y-4">
-                    <div className="flex items-center space-x-2">
-                      <Checkbox
-                        id="prepaid-runners"
-                        checked={formData.prepaid_by_runners}
-                        onCheckedChange={(checked) => setFormData({ ...formData, prepaid_by_runners: checked as boolean })}
-                      />
-                      <Label htmlFor="prepaid-runners">Prepaid by Driver</Label>
-                    </div>
-
-                    <div className="flex items-center space-x-2">
-                      <Checkbox
-                        id="prepaid-company"
-                        checked={formData.prepaid_by_company}
-                        onCheckedChange={(checked) => setFormData({ ...formData, prepaid_by_company: checked as boolean })}
-                      />
-                      <Label htmlFor="prepaid-company">Prepaid by Company</Label>
-                    </div>
+                  <div className="flex items-center space-x-2">
+                    <Checkbox
+                      id="prepaid"
+                      checked={formData.prepaid_by_company}
+                      onCheckedChange={(checked) => setFormData({ 
+                        ...formData, 
+                        prepaid_by_company: checked as boolean,
+                        prepaid_by_runners: checked as boolean 
+                      })}
+                    />
+                    <Label htmlFor="prepaid">Cash-Based (Prepaid to Client)</Label>
                   </div>
                 )}
 
