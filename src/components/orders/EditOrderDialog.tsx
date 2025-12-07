@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
@@ -68,6 +68,9 @@ export default function EditOrderDialog({ order, open, onOpenChange }: EditOrder
     driver_id: order.driver_id || "",
     prepaid_by_runners: order.prepaid_by_runners || false,
     prepaid_by_company: order.prepaid_by_company || false,
+    // Customer fields for ecom orders
+    customer_phone: "",
+    customer_name: "",
   });
 
   const { data: drivers = [] } = useQuery({
@@ -90,6 +93,18 @@ export default function EditOrderDialog({ order, open, onOpenChange }: EditOrder
     enabled: !!order.customer_id,
   });
 
+  // Update form data when customer data is loaded
+  useEffect(() => {
+    if (customer) {
+      setFormData(prev => ({
+        ...prev,
+        customer_phone: customer.phone || "",
+        customer_name: customer.name || "",
+        address: prev.address || customer.address || "",
+      }));
+    }
+  }, [customer]);
+
   const updateOrderMutation = useMutation({
     mutationFn: async () => {
       const previousStatus = order.status;
@@ -97,6 +112,23 @@ export default function EditOrderDialog({ order, open, onOpenChange }: EditOrder
       // Validate: Cannot mark as Delivered without a driver
       if (formData.status === 'Delivered' && !formData.driver_id) {
         throw new Error('Cannot mark order as Delivered without assigning a driver');
+      }
+      
+      // For ecom orders, update customer info if we have a customer_id
+      if (order.order_type === 'ecom' && order.customer_id && formData.customer_phone) {
+        const { error: customerError } = await supabase
+          .from("customers")
+          .update({
+            phone: formData.customer_phone,
+            name: formData.customer_name || null,
+            address: formData.address || null,
+          })
+          .eq("id", order.customer_id);
+        
+        if (customerError) {
+          console.error('Error updating customer:', customerError);
+          throw new Error('Failed to update customer information');
+        }
       }
       
       // Prepare update data
@@ -143,6 +175,7 @@ export default function EditOrderDialog({ order, open, onOpenChange }: EditOrder
       queryClient.invalidateQueries({ queryKey: ["instant-orders"] });
       queryClient.invalidateQueries({ queryKey: ["ecom-orders"] });
       queryClient.invalidateQueries({ queryKey: ["drivers"] });
+      queryClient.invalidateQueries({ queryKey: ["customers"] });
       toast({ title: "Order updated successfully" });
       onOpenChange(false);
     },
@@ -277,22 +310,27 @@ export default function EditOrderDialog({ order, open, onOpenChange }: EditOrder
                       <Input value={formData.voucher_no} onChange={(e) => setFormData({ ...formData, voucher_no: e.target.value })} />
                     </div>
 
-                    {customer && (
-                      <div className="p-4 border rounded-lg space-y-2">
-                        <h4 className="font-semibold text-sm">Customer Information</h4>
-                        <div className="grid grid-cols-2 gap-2 text-sm">
-                          <div>
-                            <span className="text-muted-foreground">Phone:</span> {customer.phone}
-                          </div>
-                          <div>
-                            <span className="text-muted-foreground">Name:</span> {customer.name || "N/A"}
-                          </div>
-                          <div className="col-span-2">
-                            <span className="text-muted-foreground">Address:</span> {customer.address || "N/A"}
-                          </div>
+                    <div className="p-4 border rounded-lg space-y-4">
+                      <h4 className="font-semibold text-sm">Customer Information</h4>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <Label>Phone</Label>
+                          <Input 
+                            value={formData.customer_phone} 
+                            onChange={(e) => setFormData({ ...formData, customer_phone: e.target.value })}
+                            placeholder="Customer phone..."
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label>Name</Label>
+                          <Input 
+                            value={formData.customer_name} 
+                            onChange={(e) => setFormData({ ...formData, customer_name: e.target.value })}
+                            placeholder="Customer name..."
+                          />
                         </div>
                       </div>
-                    )}
+                    </div>
                   </>
                 )}
 
@@ -301,36 +339,79 @@ export default function EditOrderDialog({ order, open, onOpenChange }: EditOrder
                   <Textarea value={formData.address} onChange={(e) => setFormData({ ...formData, address: e.target.value })} rows={2} />
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label>Order Amount (USD)</Label>
-                    <Input
-                      type="number"
-                      step="0.01"
-                      value={formData.order_amount_usd}
-                      onChange={(e) => setFormData({ ...formData, order_amount_usd: e.target.value })}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Delivery Fee (USD)</Label>
-                    <Input
-                      type="number"
-                      step="0.01"
-                      value={formData.delivery_fee_usd}
-                      onChange={(e) => setFormData({ ...formData, delivery_fee_usd: e.target.value })}
-                    />
-                  </div>
-                </div>
-
-                {order.order_type === "ecom" && (
-                  <div className="space-y-2">
-                    <Label>Amount Due to Client (USD)</Label>
-                    <Input
-                      type="number"
-                      step="0.01"
-                      value={formData.amount_due_to_client_usd}
-                      onChange={(e) => setFormData({ ...formData, amount_due_to_client_usd: e.target.value })}
-                    />
+                {order.order_type === "ecom" ? (
+                  <>
+                    <div className="grid grid-cols-3 gap-4">
+                      <div className="space-y-2">
+                        <Label>Total with Delivery (USD)</Label>
+                        <Input
+                          type="number"
+                          step="0.01"
+                          value={(parseFloat(formData.order_amount_usd || "0") + parseFloat(formData.delivery_fee_usd || "0")).toFixed(2)}
+                          onChange={(e) => {
+                            const total = parseFloat(e.target.value) || 0;
+                            const deliveryFee = parseFloat(formData.delivery_fee_usd) || 0;
+                            const orderAmount = total - deliveryFee;
+                            setFormData({ 
+                              ...formData, 
+                              order_amount_usd: orderAmount.toString(),
+                              amount_due_to_client_usd: orderAmount.toString()
+                            });
+                          }}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Delivery Fee (USD)</Label>
+                        <Input
+                          type="number"
+                          step="0.01"
+                          value={formData.delivery_fee_usd}
+                          onChange={(e) => {
+                            const deliveryFee = parseFloat(e.target.value) || 0;
+                            const total = parseFloat(formData.order_amount_usd || "0") + parseFloat(formData.delivery_fee_usd || "0");
+                            const orderAmount = total - deliveryFee;
+                            setFormData({ 
+                              ...formData, 
+                              delivery_fee_usd: e.target.value,
+                              order_amount_usd: orderAmount.toString(),
+                              amount_due_to_client_usd: orderAmount.toString()
+                            });
+                          }}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Due to Client (USD)</Label>
+                        <Input
+                          type="number"
+                          step="0.01"
+                          value={formData.amount_due_to_client_usd}
+                          readOnly
+                          className="bg-muted"
+                          title="Auto-calculated: Total - Delivery Fee"
+                        />
+                      </div>
+                    </div>
+                  </>
+                ) : (
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label>Order Amount (USD)</Label>
+                      <Input
+                        type="number"
+                        step="0.01"
+                        value={formData.order_amount_usd}
+                        onChange={(e) => setFormData({ ...formData, order_amount_usd: e.target.value })}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Delivery Fee (USD)</Label>
+                      <Input
+                        type="number"
+                        step="0.01"
+                        value={formData.delivery_fee_usd}
+                        onChange={(e) => setFormData({ ...formData, delivery_fee_usd: e.target.value })}
+                      />
+                    </div>
                   </div>
                 )}
 
