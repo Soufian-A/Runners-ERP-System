@@ -305,7 +305,7 @@ export function ClientStatementsTab() {
         note: `Payment ${isPayingClient ? 'to' : 'from'} client - ${paymentMethod}`,
       });
 
-      // If there's a selected statement, mark it as paid
+      // If there's a selected statement, mark it as paid and update related orders
       if (selectedStatement) {
         await supabase.from('client_statements').update({
           status: 'paid',
@@ -313,6 +313,14 @@ export function ClientStatementsTab() {
           payment_method: paymentMethod,
           notes: paymentNotes || null,
         }).eq('id', selectedStatement.id);
+
+        // Update orders in this statement to mark them as settled
+        // This updates driver_remit_status to 'Collected' for tracking
+        if (selectedStatement.order_refs?.length) {
+          await supabase.from('orders')
+            .update({ driver_remit_status: 'Collected' })
+            .or(selectedStatement.order_refs.map((ref: string) => `order_id.eq.${ref},voucher_no.eq.${ref}`).join(','));
+        }
       }
     },
     onSuccess: () => {
@@ -321,6 +329,9 @@ export function ClientStatementsTab() {
       queryClient.invalidateQueries({ queryKey: ['client-balances-all'] });
       queryClient.invalidateQueries({ queryKey: ['client-pending-orders'] });
       queryClient.invalidateQueries({ queryKey: ['cashbox'] });
+      queryClient.invalidateQueries({ queryKey: ['orders'] });
+      queryClient.invalidateQueries({ queryKey: ['instant-orders'] });
+      queryClient.invalidateQueries({ queryKey: ['ecom-orders'] });
       setPaymentDialogOpen(false);
       setSelectedStatement(null);
       setPaymentAmountUsd('');
