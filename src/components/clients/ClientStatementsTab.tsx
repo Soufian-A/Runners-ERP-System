@@ -449,6 +449,7 @@ export function ClientStatementsTab() {
                           <TableHead>Notes</TableHead>
                           <TableHead>Order Amount</TableHead>
                           <TableHead>Driver Paid</TableHead>
+                          <TableHead>Delivery Fee</TableHead>
                           <TableHead>Due Amount</TableHead>
                         </TableRow>
                       </TableHeader>
@@ -457,21 +458,25 @@ export function ClientStatementsTab() {
                           let dueToClientUsd = 0;
                           let dueToClientLbp = 0;
                           
+                          const orderAmountUsd = Number(order.order_amount_usd || 0);
+                          const orderAmountLbp = Number(order.order_amount_lbp || 0);
+                          const feeUsd = Number(order.delivery_fee_usd || 0);
+                          const feeLbp = Number(order.delivery_fee_lbp || 0);
+                          
                           if (order.order_type === 'instant') {
                             if (order.driver_paid_for_client) {
-                              dueToClientUsd = Number(order.order_amount_usd || 0) + Number(order.delivery_fee_usd || 0);
-                              dueToClientLbp = Number(order.order_amount_lbp || 0) + Number(order.delivery_fee_lbp || 0);
+                              // Driver paid: client owes order + fee
+                              dueToClientUsd = orderAmountUsd + feeUsd;
+                              dueToClientLbp = orderAmountLbp + feeLbp;
                             } else {
-                              dueToClientUsd = Number(order.order_amount_usd || 0);
-                              dueToClientLbp = Number(order.order_amount_lbp || 0);
+                              // Regular delivery: client only owes order amount
+                              dueToClientUsd = orderAmountUsd;
+                              dueToClientLbp = orderAmountLbp;
                             }
                           } else {
                             dueToClientUsd = Number(order.amount_due_to_client_usd || 0);
                             dueToClientLbp = 0;
                           }
-
-                          const orderAmountUsd = Number(order.order_amount_usd || 0);
-                          const orderAmountLbp = Number(order.order_amount_lbp || 0);
 
                           return (
                             <TableRow key={order.id} className="h-10">
@@ -502,6 +507,17 @@ export function ClientStatementsTab() {
                               <TableCell className="py-1 text-xs">
                                 {order.driver_paid_for_client ? (
                                   <Badge variant="outline" className="text-xs text-blue-600">Yes</Badge>
+                                ) : '-'}
+                              </TableCell>
+                              <TableCell className="py-1 text-xs">
+                                {/* Only show fee for driver-paid orders */}
+                                {order.driver_paid_for_client ? (
+                                  <>
+                                    {feeUsd > 0 && <span>${feeUsd.toFixed(2)}</span>}
+                                    {feeUsd > 0 && feeLbp > 0 && ' / '}
+                                    {feeLbp > 0 && <span>{feeLbp.toLocaleString()} LL</span>}
+                                    {feeUsd === 0 && feeLbp === 0 && '-'}
+                                  </>
                                 ) : '-'}
                               </TableCell>
                               <TableCell className="py-1 text-xs font-semibold">
