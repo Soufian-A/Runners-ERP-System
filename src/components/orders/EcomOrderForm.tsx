@@ -170,8 +170,23 @@ export function EcomOrderForm() {
       queryClient.invalidateQueries({ queryKey: ["ecom-orders"] });
       queryClient.invalidateQueries({ queryKey: ["customers"] });
       toast.success("E-commerce order created successfully!");
-      setNewRows(newRows.filter((r) => r.id !== rowId));
-      if (newRows.length === 1) addNewRow();
+      // Reset the saved row to empty instead of removing it
+      setNewRows(prevRows => prevRows.map(r => 
+        r.id === rowId 
+          ? {
+              id: `new-${Date.now()}`,
+              voucher_no: "",
+              client_id: "",
+              customer_phone: "",
+              customer_name: "",
+              customer_address: "",
+              total_with_delivery_usd: "",
+              delivery_fee_usd: "",
+              amount_due_to_client_usd: "",
+              prepaid_by_company: false,
+            }
+          : r
+      ));
     },
     onError: (error: Error) => {
       console.error('Error creating order:', error);
