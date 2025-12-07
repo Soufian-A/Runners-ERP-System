@@ -246,7 +246,7 @@ export function ClientStatementPreview({
 
           {/* Summary */}
           <div className="border-t pt-4 mt-4">
-            <div className="grid grid-cols-3 gap-4 text-center">
+            <div className="grid grid-cols-4 gap-4 text-center">
               <div className="p-3 bg-muted rounded-lg">
                 <p className="text-xs text-muted-foreground">Total Orders</p>
                 <p className="text-xl font-bold">{totals.totalOrders}</p>
@@ -257,8 +257,14 @@ export function ClientStatementPreview({
                   {formatAmount(totals.totalOrderAmountUsd, totals.totalOrderAmountLbp)}
                 </p>
               </div>
+              <div className="p-3 bg-muted rounded-lg">
+                <p className="text-xs text-muted-foreground">Delivery Fee</p>
+                <p className="text-lg font-bold">
+                  {formatAmount(totals.totalDeliveryFeesUsd, totals.totalDeliveryFeesLbp)}
+                </p>
+              </div>
               <div className="p-3 bg-primary/10 rounded-lg border-2 border-primary">
-                <p className="text-xs text-muted-foreground">Net Due</p>
+                <p className="text-xs text-muted-foreground">Total Due</p>
                 <p className="text-xl font-bold text-primary">
                   {formatAmount(totals.totalDueToClientUsd, totals.totalDueToClientLbp)}
                 </p>
