@@ -33,6 +33,7 @@ export function ClientStatementsTab() {
   const [paymentAmountLbp, setPaymentAmountLbp] = useState('');
   const [recordPaymentMode, setRecordPaymentMode] = useState(false);
   const [previewDialogOpen, setPreviewDialogOpen] = useState(false);
+  const [previewStatement, setPreviewStatement] = useState<any>(null);
 
   const { data: clients } = useQuery({
     queryKey: ['clients-for-statement'],
@@ -119,6 +120,23 @@ export function ClientStatementsTab() {
       if (error) throw error;
       return data;
     },
+  });
+
+  // Fetch orders for a specific statement (for preview of issued statements)
+  const { data: statementOrders } = useQuery({
+    queryKey: ['statement-orders', previewStatement?.id],
+    queryFn: async () => {
+      if (!previewStatement?.order_refs?.length) return [];
+      
+      const { data, error } = await supabase
+        .from('orders')
+        .select(`*, customers(phone, name, address), drivers(name)`)
+        .or(previewStatement.order_refs.map((ref: string) => `order_id.eq.${ref},voucher_no.eq.${ref}`).join(','));
+
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!previewStatement?.order_refs?.length,
   });
 
   const filteredOrders = orders?.filter(order => {
@@ -624,6 +642,17 @@ export function ClientStatementsTab() {
                         <TableCell className="text-xs">{format(new Date(statement.issued_date), 'MMM dd, yyyy')}</TableCell>
                         <TableCell>
                           <div className="flex gap-2">
+                            <Button 
+                              variant="outline" 
+                              size="sm"
+                              onClick={() => {
+                                setPreviewStatement(statement);
+                                setPreviewDialogOpen(true);
+                              }}
+                            >
+                              <Eye className="mr-1 h-3 w-3" />
+                              Preview
+                            </Button>
                             {statement.status === 'unpaid' && (
                               <Button
                                 variant="outline"
@@ -634,9 +663,6 @@ export function ClientStatementsTab() {
                                 Pay
                               </Button>
                             )}
-                            <Button variant="ghost" size="sm">
-                              <Download className="h-3 w-3" />
-                            </Button>
                           </div>
                         </TableCell>
                       </TableRow>
@@ -722,12 +748,23 @@ export function ClientStatementsTab() {
       {/* Statement Preview Dialog */}
       <ClientStatementPreview
         open={previewDialogOpen}
-        onOpenChange={setPreviewDialogOpen}
-        orders={orders?.filter(o => selectedOrders.includes(o.id)) || []}
-        clientName={selectedClientData?.name || ''}
-        dateFrom={dateFrom}
-        dateTo={dateTo}
-        totals={totals}
+        onOpenChange={(open) => {
+          setPreviewDialogOpen(open);
+          if (!open) setPreviewStatement(null);
+        }}
+        orders={previewStatement ? (statementOrders || []) : (orders?.filter(o => selectedOrders.includes(o.id)) || [])}
+        clientName={previewStatement?.clients?.name || selectedClientData?.name || ''}
+        dateFrom={previewStatement?.period_from || dateFrom}
+        dateTo={previewStatement?.period_to || dateTo}
+        totals={previewStatement ? {
+          totalOrders: previewStatement.order_refs?.length || 0,
+          totalOrderAmountUsd: Number(previewStatement.total_order_amount_usd || 0),
+          totalOrderAmountLbp: Number(previewStatement.total_order_amount_lbp || 0),
+          totalDeliveryFeesUsd: Number(previewStatement.total_delivery_fees_usd || 0),
+          totalDeliveryFeesLbp: Number(previewStatement.total_delivery_fees_lbp || 0),
+          totalDueToClientUsd: Number(previewStatement.net_due_usd || 0),
+          totalDueToClientLbp: Number(previewStatement.net_due_lbp || 0),
+        } : totals}
       />
     </div>
   );
