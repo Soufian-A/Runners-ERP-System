@@ -32,6 +32,7 @@ interface Order {
   notes?: string;
   created_at: string;
   prepaid_by_company?: boolean;
+  prepaid_by_runners?: boolean;
   fulfillment?: string;
   clients?: { name: string };
   drivers?: { name: string };
@@ -259,9 +260,13 @@ const EcomOrders = () => {
                     <TableCell>${order.order_amount_usd.toFixed(2)}</TableCell>
                     <TableCell>{order.order_amount_lbp.toLocaleString()} LL</TableCell>
                     <TableCell>
-                      <Badge variant={order.prepaid_by_company ? "default" : "outline"}>
-                        {order.prepaid_by_company ? "Cash" : "Statement"}
-                      </Badge>
+                      {order.prepaid_by_runners ? (
+                        <Badge variant={order.prepaid_by_company ? "default" : "secondary"}>
+                          {order.prepaid_by_company ? "Prepaid" : "Cash (Pending)"}
+                        </Badge>
+                      ) : (
+                        <Badge variant="outline">Statement</Badge>
+                      )}
                     </TableCell>
                     <TableCell className="text-xs">
                       {order.fulfillment === "InHouse" 

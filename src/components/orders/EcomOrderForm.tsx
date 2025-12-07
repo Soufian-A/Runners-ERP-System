@@ -155,8 +155,8 @@ export function EcomOrderForm() {
         delivery_fee_usd: deliveryFee,
         amount_due_to_client_usd: amountDue,
         client_fee_rule: client.client_rules?.[0]?.fee_rule || "ADD_ON",
-        prepaid_by_runners: rowData.prepaid_by_company,
-        prepaid_by_company: rowData.prepaid_by_company,
+        prepaid_by_runners: rowData.prepaid_by_company, // Cash-based flag (intent)
+        prepaid_by_company: false, // Only set to true when prepayment is actually processed
         status: "New",
         address: rowData.customer_address || "",
       });
