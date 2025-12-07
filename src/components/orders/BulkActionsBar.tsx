@@ -1,13 +1,11 @@
 import { Button } from "@/components/ui/button";
-import { Trash2, UserPlus, CheckCircle } from "lucide-react";
-import { useState } from "react";
+import { Trash2, UserPlus, CheckCircle, Wallet } from "lucide-react";
+import { useState, useMemo } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Check, ChevronsUpDown } from "lucide-react";
-import { cn } from "@/lib/utils";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -18,6 +16,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { PrepaidStatementDialog } from "./PrepaidStatementDialog";
 
 interface BulkActionsBarProps {
   selectedIds: string[];
@@ -29,6 +28,7 @@ export function BulkActionsBar({ selectedIds, onClearSelection }: BulkActionsBar
   const [driverOpen, setDriverOpen] = useState(false);
   const [statusOpen, setStatusOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [prepaidDialogOpen, setPrepaidDialogOpen] = useState(false);
 
   const { data: drivers = [] } = useQuery({
     queryKey: ["drivers-active"],
@@ -38,6 +38,36 @@ export function BulkActionsBar({ selectedIds, onClearSelection }: BulkActionsBar
       return data;
     },
   });
+
+  // Fetch selected orders to check if they're ecom and get client info
+  const { data: selectedOrders = [] } = useQuery({
+    queryKey: ["selected-orders-bulk", selectedIds],
+    queryFn: async () => {
+      if (selectedIds.length === 0) return [];
+      const { data, error } = await supabase
+        .from("orders")
+        .select("id, order_type, client_id, prepaid_by_company, clients(name)")
+        .in("id", selectedIds);
+      if (error) throw error;
+      return data;
+    },
+    enabled: selectedIds.length > 0,
+  });
+
+  // Check if all selected orders are ecom, same client, and not already prepaid
+  const prepaidInfo = useMemo(() => {
+    if (selectedOrders.length === 0) return { canPrepay: false, clientId: '', clientName: '' };
+    
+    const allEcom = selectedOrders.every(o => o.order_type === 'ecom');
+    const allSameClient = selectedOrders.every(o => o.client_id === selectedOrders[0].client_id);
+    const noneAlreadyPrepaid = selectedOrders.every(o => !o.prepaid_by_company);
+    
+    return {
+      canPrepay: allEcom && allSameClient && noneAlreadyPrepaid,
+      clientId: selectedOrders[0]?.client_id || '',
+      clientName: (selectedOrders[0] as any)?.clients?.name || '',
+    };
+  }, [selectedOrders]);
 
   const assignDriverMutation = useMutation({
     mutationFn: async (driverId: string) => {
@@ -136,6 +166,13 @@ export function BulkActionsBar({ selectedIds, onClearSelection }: BulkActionsBar
       <div className="fixed bottom-4 left-1/2 transform -translate-x-1/2 bg-primary text-primary-foreground px-6 py-3 rounded-lg shadow-lg flex items-center gap-4 z-50">
         <span className="font-medium">{selectedIds.length} selected</span>
 
+        {prepaidInfo.canPrepay && (
+          <Button size="sm" variant="secondary" onClick={() => setPrepaidDialogOpen(true)}>
+            <Wallet className="h-4 w-4 mr-2" />
+            Prepay Orders
+          </Button>
+        )}
+
         <Popover open={driverOpen} onOpenChange={setDriverOpen}>
           <PopoverTrigger asChild>
             <Button size="sm" variant="secondary">
@@ -220,6 +257,19 @@ export function BulkActionsBar({ selectedIds, onClearSelection }: BulkActionsBar
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {prepaidInfo.canPrepay && (
+        <PrepaidStatementDialog
+          open={prepaidDialogOpen}
+          onOpenChange={(open) => {
+            setPrepaidDialogOpen(open);
+            if (!open) onClearSelection();
+          }}
+          clientId={prepaidInfo.clientId}
+          clientName={prepaidInfo.clientName}
+          selectedOrderIds={selectedIds}
+        />
+      )}
     </>
   );
 }

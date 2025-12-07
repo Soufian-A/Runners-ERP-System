@@ -74,6 +74,8 @@ Deno.serve(async (req) => {
 
     // Check if driver paid for client
     const driverPaidForClient = order.driver_paid_for_client === true
+    // Check if this is a prepaid (cash) e-commerce order
+    const isPrepaidEcom = order.order_type === 'ecom' && (order.prepaid_by_company === true || order.prepaid_by_runners === true)
 
     if (driverPaidForClient) {
       console.log('Processing driver-paid-for-client scenario')
@@ -171,7 +173,6 @@ Deno.serve(async (req) => {
       }
 
       // Set driver_remit_status to Pending for driver-paid orders too
-      // (driver needs to be reimbursed for what they paid + earn delivery fee)
       const { error: remitError } = await supabaseClient
         .from('orders')
         .update({ driver_remit_status: 'Pending' })
@@ -183,6 +184,114 @@ Deno.serve(async (req) => {
       }
       
       console.log('Driver-paid-for-client scenario processed successfully')
+    } else if (isPrepaidEcom) {
+      // PREPAID E-COMMERCE ORDER SCENARIO
+      // Company already paid client upfront, now we collect from customer and return to cashbox
+      console.log('Processing prepaid e-commerce order scenario')
+      
+      const collectedUsd = Number(order.order_amount_usd)
+      const collectedLbp = Number(order.order_amount_lbp)
+      
+      // 1. Credit driver wallet with order amount (driver collected it)
+      if (order.driver_id && (collectedUsd > 0 || collectedLbp > 0)) {
+        console.log('Creating driver credit transaction for collected amount:', {
+          driver_id: order.driver_id,
+          amount_usd: collectedUsd,
+          amount_lbp: collectedLbp
+        })
+        
+        const { error: driverTxError } = await supabaseClient
+          .from('driver_transactions')
+          .insert({
+            driver_id: order.driver_id,
+            type: 'Credit',
+            amount_usd: collectedUsd,
+            amount_lbp: collectedLbp,
+            order_ref: order.order_id,
+            note: `Collected for prepaid order ${order.order_id}`,
+          })
+
+        if (driverTxError) {
+          console.error('Error creating driver transaction:', driverTxError)
+          throw driverTxError
+        }
+
+        // Update driver wallet balance
+        const { data: driver, error: driverFetchError } = await supabaseClient
+          .from('drivers')
+          .select('wallet_usd, wallet_lbp')
+          .eq('id', order.driver_id)
+          .single()
+
+        if (driverFetchError) {
+          console.error('Error fetching driver:', driverFetchError)
+          throw driverFetchError
+        }
+
+        if (driver) {
+          const newWalletUsd = Number(driver.wallet_usd) + collectedUsd
+          const newWalletLbp = Number(driver.wallet_lbp) + collectedLbp
+          
+          console.log('Updating driver wallet (adding collected):', {
+            old_usd: driver.wallet_usd,
+            new_usd: newWalletUsd,
+            old_lbp: driver.wallet_lbp,
+            new_lbp: newWalletLbp
+          })
+          
+          const { error: walletError } = await supabaseClient
+            .from('drivers')
+            .update({
+              wallet_usd: newWalletUsd,
+              wallet_lbp: newWalletLbp,
+            })
+            .eq('id', order.driver_id)
+
+          if (walletError) {
+            console.error('Error updating driver wallet:', walletError)
+            throw walletError
+          }
+        }
+      }
+
+      // 2. Update order collected amount and set remit status to Pending
+      const { error: orderUpdateError } = await supabaseClient
+        .from('orders')
+        .update({ 
+          collected_amount_usd: collectedUsd,
+          collected_amount_lbp: collectedLbp,
+          driver_remit_status: 'Pending'
+        })
+        .eq('id', orderId)
+
+      if (orderUpdateError) {
+        console.error('Error updating order collected amount:', orderUpdateError)
+        throw orderUpdateError
+      }
+      
+      // 3. Credit client account (offset the debit from prepayment)
+      // This closes the loop - we prepaid client (debit), now we credit back
+      if (order.client_id && (collectedUsd > 0 || collectedLbp > 0)) {
+        console.log('Creating client credit transaction to offset prepayment')
+        
+        const { error: clientTxError } = await supabaseClient
+          .from('client_transactions')
+          .insert({
+            client_id: order.client_id,
+            type: 'Credit',
+            amount_usd: collectedUsd,
+            amount_lbp: collectedLbp,
+            order_ref: order.order_id,
+            note: `Collected for prepaid order ${order.order_id}`,
+          })
+
+        if (clientTxError) {
+          console.error('Error creating client transaction:', clientTxError)
+          throw clientTxError
+        }
+      }
+
+      console.log('Prepaid e-commerce order processed successfully')
     } else {
       // Normal delivery scenario - driver collects payment
       console.log('Processing normal delivery scenario')
