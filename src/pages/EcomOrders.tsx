@@ -33,6 +33,7 @@ interface Order {
   created_at: string;
   prepaid_by_company?: boolean;
   prepaid_by_runners?: boolean;
+  driver_remit_status?: string;
   fulfillment?: string;
   clients?: { name: string };
   drivers?: { name: string };
@@ -260,10 +261,18 @@ const EcomOrders = () => {
                     <TableCell>${order.order_amount_usd.toFixed(2)}</TableCell>
                     <TableCell>{order.order_amount_lbp.toLocaleString()} LL</TableCell>
                     <TableCell>
-                      {order.prepaid_by_runners ? (
-                        <Badge variant={order.prepaid_by_company ? "default" : "secondary"}>
-                          {order.prepaid_by_company ? "Prepaid" : "Cash (Pending)"}
-                        </Badge>
+                      {order.prepaid_by_company ? (
+                        // Cash-based order that was prepaid
+                        order.driver_remit_status === 'Collected' ? (
+                          <Badge variant="default" className="bg-green-600">Completed</Badge>
+                        ) : order.status === 'Delivered' ? (
+                          <Badge variant="default">Collected</Badge>
+                        ) : (
+                          <Badge variant="secondary">Prepaid</Badge>
+                        )
+                      ) : order.prepaid_by_runners ? (
+                        // Cash-based intent but not yet prepaid
+                        <Badge variant="secondary">Cash (Pending)</Badge>
                       ) : (
                         <Badge variant="outline">Statement</Badge>
                       )}
