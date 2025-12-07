@@ -54,18 +54,17 @@ export function BulkActionsBar({ selectedIds, onClearSelection }: BulkActionsBar
     enabled: selectedIds.length > 0,
   });
 
-  // Check if all selected orders are ecom, same client, cash-based, and not already prepaid
+  // Check if all selected orders are ecom, same client, and not already prepaid
+  // Show button for ALL ecom orders from same client that aren't prepaid yet
   const prepaidInfo = useMemo(() => {
     if (selectedOrders.length === 0) return { canPrepay: false, clientId: '', clientName: '' };
     
     const allEcom = selectedOrders.every(o => o.order_type === 'ecom');
     const allSameClient = selectedOrders.every(o => o.client_id === selectedOrders[0].client_id);
-    // prepaid_by_company = actual prepayment processed, prepaid_by_runners = cash-based intent
-    const allCashBased = selectedOrders.every(o => (o as any).prepaid_by_runners === true);
     const noneAlreadyPrepaid = selectedOrders.every(o => !o.prepaid_by_company);
     
     return {
-      canPrepay: allEcom && allSameClient && allCashBased && noneAlreadyPrepaid,
+      canPrepay: allEcom && allSameClient && noneAlreadyPrepaid,
       clientId: selectedOrders[0]?.client_id || '',
       clientName: (selectedOrders[0] as any)?.clients?.name || '',
     };
