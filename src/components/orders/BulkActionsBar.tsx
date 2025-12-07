@@ -71,8 +71,23 @@ export function BulkActionsBar({ selectedIds, onClearSelection }: BulkActionsBar
 
   const assignDriverMutation = useMutation({
     mutationFn: async (driverId: string) => {
-      const { error } = await supabase.from("orders").update({ driver_id: driverId }).in("id", selectedIds);
+      // Update driver_id and set status to "Assigned" if currently "New"
+      const { error } = await supabase
+        .from("orders")
+        .update({ driver_id: driverId, status: "Assigned" })
+        .in("id", selectedIds)
+        .in("status", ["New", "Assigned"]); // Only update status for New or already Assigned orders
+      
       if (error) throw error;
+      
+      // Also update orders that are in other statuses (just driver_id, not status)
+      const { error: error2 } = await supabase
+        .from("orders")
+        .update({ driver_id: driverId })
+        .in("id", selectedIds)
+        .not("status", "in", '("New","Assigned")');
+      
+      if (error2) throw error2;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["orders"] });
