@@ -446,23 +446,32 @@ export function ClientStatementsTab() {
                           <TableHead>Date</TableHead>
                           <TableHead>Order ID</TableHead>
                           <TableHead>Type</TableHead>
-                          <TableHead>Customer</TableHead>
                           <TableHead>Notes</TableHead>
-                          <TableHead>Order USD</TableHead>
+                          <TableHead>Order Amount</TableHead>
                           <TableHead>Driver Paid</TableHead>
-                          <TableHead>Due USD</TableHead>
+                          <TableHead>Due Amount</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
                         {filteredOrders.map((order) => {
                           let dueToClientUsd = 0;
+                          let dueToClientLbp = 0;
+                          
                           if (order.order_type === 'instant') {
-                            dueToClientUsd = order.driver_paid_for_client 
-                              ? Number(order.order_amount_usd || 0) + Number(order.delivery_fee_usd || 0)
-                              : Number(order.order_amount_usd || 0);
+                            if (order.driver_paid_for_client) {
+                              dueToClientUsd = Number(order.order_amount_usd || 0) + Number(order.delivery_fee_usd || 0);
+                              dueToClientLbp = Number(order.order_amount_lbp || 0) + Number(order.delivery_fee_lbp || 0);
+                            } else {
+                              dueToClientUsd = Number(order.order_amount_usd || 0);
+                              dueToClientLbp = Number(order.order_amount_lbp || 0);
+                            }
                           } else {
                             dueToClientUsd = Number(order.amount_due_to_client_usd || 0);
+                            dueToClientLbp = 0;
                           }
+
+                          const orderAmountUsd = Number(order.order_amount_usd || 0);
+                          const orderAmountLbp = Number(order.order_amount_lbp || 0);
 
                           return (
                             <TableRow key={order.id} className="h-10">
@@ -481,17 +490,26 @@ export function ClientStatementsTab() {
                               <TableCell className="py-1">
                                 <Badge variant="outline" className="text-xs">{order.order_type}</Badge>
                               </TableCell>
-                              <TableCell className="py-1 text-xs">{order.customers?.name || order.customers?.phone}</TableCell>
                               <TableCell className="py-1 text-xs max-w-[150px] truncate" title={order.notes || ''}>
                                 {order.notes || '-'}
                               </TableCell>
-                              <TableCell className="py-1 text-xs">${Number(order.order_amount_usd || 0).toFixed(2)}</TableCell>
+                              <TableCell className="py-1 text-xs">
+                                {orderAmountUsd > 0 && <span>${orderAmountUsd.toFixed(2)}</span>}
+                                {orderAmountUsd > 0 && orderAmountLbp > 0 && ' / '}
+                                {orderAmountLbp > 0 && <span>{orderAmountLbp.toLocaleString()} LL</span>}
+                                {orderAmountUsd === 0 && orderAmountLbp === 0 && '-'}
+                              </TableCell>
                               <TableCell className="py-1 text-xs">
                                 {order.driver_paid_for_client ? (
                                   <Badge variant="outline" className="text-xs text-blue-600">Yes</Badge>
                                 ) : '-'}
                               </TableCell>
-                              <TableCell className="py-1 text-xs font-semibold">${dueToClientUsd.toFixed(2)}</TableCell>
+                              <TableCell className="py-1 text-xs font-semibold">
+                                {dueToClientUsd > 0 && <span>${dueToClientUsd.toFixed(2)}</span>}
+                                {dueToClientUsd > 0 && dueToClientLbp > 0 && ' / '}
+                                {dueToClientLbp > 0 && <span>{dueToClientLbp.toLocaleString()} LL</span>}
+                                {dueToClientUsd === 0 && dueToClientLbp === 0 && '-'}
+                              </TableCell>
                             </TableRow>
                           );
                         })}
@@ -506,32 +524,40 @@ export function ClientStatementsTab() {
                 {selectedOrders.length > 0 && (
                   <div className="border-t p-4 bg-muted/50">
                     <div className="flex items-center justify-between">
-                      <div className="grid grid-cols-4 gap-6 text-sm">
+                      <div className="grid grid-cols-3 gap-6 text-sm">
                         <div>
                           <span className="text-muted-foreground">Orders:</span>
                           <p className="font-semibold">{totals.totalOrders}</p>
                         </div>
                         <div>
                           <span className="text-muted-foreground">Order Amount:</span>
-                          <p className="font-semibold">${totals.totalOrderAmountUsd.toFixed(2)}</p>
+                          <p className="font-semibold">
+                            {totals.totalOrderAmountUsd > 0 && `$${totals.totalOrderAmountUsd.toFixed(2)}`}
+                            {totals.totalOrderAmountUsd > 0 && totals.totalOrderAmountLbp > 0 && ' / '}
+                            {totals.totalOrderAmountLbp > 0 && `${totals.totalOrderAmountLbp.toLocaleString()} LL`}
+                            {totals.totalOrderAmountUsd === 0 && totals.totalOrderAmountLbp === 0 && '$0.00'}
+                          </p>
                         </div>
                         <div>
-                          <span className="text-muted-foreground">Delivery Fees:</span>
-                          <p className="font-semibold">${totals.totalDeliveryFeesUsd.toFixed(2)}</p>
-                        </div>
-                        <div>
-                          <span className="text-muted-foreground">Net Due to Client:</span>
-                          <p className="font-bold text-lg">${totals.totalDueToClientUsd.toFixed(2)}</p>
+                          <span className="text-muted-foreground">Net Due:</span>
+                          <p className="font-bold text-lg">
+                            {totals.totalDueToClientUsd > 0 && `$${totals.totalDueToClientUsd.toFixed(2)}`}
+                            {totals.totalDueToClientUsd > 0 && totals.totalDueToClientLbp > 0 && ' / '}
+                            {totals.totalDueToClientLbp > 0 && `${totals.totalDueToClientLbp.toLocaleString()} LL`}
+                            {totals.totalDueToClientUsd === 0 && totals.totalDueToClientLbp === 0 && '$0.00'}
+                          </p>
                         </div>
                       </div>
-                      <Button variant="outline" onClick={() => setPreviewDialogOpen(true)}>
-                        <Eye className="mr-2 h-4 w-4" />
-                        Preview / Export
-                      </Button>
-                      <Button onClick={() => issueStatementMutation.mutate()} disabled={issueStatementMutation.isPending}>
-                        <FileText className="mr-2 h-4 w-4" />
-                        {issueStatementMutation.isPending ? 'Processing...' : 'Issue Statement'}
-                      </Button>
+                      <div className="flex gap-2">
+                        <Button variant="outline" onClick={() => setPreviewDialogOpen(true)}>
+                          <Eye className="mr-2 h-4 w-4" />
+                          Preview / Export
+                        </Button>
+                        <Button onClick={() => issueStatementMutation.mutate()} disabled={issueStatementMutation.isPending}>
+                          <FileText className="mr-2 h-4 w-4" />
+                          {issueStatementMutation.isPending ? 'Processing...' : 'Issue Statement'}
+                        </Button>
+                      </div>
                     </div>
                   </div>
                 )}
