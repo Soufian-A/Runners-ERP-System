@@ -34,6 +34,7 @@ interface Order {
   address: string;
   notes?: string;
   created_at: string;
+  driver_paid_for_client?: boolean;
   clients?: { name: string };
   drivers?: { name: string };
   third_parties?: { name: string };
@@ -221,6 +222,7 @@ const InstantOrders = () => {
                   <TableHead>Amount LBP</TableHead>
                   <TableHead>Delivery USD</TableHead>
                   <TableHead>Delivery LBP</TableHead>
+                  <TableHead>Driver Paid</TableHead>
                   <TableHead>Notes</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead>Created</TableHead>
@@ -240,6 +242,13 @@ const InstantOrders = () => {
                     <TableCell>{order.order_amount_lbp?.toLocaleString() || "0"} LL</TableCell>
                     <TableCell>${order.delivery_fee_usd?.toFixed(2) || "0.00"}</TableCell>
                     <TableCell>{order.delivery_fee_lbp?.toLocaleString() || "0"} LL</TableCell>
+                    <TableCell>
+                      {order.driver_paid_for_client ? (
+                        <Badge variant="outline" className="text-blue-600 border-blue-600 bg-blue-50">
+                          Driver Paid
+                        </Badge>
+                      ) : "-"}
+                    </TableCell>
                     <TableCell className="max-w-[150px] truncate">{order.notes || "-"}</TableCell>
                     <TableCell>{getStatusBadge(order.status)}</TableCell>
                     <TableCell className="text-xs whitespace-nowrap">
