@@ -35,11 +35,42 @@ interface Order {
   notes?: string;
   created_at: string;
   driver_paid_for_client?: boolean;
+  driver_paid_amount_usd?: number;
+  driver_paid_amount_lbp?: number;
+  driver_remit_status?: string;
   clients?: { name: string };
   drivers?: { name: string };
   third_parties?: { name: string };
   customers?: { phone: string; name?: string };
 }
+
+// Helper function to determine payment status
+const getPaymentStatus = (order: Order) => {
+  const hasAmount = (order.order_amount_usd > 0 || order.order_amount_lbp > 0 || 
+                     order.delivery_fee_usd > 0 || order.delivery_fee_lbp > 0);
+  
+  if (!hasAmount) {
+    return { label: "-", variant: "outline" as const };
+  }
+
+  if (order.driver_paid_for_client) {
+    // Driver paid for client - client owes us
+    if (order.driver_remit_status === 'Collected') {
+      return { label: "Settled", variant: "default" as const, className: "bg-green-600" };
+    }
+    return { label: "Due", variant: "destructive" as const };
+  }
+
+  // Normal order - we collect for client
+  if (order.status === 'Delivered') {
+    if (order.driver_remit_status === 'Collected') {
+      return { label: "Completed", variant: "default" as const, className: "bg-green-600" };
+    }
+    return { label: "Collected", variant: "default" as const };
+  }
+
+  return { label: "Pending", variant: "secondary" as const };
+};
 
 const InstantOrders = () => {
   const queryClient = useQueryClient();
@@ -222,67 +253,80 @@ const InstantOrders = () => {
                   <TableHead>Amount LBP</TableHead>
                   <TableHead>Delivery USD</TableHead>
                   <TableHead>Delivery LBP</TableHead>
-                  <TableHead>Driver Paid</TableHead>
+                  <TableHead>Order Status</TableHead>
+                  <TableHead>Payment Status</TableHead>
                   <TableHead>Notes</TableHead>
-                  <TableHead>Status</TableHead>
                   <TableHead>Created</TableHead>
-                  <TableHead className="w-[120px]">Actions</TableHead>
+                  <TableHead className="w-[100px]">Actions</TableHead>
                 </TableRow>
               </TableHeader>
                 <TableBody>
-                {filteredOrders?.map((order) => (
-                  <TableRow key={order.id} className="hover:bg-muted/50">
-                    <TableCell onClick={(e) => e.stopPropagation()}>
-                      <Checkbox checked={selectedIds.includes(order.id)} onCheckedChange={() => toggleSelect(order.id)} />
-                    </TableCell>
-                    <TableCell>{order.clients?.name}</TableCell>
-                    <TableCell>{order.drivers?.name || "-"}</TableCell>
-                    <TableCell className="max-w-[200px] truncate">{order.address}</TableCell>
-                    <TableCell>${order.order_amount_usd?.toFixed(2) || "0.00"}</TableCell>
-                    <TableCell>{order.order_amount_lbp?.toLocaleString() || "0"} LL</TableCell>
-                    <TableCell>${order.delivery_fee_usd?.toFixed(2) || "0.00"}</TableCell>
-                    <TableCell>{order.delivery_fee_lbp?.toLocaleString() || "0"} LL</TableCell>
-                    <TableCell>
-                      {order.driver_paid_for_client ? (
-                        <Badge variant="outline" className="text-blue-600 border-blue-600 bg-blue-50">
-                          Driver Paid
+                {filteredOrders?.map((order) => {
+                  const paymentStatus = getPaymentStatus(order);
+                  return (
+                    <TableRow key={order.id} className="hover:bg-muted/50">
+                      <TableCell onClick={(e) => e.stopPropagation()}>
+                        <Checkbox checked={selectedIds.includes(order.id)} onCheckedChange={() => toggleSelect(order.id)} />
+                      </TableCell>
+                      <TableCell>{order.clients?.name}</TableCell>
+                      <TableCell>{order.drivers?.name || "-"}</TableCell>
+                      <TableCell className="max-w-[200px] truncate">{order.address}</TableCell>
+                      <TableCell>
+                        {order.driver_paid_for_client ? (
+                          <span className="text-blue-600">${order.driver_paid_amount_usd?.toFixed(2) || order.order_amount_usd?.toFixed(2) || "0.00"}</span>
+                        ) : (
+                          `$${order.order_amount_usd?.toFixed(2) || "0.00"}`
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        {order.driver_paid_for_client ? (
+                          <span className="text-blue-600">{(order.driver_paid_amount_lbp || order.order_amount_lbp)?.toLocaleString() || "0"} LL</span>
+                        ) : (
+                          `${order.order_amount_lbp?.toLocaleString() || "0"} LL`
+                        )}
+                      </TableCell>
+                      <TableCell>${order.delivery_fee_usd?.toFixed(2) || "0.00"}</TableCell>
+                      <TableCell>{order.delivery_fee_lbp?.toLocaleString() || "0"} LL</TableCell>
+                      <TableCell>{getStatusBadge(order.status)}</TableCell>
+                      <TableCell>
+                        <Badge variant={paymentStatus.variant} className={paymentStatus.className}>
+                          {paymentStatus.label}
                         </Badge>
-                      ) : "-"}
-                    </TableCell>
-                    <TableCell className="max-w-[150px] truncate">{order.notes || "-"}</TableCell>
-                    <TableCell>{getStatusBadge(order.status)}</TableCell>
-                    <TableCell className="text-xs whitespace-nowrap">
-                      {new Date(order.created_at).toLocaleDateString()} {new Date(order.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex gap-1">
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setSelectedOrder(order);
-                            setDialogOpen(true);
-                          }}
-                          title="Edit"
-                        >
-                          <Pencil className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setDeleteOrderId(order.id);
-                          }}
-                          title="Delete"
-                        >
-                          <Trash2 className="h-4 w-4 text-destructive" />
-                        </Button>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))}
+                      </TableCell>
+                      <TableCell className="max-w-[150px] truncate">{order.notes || "-"}</TableCell>
+                      <TableCell className="text-xs whitespace-nowrap">
+                        {new Date(order.created_at).toLocaleDateString()} {new Date(order.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex gap-1">
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setSelectedOrder(order);
+                              setDialogOpen(true);
+                            }}
+                            title="Edit"
+                          >
+                            <Pencil className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setDeleteOrderId(order.id);
+                            }}
+                            title="Delete"
+                          >
+                            <Trash2 className="h-4 w-4 text-destructive" />
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
               </TableBody>
             </Table>
           </CardContent>
