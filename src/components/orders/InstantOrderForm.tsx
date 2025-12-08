@@ -10,7 +10,20 @@ import { Check, ChevronsUpDown, Plus } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Checkbox } from "@/components/ui/checkbox";
+import { z } from "zod";
 
+// Validation schema for instant order creation
+const instantOrderSchema = z.object({
+  client_id: z.string().uuid("Invalid client selected"),
+  address: z.string().min(1, "Address is required").max(500, "Address is too long"),
+  driver_id: z.string().uuid().optional().or(z.literal("")),
+  order_amount_usd: z.number().min(0, "Amount must be non-negative"),
+  order_amount_lbp: z.number().min(0, "Amount must be non-negative"),
+  delivery_fee_usd: z.number().min(0, "Fee must be non-negative"),
+  delivery_fee_lbp: z.number().min(0, "Fee must be non-negative"),
+  notes: z.string().max(1000, "Notes are too long").optional(),
+  driver_paid_for_client: z.boolean(),
+});
 type NewOrderRow = {
   id: string;
   client_id: string;
@@ -113,7 +126,28 @@ export function InstantOrderForm() {
 
   const createOrderMutation = useMutation({
     mutationFn: async (rowData: NewOrderRow) => {
-      const { data: client } = await supabase.from("clients").select("*, client_rules(*)").eq("id", rowData.client_id).single();
+      // Validate input data before processing
+      const validationData = {
+        client_id: rowData.client_id,
+        address: rowData.address.trim(),
+        driver_id: rowData.driver_id || "",
+        order_amount_usd: parseFloat(rowData.order_amount_usd) || 0,
+        order_amount_lbp: parseFloat(rowData.order_amount_lbp) || 0,
+        delivery_fee_usd: parseFloat(rowData.delivery_fee_usd) || 0,
+        delivery_fee_lbp: parseFloat(rowData.delivery_fee_lbp) || 0,
+        notes: rowData.notes?.trim() || "",
+        driver_paid_for_client: rowData.driver_paid_for_client,
+      };
+
+      const validationResult = instantOrderSchema.safeParse(validationData);
+      if (!validationResult.success) {
+        const firstError = validationResult.error.errors[0];
+        throw new Error(firstError.message);
+      }
+
+      const validatedData = validationResult.data;
+
+      const { data: client } = await supabase.from("clients").select("*, client_rules(*)").eq("id", validatedData.client_id).single();
       if (!client) throw new Error("Client not found");
 
       const prefix = client.name.substring(0, 3).toUpperCase();
@@ -123,27 +157,27 @@ export function InstantOrderForm() {
       const orderData: any = {
         order_id,
         order_type: "instant",
-        client_id: rowData.client_id,
+        client_id: validatedData.client_id,
         client_type: client.type,
         fulfillment: "InHouse",
-        driver_id: rowData.driver_id || null,
-        order_amount_usd: parseFloat(rowData.order_amount_usd) || 0,
-        order_amount_lbp: parseFloat(rowData.order_amount_lbp) || 0,
-        delivery_fee_usd: parseFloat(rowData.delivery_fee_usd) || 0,
-        delivery_fee_lbp: parseFloat(rowData.delivery_fee_lbp) || 0,
+        driver_id: validatedData.driver_id || null,
+        order_amount_usd: validatedData.order_amount_usd,
+        order_amount_lbp: validatedData.order_amount_lbp,
+        delivery_fee_usd: validatedData.delivery_fee_usd,
+        delivery_fee_lbp: validatedData.delivery_fee_lbp,
         client_fee_rule: client.client_rules?.[0]?.fee_rule || "ADD_ON",
         status: "New",
-        address: rowData.address,
-        notes: rowData.notes || null,
-        driver_paid_for_client: rowData.driver_paid_for_client,
+        address: validatedData.address,
+        notes: validatedData.notes || null,
+        driver_paid_for_client: validatedData.driver_paid_for_client,
       };
 
       // If driver paid for client, set the paid amounts based on order amounts
-      if (rowData.driver_paid_for_client) {
-        orderData.driver_paid_amount_usd = parseFloat(rowData.order_amount_usd) || 0;
-        orderData.driver_paid_amount_lbp = parseFloat(rowData.order_amount_lbp) || 0;
-        if (rowData.notes) {
-          orderData.driver_paid_reason = rowData.notes;
+      if (validatedData.driver_paid_for_client) {
+        orderData.driver_paid_amount_usd = validatedData.order_amount_usd;
+        orderData.driver_paid_amount_lbp = validatedData.order_amount_lbp;
+        if (validatedData.notes) {
+          orderData.driver_paid_reason = validatedData.notes;
         }
       }
 
