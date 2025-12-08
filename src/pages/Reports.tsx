@@ -1,274 +1,136 @@
 import { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
+import { useQueryClient } from '@tanstack/react-query';
 import Layout from '@/components/Layout';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { FileText, Download, BarChart3, Settings } from 'lucide-react';
-import { format } from 'date-fns';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { BarChart3, Truck, Users, DollarSign, Wallet, Settings, FileText } from 'lucide-react';
+import { format, subDays } from 'date-fns';
+import { KPICards } from '@/components/reports/KPICards';
+import { OrdersChart } from '@/components/reports/OrdersChart';
+import { DriverPerformanceReport } from '@/components/reports/DriverPerformanceReport';
+import { ClientPerformanceReport } from '@/components/reports/ClientPerformanceReport';
+import { RevenueReport } from '@/components/reports/RevenueReport';
+import { BalancesReport } from '@/components/reports/BalancesReport';
+import { DateRangeFilter } from '@/components/reports/DateRangeFilter';
 import { PaymentHistoryTab } from '@/components/reports/PaymentHistoryTab';
 import { CompanyLogoSettings } from '@/components/reports/CompanyLogoSettings';
 
 const Reports = () => {
-  const [reportType, setReportType] = useState('driver-transactions');
-  const [selectedEntity, setSelectedEntity] = useState('');
-  const [dateFrom, setDateFrom] = useState(new Date().toISOString().split('T')[0]);
-  const [dateTo, setDateTo] = useState(new Date().toISOString().split('T')[0]);
+  const queryClient = useQueryClient();
+  const [dateFrom, setDateFrom] = useState(format(subDays(new Date(), 29), 'yyyy-MM-dd'));
+  const [dateTo, setDateTo] = useState(format(new Date(), 'yyyy-MM-dd'));
 
-  const { data: drivers } = useQuery({
-    queryKey: ['drivers-for-report'],
-    queryFn: async () => {
-      const { data, error } = await supabase.from('drivers').select('*').order('name');
-      if (error) throw error;
-      return data;
-    },
-  });
-
-  const { data: clients } = useQuery({
-    queryKey: ['clients-for-report'],
-    queryFn: async () => {
-      const { data, error } = await supabase.from('clients').select('*').order('name');
-      if (error) throw error;
-      return data;
-    },
-  });
-
-  const { data: reportData, isLoading } = useQuery({
-    queryKey: ['report-data', reportType, selectedEntity, dateFrom, dateTo],
-    queryFn: async () => {
-      if (!selectedEntity) return null;
-
-      if (reportType === 'driver-transactions') {
-        const { data, error } = await supabase
-          .from('driver_transactions')
-          .select('*')
-          .eq('driver_id', selectedEntity)
-          .gte('ts', dateFrom)
-          .lte('ts', dateTo + 'T23:59:59')
-          .order('ts', { ascending: false });
-        
-        if (error) throw error;
-        return data;
-      } else if (reportType === 'client-transactions') {
-        const { data, error } = await supabase
-          .from('client_transactions')
-          .select('*')
-          .eq('client_id', selectedEntity)
-          .gte('ts', dateFrom)
-          .lte('ts', dateTo + 'T23:59:59')
-          .order('ts', { ascending: false });
-        
-        if (error) throw error;
-        return data;
-      }
-
-      return null;
-    },
-    enabled: !!selectedEntity,
-  });
-
-  const calculateTotals = () => {
-    if (!reportData) return { usd: 0, lbp: 0 };
-    
-    return reportData.reduce(
-      (acc: any, row: any) => {
-        const multiplier = row.type === 'Credit' ? 1 : -1;
-        return {
-          usd: acc.usd + Number(row.amount_usd || 0) * multiplier,
-          lbp: acc.lbp + Number(row.amount_lbp || 0) * multiplier,
-        };
-      },
-      { usd: 0, lbp: 0 }
-    );
+  const handleRefresh = () => {
+    queryClient.invalidateQueries({ queryKey: ['kpi'] });
+    queryClient.invalidateQueries({ queryKey: ['orders-chart'] });
+    queryClient.invalidateQueries({ queryKey: ['driver-orders-performance'] });
+    queryClient.invalidateQueries({ queryKey: ['client-orders-performance'] });
+    queryClient.invalidateQueries({ queryKey: ['revenue'] });
+    queryClient.invalidateQueries({ queryKey: ['balances'] });
   };
-
-  const totals = calculateTotals();
 
   return (
     <Layout>
       <div className="space-y-6">
         <div>
           <h1 className="text-3xl font-bold">Reports & Analytics</h1>
-          <p className="text-muted-foreground mt-1">View transaction history and analytics</p>
+          <p className="text-muted-foreground mt-1">
+            Comprehensive performance metrics and business intelligence
+          </p>
         </div>
 
-        <Tabs defaultValue="transaction-reports" className="w-full">
-          <TabsList className="grid w-full grid-cols-3">
-            <TabsTrigger value="transaction-reports">
-              <BarChart3 className="mr-2 h-4 w-4" />
-              Transaction Reports
+        <Tabs defaultValue="dashboard" className="w-full">
+          <TabsList className="grid w-full grid-cols-4 lg:grid-cols-7">
+            <TabsTrigger value="dashboard" className="flex items-center gap-1.5">
+              <BarChart3 className="h-4 w-4" />
+              <span className="hidden sm:inline">Dashboard</span>
             </TabsTrigger>
-            <TabsTrigger value="payment-history">
-              <FileText className="mr-2 h-4 w-4" />
-              Payment History
+            <TabsTrigger value="drivers" className="flex items-center gap-1.5">
+              <Truck className="h-4 w-4" />
+              <span className="hidden sm:inline">Drivers</span>
             </TabsTrigger>
-            <TabsTrigger value="company-settings">
-              <Settings className="mr-2 h-4 w-4" />
-              Company Info
+            <TabsTrigger value="clients" className="flex items-center gap-1.5">
+              <Users className="h-4 w-4" />
+              <span className="hidden sm:inline">Clients</span>
+            </TabsTrigger>
+            <TabsTrigger value="revenue" className="flex items-center gap-1.5">
+              <DollarSign className="h-4 w-4" />
+              <span className="hidden sm:inline">Revenue</span>
+            </TabsTrigger>
+            <TabsTrigger value="balances" className="flex items-center gap-1.5">
+              <Wallet className="h-4 w-4" />
+              <span className="hidden sm:inline">Balances</span>
+            </TabsTrigger>
+            <TabsTrigger value="payments" className="flex items-center gap-1.5">
+              <FileText className="h-4 w-4" />
+              <span className="hidden sm:inline">Payments</span>
+            </TabsTrigger>
+            <TabsTrigger value="settings" className="flex items-center gap-1.5">
+              <Settings className="h-4 w-4" />
+              <span className="hidden sm:inline">Settings</span>
             </TabsTrigger>
           </TabsList>
 
-          <TabsContent value="transaction-reports">
-            <div className="space-y-6">
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <FileText className="h-5 w-5" />
-                    Generate Report
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="report-type">Report Type</Label>
-                      <Select value={reportType} onValueChange={setReportType}>
-                        <SelectTrigger id="report-type">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="driver-transactions">Driver Transactions</SelectItem>
-                          <SelectItem value="client-transactions">Client Transactions</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label htmlFor="entity">
-                        {reportType === 'driver-transactions' ? 'Driver' : 'Client'}
-                      </Label>
-                      <Select value={selectedEntity} onValueChange={setSelectedEntity}>
-                        <SelectTrigger id="entity">
-                          <SelectValue placeholder="Select..." />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {reportType === 'driver-transactions'
-                            ? drivers?.map((driver) => (
-                                <SelectItem key={driver.id} value={driver.id}>
-                                  {driver.name}
-                                </SelectItem>
-                              ))
-                            : clients?.map((client) => (
-                                <SelectItem key={client.id} value={client.id}>
-                                  {client.name}
-                                </SelectItem>
-                              ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label htmlFor="date-from">From Date</Label>
-                      <Input
-                        id="date-from"
-                        type="date"
-                        value={dateFrom}
-                        onChange={(e) => setDateFrom(e.target.value)}
-                      />
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label htmlFor="date-to">To Date</Label>
-                      <Input
-                        id="date-to"
-                        type="date"
-                        value={dateTo}
-                        onChange={(e) => setDateTo(e.target.value)}
-                      />
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-
-              {selectedEntity && (
-                <Card>
-                  <CardHeader>
-                    <div className="flex items-center justify-between">
-                      <CardTitle>Transaction Details</CardTitle>
-                      <Button variant="outline" size="sm">
-                        <Download className="mr-2 h-4 w-4" />
-                        Export PDF
-                      </Button>
-                    </div>
-                  </CardHeader>
-                  <CardContent>
-                    {isLoading ? (
-                      <p className="text-center text-muted-foreground">Loading...</p>
-                    ) : reportData && reportData.length > 0 ? (
-                      <>
-                        <div className="overflow-x-auto">
-                          <Table>
-                            <TableHeader>
-                              <TableRow>
-                                <TableHead>Date</TableHead>
-                                <TableHead>Type</TableHead>
-                                <TableHead>Amount USD</TableHead>
-                                <TableHead>Amount LBP</TableHead>
-                                <TableHead>Order Ref</TableHead>
-                                <TableHead>Note</TableHead>
-                              </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                              {reportData.map((row: any) => (
-                                <TableRow key={row.id}>
-                                  <TableCell>{format(new Date(row.ts), 'MMM dd, yyyy HH:mm')}</TableCell>
-                                  <TableCell>
-                                    <span
-                                      className={
-                                        row.type === 'Credit' ? 'text-green-600' : 'text-red-600'
-                                      }
-                                    >
-                                      {row.type}
-                                    </span>
-                                  </TableCell>
-                                  <TableCell
-                                    className={row.type === 'Credit' ? 'text-green-600' : 'text-red-600'}
-                                  >
-                                    {row.type === 'Credit' ? '+' : '-'}$
-                                    {Number(row.amount_usd).toFixed(2)}
-                                  </TableCell>
-                                  <TableCell
-                                    className={row.type === 'Credit' ? 'text-green-600' : 'text-red-600'}
-                                  >
-                                    {row.type === 'Credit' ? '+' : '-'}
-                                    {Number(row.amount_lbp).toLocaleString()} LBP
-                                  </TableCell>
-                                  <TableCell>{row.order_ref || '-'}</TableCell>
-                                  <TableCell className="max-w-xs truncate">{row.note || '-'}</TableCell>
-                                </TableRow>
-                              ))}
-                            </TableBody>
-                          </Table>
-                        </div>
-
-                        <div className="mt-6 flex justify-end">
-                          <div className="rounded-md bg-muted p-4">
-                            <p className="font-semibold text-lg">
-                              Net Balance: ${totals.usd.toFixed(2)} / {totals.lbp.toLocaleString()} LBP
-                            </p>
-                          </div>
-                        </div>
-                      </>
-                    ) : (
-                      <p className="text-center text-muted-foreground">
-                        No transactions found for the selected period.
-                      </p>
-                    )}
-                  </CardContent>
-                </Card>
-              )}
-            </div>
+          {/* Dashboard Tab */}
+          <TabsContent value="dashboard" className="space-y-6 mt-6">
+            <DateRangeFilter
+              dateFrom={dateFrom}
+              dateTo={dateTo}
+              onDateFromChange={setDateFrom}
+              onDateToChange={setDateTo}
+              onRefresh={handleRefresh}
+            />
+            <KPICards dateFrom={dateFrom} dateTo={dateTo} />
+            <OrdersChart dateFrom={dateFrom} dateTo={dateTo} />
           </TabsContent>
 
-          <TabsContent value="payment-history">
+          {/* Drivers Tab */}
+          <TabsContent value="drivers" className="space-y-6 mt-6">
+            <DateRangeFilter
+              dateFrom={dateFrom}
+              dateTo={dateTo}
+              onDateFromChange={setDateFrom}
+              onDateToChange={setDateTo}
+              onRefresh={handleRefresh}
+            />
+            <DriverPerformanceReport dateFrom={dateFrom} dateTo={dateTo} />
+          </TabsContent>
+
+          {/* Clients Tab */}
+          <TabsContent value="clients" className="space-y-6 mt-6">
+            <DateRangeFilter
+              dateFrom={dateFrom}
+              dateTo={dateTo}
+              onDateFromChange={setDateFrom}
+              onDateToChange={setDateTo}
+              onRefresh={handleRefresh}
+            />
+            <ClientPerformanceReport dateFrom={dateFrom} dateTo={dateTo} />
+          </TabsContent>
+
+          {/* Revenue Tab */}
+          <TabsContent value="revenue" className="space-y-6 mt-6">
+            <DateRangeFilter
+              dateFrom={dateFrom}
+              dateTo={dateTo}
+              onDateFromChange={setDateFrom}
+              onDateToChange={setDateTo}
+              onRefresh={handleRefresh}
+            />
+            <RevenueReport dateFrom={dateFrom} dateTo={dateTo} />
+          </TabsContent>
+
+          {/* Balances Tab */}
+          <TabsContent value="balances" className="space-y-6 mt-6">
+            <BalancesReport />
+          </TabsContent>
+
+          {/* Payment History Tab */}
+          <TabsContent value="payments" className="mt-6">
             <PaymentHistoryTab />
           </TabsContent>
 
-          <TabsContent value="company-settings">
+          {/* Settings Tab */}
+          <TabsContent value="settings" className="mt-6">
             <CompanyLogoSettings />
           </TabsContent>
         </Tabs>
