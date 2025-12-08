@@ -4,13 +4,18 @@ import { supabase } from '@/integrations/supabase/client';
 import Layout from '@/components/Layout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Plus, Minus, HandCoins, Receipt } from 'lucide-react';
+import { Plus, Minus, HandCoins, Receipt, History, Wallet, Calendar, ChevronLeft, ChevronRight } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import CashboxTransactionDialog from '@/components/cashbox/CashboxTransactionDialog';
 import GiveDriverCashDialog from '@/components/cashbox/GiveDriverCashDialog';
 import AddExpenseDialog from '@/components/cashbox/AddExpenseDialog';
+import CashboxSummaryCards from '@/components/cashbox/CashboxSummaryCards';
+import ExpensesTable from '@/components/cashbox/ExpensesTable';
+import TransactionHistoryTable from '@/components/cashbox/TransactionHistoryTable';
+import AllExpensesTab from '@/components/cashbox/AllExpensesTab';
+import { format, addDays, subDays } from 'date-fns';
 
 const Cashbox = () => {
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
@@ -18,6 +23,21 @@ const Cashbox = () => {
   const [withdrawCapitalOpen, setWithdrawCapitalOpen] = useState(false);
   const [giveDriverCashOpen, setGiveDriverCashOpen] = useState(false);
   const [addExpenseOpen, setAddExpenseOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState('daily');
+
+  const goToPrevDay = () => {
+    const newDate = subDays(new Date(selectedDate), 1);
+    setSelectedDate(format(newDate, 'yyyy-MM-dd'));
+  };
+
+  const goToNextDay = () => {
+    const newDate = addDays(new Date(selectedDate), 1);
+    setSelectedDate(format(newDate, 'yyyy-MM-dd'));
+  };
+
+  const goToToday = () => {
+    setSelectedDate(new Date().toISOString().split('T')[0]);
+  };
 
   const { data: cashbox, isLoading } = useQuery({
     queryKey: ['cashbox', selectedDate],
@@ -65,203 +85,169 @@ const Cashbox = () => {
   const revenueUSD = incomeEntries?.reduce((sum: number, entry: any) => sum + Number(entry.amount_usd || 0), 0) || 0;
   const revenueLBP = incomeEntries?.reduce((sum: number, entry: any) => sum + Number(entry.amount_lbp || 0), 0) || 0;
 
-  const profitUSD = revenueUSD - totalExpensesUSD;
-  const profitLBP = revenueLBP - totalExpensesLBP;
+  const isToday = selectedDate === new Date().toISOString().split('T')[0];
 
   return (
     <Layout>
       <div className="space-y-6">
-        <div>
-          <h1 className="text-3xl font-bold">Cashbox</h1>
-          <p className="text-muted-foreground mt-1">Daily cash flow management</p>
-        </div>
-
-        <div className="flex justify-between items-end">
-          <div className="w-64">
-            <Label htmlFor="date">Select Date</Label>
-            <Input
-              id="date"
-              type="date"
-              value={selectedDate}
-              onChange={(e) => setSelectedDate(e.target.value)}
-            />
+        {/* Header */}
+        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+          <div>
+            <h1 className="text-3xl font-bold flex items-center gap-2">
+              <Wallet className="h-8 w-8" />
+              Cashbox
+            </h1>
+            <p className="text-muted-foreground mt-1">Daily cash flow management and expense tracking</p>
           </div>
-          <div className="flex gap-2">
-            <Button onClick={() => setAddCapitalOpen(true)} variant="default">
+          
+          {/* Quick Actions */}
+          <div className="flex flex-wrap gap-2">
+            <Button onClick={() => setAddCapitalOpen(true)} variant="default" size="sm">
               <Plus className="mr-2 h-4 w-4" />
               Add Capital
             </Button>
-            <Button onClick={() => setWithdrawCapitalOpen(true)} variant="outline">
+            <Button onClick={() => setWithdrawCapitalOpen(true)} variant="outline" size="sm">
               <Minus className="mr-2 h-4 w-4" />
-              Withdraw Capital
+              Withdraw
             </Button>
-            <Button onClick={() => setGiveDriverCashOpen(true)} variant="secondary">
+            <Button onClick={() => setGiveDriverCashOpen(true)} variant="secondary" size="sm">
               <HandCoins className="mr-2 h-4 w-4" />
-              Give Driver Cash
+              Driver Cash
             </Button>
-            <Button onClick={() => setAddExpenseOpen(true)} variant="secondary">
+            <Button onClick={() => setAddExpenseOpen(true)} variant="secondary" size="sm">
               <Receipt className="mr-2 h-4 w-4" />
               Add Expense
             </Button>
           </div>
         </div>
 
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-          <Card className="md:col-span-2">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">Revenue USD</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-3xl font-bold text-green-600">
-                ${revenueUSD.toFixed(2)}
+        {/* Tabs */}
+        <Tabs value={activeTab} onValueChange={setActiveTab}>
+          <TabsList>
+            <TabsTrigger value="daily" className="flex items-center gap-2">
+              <Calendar className="h-4 w-4" />
+              Daily View
+            </TabsTrigger>
+            <TabsTrigger value="transactions" className="flex items-center gap-2">
+              <History className="h-4 w-4" />
+              Transactions
+            </TabsTrigger>
+            <TabsTrigger value="expenses" className="flex items-center gap-2">
+              <Receipt className="h-4 w-4" />
+              All Expenses
+            </TabsTrigger>
+          </TabsList>
+
+          {/* Date Navigation - Only show for daily and transactions tabs */}
+          {(activeTab === 'daily' || activeTab === 'transactions') && (
+            <div className="flex items-center gap-2 mt-4">
+              <Button variant="outline" size="icon" onClick={goToPrevDay}>
+                <ChevronLeft className="h-4 w-4" />
+              </Button>
+              <div className="flex items-center gap-2">
+                <Input
+                  type="date"
+                  value={selectedDate}
+                  onChange={(e) => setSelectedDate(e.target.value)}
+                  className="w-auto"
+                />
+                {!isToday && (
+                  <Button variant="outline" size="sm" onClick={goToToday}>
+                    Today
+                  </Button>
+                )}
               </div>
-            </CardContent>
-          </Card>
+              <Button variant="outline" size="icon" onClick={goToNextDay}>
+                <ChevronRight className="h-4 w-4" />
+              </Button>
+              <span className="text-sm text-muted-foreground ml-2">
+                {format(new Date(selectedDate), 'EEEE, MMMM d, yyyy')}
+              </span>
+            </div>
+          )}
 
-          <Card className="md:col-span-2">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">Revenue LBP</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-3xl font-bold text-green-600">
-                {revenueLBP.toLocaleString()} LBP
-              </div>
-            </CardContent>
-          </Card>
+          {/* Daily View Tab */}
+          <TabsContent value="daily" className="space-y-6 mt-6">
+            <CashboxSummaryCards
+              cashbox={cashbox}
+              revenueUSD={revenueUSD}
+              revenueLBP={revenueLBP}
+              expensesUSD={totalExpensesUSD}
+              expensesLBP={totalExpensesLBP}
+            />
 
-          <Card className="md:col-span-2">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">Total Expenses USD</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-3xl font-bold text-red-600">
-                ${totalExpensesUSD.toFixed(2)}
-              </div>
-            </CardContent>
-          </Card>
+            {/* Daily Expenses */}
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between">
+                <CardTitle className="flex items-center gap-2">
+                  <Receipt className="h-5 w-5" />
+                  Daily Expenses
+                </CardTitle>
+                <Button variant="outline" size="sm" onClick={() => setAddExpenseOpen(true)}>
+                  <Plus className="h-4 w-4 mr-2" />
+                  Add
+                </Button>
+              </CardHeader>
+              <CardContent>
+                {expenses && expenses.length > 0 ? (
+                  <ExpensesTable expenses={expenses} />
+                ) : (
+                  <div className="text-center py-8 text-muted-foreground">
+                    No expenses recorded for this date
+                  </div>
+                )}
+              </CardContent>
+            </Card>
 
-          <Card className="md:col-span-2">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">Total Expenses LBP</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-3xl font-bold text-red-600">
-                {totalExpensesLBP.toLocaleString()} LBP
-              </div>
-            </CardContent>
-          </Card>
+            {/* Cashbox Notes */}
+            {cashbox?.notes && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-sm">Cashbox Notes</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <pre className="text-sm whitespace-pre-wrap text-muted-foreground bg-muted p-4 rounded-lg">
+                    {cashbox.notes}
+                  </pre>
+                </CardContent>
+              </Card>
+            )}
 
-          <Card className="md:col-span-2">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">Profit USD</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className={`text-3xl font-bold ${profitUSD >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                ${profitUSD.toFixed(2)}
-              </div>
-            </CardContent>
-          </Card>
+            {!cashbox && !isLoading && (
+              <Card>
+                <CardContent className="pt-6">
+                  <p className="text-center text-muted-foreground">
+                    No cashbox data for {format(new Date(selectedDate), 'MMMM d, yyyy')}. 
+                    Add a transaction to initialize.
+                  </p>
+                </CardContent>
+              </Card>
+            )}
+          </TabsContent>
 
-          <Card className="md:col-span-2">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">Profit LBP</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className={`text-3xl font-bold ${profitLBP >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                {profitLBP.toLocaleString()} LBP
-              </div>
-            </CardContent>
-          </Card>
+          {/* Transactions Tab */}
+          <TabsContent value="transactions" className="mt-6">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <History className="h-5 w-5" />
+                  Transaction History - {format(new Date(selectedDate), 'MMMM d, yyyy')}
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <TransactionHistoryTable date={selectedDate} />
+              </CardContent>
+            </Card>
+          </TabsContent>
 
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">Opening Balance USD</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">
-                ${Number(cashbox?.opening_usd || 0).toFixed(2)}
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">Opening Balance LBP</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">
-                {Number(cashbox?.opening_lbp || 0).toLocaleString()} LBP
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">Closing Balance USD</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">
-                ${Number(cashbox?.closing_usd || 0).toFixed(2)}
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">Closing Balance LBP</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">
-                {Number(cashbox?.closing_lbp || 0).toLocaleString()} LBP
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-
-        {expenses && expenses.length > 0 && (
-          <Card>
-            <CardHeader>
-              <CardTitle>Daily Expenses</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Category</TableHead>
-                    <TableHead>Amount USD</TableHead>
-                    <TableHead>Amount LBP</TableHead>
-                    <TableHead>Notes</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {expenses.map((expense: any) => (
-                    <TableRow key={expense.id}>
-                      <TableCell>
-                        <div className="font-medium">{expense.expense_categories?.name}</div>
-                        <div className="text-xs text-muted-foreground">{expense.expense_categories?.category_group}</div>
-                      </TableCell>
-                      <TableCell>${Number(expense.amount_usd || 0).toFixed(2)}</TableCell>
-                      <TableCell>{Number(expense.amount_lbp || 0).toLocaleString()} LBP</TableCell>
-                      <TableCell className="text-sm text-muted-foreground">{expense.notes || '-'}</TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </CardContent>
-          </Card>
-        )}
-
-        {!cashbox && !isLoading && (
-          <Card>
-            <CardContent className="pt-6">
-              <p className="text-center text-muted-foreground">
-                No cashbox data for this date
-              </p>
-            </CardContent>
-          </Card>
-        )}
+          {/* All Expenses Tab */}
+          <TabsContent value="expenses" className="mt-6">
+            <AllExpensesTab />
+          </TabsContent>
+        </Tabs>
       </div>
 
+      {/* Dialogs */}
       <CashboxTransactionDialog
         open={addCapitalOpen}
         onOpenChange={setAddCapitalOpen}

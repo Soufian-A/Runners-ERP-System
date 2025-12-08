@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -10,19 +10,33 @@ import { Textarea } from '@/components/ui/textarea';
 import { toast } from 'sonner';
 import ExpenseCategoryCombobox from './ExpenseCategoryCombobox';
 
-interface AddExpenseDialogProps {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
+interface Expense {
+  id: string;
   date: string;
+  category_id: string;
+  amount_usd: number;
+  amount_lbp: number;
+  notes: string | null;
+  expense_categories?: {
+    id: string;
+    name: string;
+    category_group: string;
+  };
 }
 
-const AddExpenseDialog = ({ open, onOpenChange, date }: AddExpenseDialogProps) => {
+interface EditExpenseDialogProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  expense: Expense | null;
+}
+
+export default function EditExpenseDialog({ open, onOpenChange, expense }: EditExpenseDialogProps) {
   const queryClient = useQueryClient();
   const [categoryId, setCategoryId] = useState('');
   const [currency, setCurrency] = useState<'USD' | 'LBP'>('USD');
   const [amount, setAmount] = useState('');
   const [notes, setNotes] = useState('');
-  const [expenseDate, setExpenseDate] = useState(date);
+  const [date, setDate] = useState('');
 
   const { data: categories } = useQuery({
     queryKey: ['expense-categories'],
@@ -37,10 +51,27 @@ const AddExpenseDialog = ({ open, onOpenChange, date }: AddExpenseDialogProps) =
     },
   });
 
+  useEffect(() => {
+    if (expense) {
+      setCategoryId(expense.category_id);
+      setDate(expense.date);
+      setNotes(expense.notes || '');
+      if (expense.amount_usd > 0) {
+        setCurrency('USD');
+        setAmount(expense.amount_usd.toString());
+      } else {
+        setCurrency('LBP');
+        setAmount(expense.amount_lbp.toString());
+      }
+    }
+  }, [expense]);
+
   const mutation = useMutation({
     mutationFn: async () => {
+      if (!expense) return;
+      
       const expenseData = {
-        date: expenseDate,
+        date,
         category_id: categoryId,
         amount_usd: currency === 'USD' ? Number(amount) : 0,
         amount_lbp: currency === 'LBP' ? Number(amount) : 0,
@@ -49,21 +80,19 @@ const AddExpenseDialog = ({ open, onOpenChange, date }: AddExpenseDialogProps) =
 
       const { error } = await supabase
         .from('daily_expenses')
-        .insert(expenseData);
+        .update(expenseData)
+        .eq('id', expense.id);
 
       if (error) throw error;
     },
     onSuccess: () => {
-      toast.success('Expense added successfully');
+      toast.success('Expense updated successfully');
       queryClient.invalidateQueries({ queryKey: ['daily-expenses'] });
       queryClient.invalidateQueries({ queryKey: ['all-expenses'] });
-      setCategoryId('');
-      setAmount('');
-      setNotes('');
       onOpenChange(false);
     },
     onError: (error: Error) => {
-      toast.error(`Failed to add expense: ${error.message}`);
+      toast.error(`Failed to update expense: ${error.message}`);
     },
   });
 
@@ -75,27 +104,19 @@ const AddExpenseDialog = ({ open, onOpenChange, date }: AddExpenseDialogProps) =
     mutation.mutate();
   };
 
-  // Reset date when dialog opens
-  const handleOpenChange = (open: boolean) => {
-    if (open) {
-      setExpenseDate(date);
-    }
-    onOpenChange(open);
-  };
-
   return (
-    <Dialog open={open} onOpenChange={handleOpenChange}>
+    <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-md">
         <DialogHeader>
-          <DialogTitle>Add Expense</DialogTitle>
+          <DialogTitle>Edit Expense</DialogTitle>
         </DialogHeader>
         <div className="space-y-4 py-4">
           <div className="space-y-2">
             <Label>Date</Label>
             <Input
               type="date"
-              value={expenseDate}
-              onChange={(e) => setExpenseDate(e.target.value)}
+              value={date}
+              onChange={(e) => setDate(e.target.value)}
             />
           </div>
 
@@ -105,7 +126,6 @@ const AddExpenseDialog = ({ open, onOpenChange, date }: AddExpenseDialogProps) =
               categories={categories}
               value={categoryId}
               onValueChange={setCategoryId}
-              placeholder="Search or select category..."
             />
           </div>
 
@@ -115,7 +135,7 @@ const AddExpenseDialog = ({ open, onOpenChange, date }: AddExpenseDialogProps) =
               <SelectTrigger>
                 <SelectValue />
               </SelectTrigger>
-              <SelectContent className="bg-popover">
+              <SelectContent>
                 <SelectItem value="USD">USD</SelectItem>
                 <SelectItem value="LBP">LBP</SelectItem>
               </SelectContent>
@@ -149,12 +169,10 @@ const AddExpenseDialog = ({ open, onOpenChange, date }: AddExpenseDialogProps) =
             Cancel
           </Button>
           <Button onClick={handleSubmit} disabled={mutation.isPending}>
-            {mutation.isPending ? 'Adding...' : 'Add Expense'}
+            {mutation.isPending ? 'Saving...' : 'Save Changes'}
           </Button>
         </div>
       </DialogContent>
     </Dialog>
   );
-};
-
-export default AddExpenseDialog;
+}
