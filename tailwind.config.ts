@@ -56,12 +56,28 @@ export default {
           "accent-foreground": "hsl(var(--sidebar-accent-foreground))",
           border: "hsl(var(--sidebar-border))",
           ring: "hsl(var(--sidebar-ring))",
+          muted: "hsl(var(--sidebar-muted))",
+        },
+        status: {
+          success: "hsl(var(--status-success))",
+          "success-bg": "hsl(var(--status-success-bg))",
+          warning: "hsl(var(--status-warning))",
+          "warning-bg": "hsl(var(--status-warning-bg))",
+          error: "hsl(var(--status-error))",
+          "error-bg": "hsl(var(--status-error-bg))",
+          info: "hsl(var(--status-info))",
+          "info-bg": "hsl(var(--status-info-bg))",
+          neutral: "hsl(var(--status-neutral))",
+          "neutral-bg": "hsl(var(--status-neutral-bg))",
         },
       },
       borderRadius: {
         lg: "var(--radius)",
         md: "calc(var(--radius) - 2px)",
         sm: "calc(var(--radius) - 4px)",
+      },
+      fontFamily: {
+        mono: ["ui-monospace", "SFMono-Regular", "Menlo", "Monaco", "Consolas", "monospace"],
       },
       keyframes: {
         "accordion-down": {
