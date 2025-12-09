@@ -1,8 +1,7 @@
-import { ReactNode } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { ReactNode, useState } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
-import { Package, LogOut, Home, FileText, Truck, Users, DollarSign, BarChart3, ShoppingCart, Zap, History } from 'lucide-react';
+import { LogOut, User } from 'lucide-react';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -11,6 +10,8 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { AppSidebar } from '@/components/AppSidebar';
+import { cn } from '@/lib/utils';
 
 interface LayoutProps {
   children: ReactNode;
@@ -18,72 +19,57 @@ interface LayoutProps {
 
 const Layout = ({ children }: LayoutProps) => {
   const { user, signOut } = useAuth();
-  const navigate = useNavigate();
-
-  const navItems = [
-    { icon: Home, label: 'Dashboard', path: '/' },
-    { icon: Users, label: 'Clients', path: '/clients' },
-    { icon: Zap, label: 'Instant Orders', path: '/orders/instant' },
-    { icon: ShoppingCart, label: 'Ecom Orders', path: '/orders/ecom' },
-    { icon: Truck, label: 'Drivers', path: '/drivers' },
-    { icon: DollarSign, label: 'Cashbox', path: '/cashbox' },
-    { icon: BarChart3, label: 'Reports', path: '/reports' },
-    { icon: History, label: 'Transactions', path: '/transactions' },
-  ];
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
   return (
-    <div className="flex min-h-screen flex-col">
-      <header className="sticky top-0 z-50 border-b bg-card/95 backdrop-blur supports-[backdrop-filter]:bg-card/60">
-        <div className="flex h-16 items-center justify-between px-6 w-full">
-          <div className="flex items-center gap-6">
-            <div className="flex items-center gap-2">
-              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary">
-                <Package className="h-6 w-6 text-primary-foreground" />
-              </div>
-              <span className="text-xl font-bold">Delivery ERP</span>
-            </div>
-            <nav className="hidden md:flex items-center gap-1">
-              {navItems.map((item) => {
-                const Icon = item.icon;
-                return (
-                  <Button
-                    key={item.path}
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => navigate(item.path)}
-                    className="gap-2"
-                  >
-                    <Icon className="h-4 w-4" />
-                    {item.label}
-                  </Button>
-                );
-              })}
-            </nav>
-          </div>
-          
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="outline" size="sm">
-                {user?.email}
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuLabel>My Account</DropdownMenuLabel>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={signOut}>
-                <LogOut className="mr-2 h-4 w-4" />
-                Sign Out
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
-      </header>
+    <div className="min-h-screen bg-background">
+      {/* Sidebar */}
+      <AppSidebar 
+        collapsed={sidebarCollapsed} 
+        onToggle={() => setSidebarCollapsed(!sidebarCollapsed)} 
+      />
       
-      <main className="flex-1 bg-muted/30">
-        <div className="w-full px-6 py-6">
+      {/* Main Content */}
+      <div className={cn(
+        "transition-all duration-200",
+        sidebarCollapsed ? "ml-14" : "ml-56"
+      )}>
+        {/* Header */}
+        <header className="sticky top-0 z-30 h-14 border-b bg-card/95 backdrop-blur supports-[backdrop-filter]:bg-card/60">
+          <div className="flex h-full items-center justify-end px-4">
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="sm" className="gap-2">
+                  <User className="h-4 w-4" />
+                  <span className="hidden sm:inline-block text-sm truncate max-w-[150px]">
+                    {user?.email}
+                  </span>
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-56 bg-popover">
+                <DropdownMenuLabel className="font-normal">
+                  <div className="flex flex-col space-y-1">
+                    <p className="text-sm font-medium leading-none">Account</p>
+                    <p className="text-xs text-muted-foreground truncate">
+                      {user?.email}
+                    </p>
+                  </div>
+                </DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={signOut} className="text-destructive focus:text-destructive">
+                  <LogOut className="mr-2 h-4 w-4" />
+                  Sign Out
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
+        </header>
+        
+        {/* Page Content */}
+        <main className="p-4 md:p-6">
           {children}
-        </div>
-      </main>
+        </main>
+      </div>
     </div>
   );
 };
