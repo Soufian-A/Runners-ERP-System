@@ -53,6 +53,8 @@ const navGroups: NavGroup[] = [
     icon: DollarSign,
     items: [
       { icon: Wallet, label: "Cashbox", path: "/cashbox" },
+      { icon: FileText, label: "Driver Settlements", path: "/drivers?tab=statements" },
+      { icon: FileText, label: "Client Settlements", path: "/clients?tab=statements" },
       { icon: History, label: "Transactions", path: "/transactions" },
     ],
   },
