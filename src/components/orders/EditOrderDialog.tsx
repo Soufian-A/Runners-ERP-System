@@ -38,6 +38,7 @@ interface Order {
   prepaid_by_runners?: boolean;
   prepaid_by_company?: boolean;
   driver_remit_status?: string;
+  client_fee_rule?: "ADD_ON" | "DEDUCT" | "INCLUDED";
   address: string;
   notes?: string;
   created_at: string;
@@ -47,15 +48,36 @@ interface Order {
   customer_id?: string;
 }
 
+type FeePayer = 'customer' | 'client' | 'split';
+
 interface EditOrderDialogProps {
   order: Order;
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }
 
+// Helper function to derive fee_payer from client_fee_rule
+const deriveFeePayer = (clientFeeRule?: string): FeePayer => {
+  if (clientFeeRule === 'DEDUCT') return 'client';
+  if (clientFeeRule === 'INCLUDED') return 'split';
+  return 'customer';
+};
+
+// Helper function to parse split amounts from notes
+const parseSplitAmounts = (notes?: string): { usd: string; lbp: string } => {
+  if (!notes) return { usd: '', lbp: '' };
+  const match = notes.match(/Fee split: Client \$(\d+(?:\.\d+)?) \/ LL(\d+)/);
+  if (match) {
+    return { usd: match[1], lbp: match[2] };
+  }
+  return { usd: '', lbp: '' };
+};
+
 export default function EditOrderDialog({ order, open, onOpenChange }: EditOrderDialogProps) {
   const queryClient = useQueryClient();
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  
+  const splitAmounts = parseSplitAmounts(order.notes);
   
   const [formData, setFormData] = useState({
     voucher_no: order.voucher_no || "",
@@ -71,6 +93,10 @@ export default function EditOrderDialog({ order, open, onOpenChange }: EditOrder
     // Customer fields for ecom orders
     customer_phone: "",
     customer_name: "",
+    // Fee payer fields for instant orders
+    fee_payer: deriveFeePayer(order.client_fee_rule) as FeePayer,
+    client_fee_share_usd: splitAmounts.usd,
+    client_fee_share_lbp: splitAmounts.lbp,
   });
 
   const { data: drivers = [] } = useQuery({
@@ -144,6 +170,29 @@ export default function EditOrderDialog({ order, open, onOpenChange }: EditOrder
         prepaid_by_runners: formData.prepaid_by_runners,
         prepaid_by_company: formData.prepaid_by_company,
       };
+
+      // Handle fee payer for instant orders
+      if (order.order_type === 'instant') {
+        let clientFeeRule: "ADD_ON" | "DEDUCT" | "INCLUDED" = "ADD_ON";
+        let notes = formData.notes || "";
+        
+        // Remove old fee payer info from notes
+        notes = notes.replace(/\s*\|\s*Fee: Client pays/g, '').replace(/\s*\|\s*Fee split: Client \$[\d.]+ \/ LL\d+/g, '').trim();
+        
+        if (formData.fee_payer === 'client') {
+          clientFeeRule = "DEDUCT";
+          notes = notes ? `${notes} | Fee: Client pays` : "Fee: Client pays";
+        } else if (formData.fee_payer === 'split') {
+          clientFeeRule = "INCLUDED";
+          const clientUsd = parseFloat(formData.client_fee_share_usd) || 0;
+          const clientLbp = parseFloat(formData.client_fee_share_lbp) || 0;
+          const splitInfo = `Fee split: Client $${clientUsd} / LL${clientLbp}`;
+          notes = notes ? `${notes} | ${splitInfo}` : splitInfo;
+        }
+        
+        updateData.client_fee_rule = clientFeeRule;
+        updateData.notes = notes || null;
+      }
 
       // Set delivered_at timestamp when status changes to Delivered
       if (previousStatus !== 'Delivered' && formData.status === 'Delivered') {
@@ -486,6 +535,59 @@ export default function EditOrderDialog({ order, open, onOpenChange }: EditOrder
                       })}
                     />
                     <Label htmlFor="prepaid">Cash-Based (Prepaid to Client)</Label>
+                  </div>
+                )}
+
+                {order.order_type === "instant" && (
+                  <div className="space-y-4">
+                    <div className="space-y-2">
+                      <Label>Fee Payer</Label>
+                      <Select 
+                        value={formData.fee_payer} 
+                        onValueChange={(value: FeePayer) => {
+                          setFormData({ 
+                            ...formData, 
+                            fee_payer: value,
+                            client_fee_share_usd: value !== 'split' ? '' : formData.client_fee_share_usd,
+                            client_fee_share_lbp: value !== 'split' ? '' : formData.client_fee_share_lbp,
+                          });
+                        }}
+                      >
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="customer">Customer Pays</SelectItem>
+                          <SelectItem value="client">Client Pays</SelectItem>
+                          <SelectItem value="split">Split</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    
+                    {formData.fee_payer === 'split' && (
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <Label>Client's Share (USD)</Label>
+                          <Input
+                            type="number"
+                            step="0.01"
+                            value={formData.client_fee_share_usd}
+                            onChange={(e) => setFormData({ ...formData, client_fee_share_usd: e.target.value })}
+                            placeholder="0.00"
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label>Client's Share (LBP)</Label>
+                          <Input
+                            type="number"
+                            step="1"
+                            value={formData.client_fee_share_lbp}
+                            onChange={(e) => setFormData({ ...formData, client_fee_share_lbp: e.target.value })}
+                            placeholder="0"
+                          />
+                        </div>
+                      </div>
+                    )}
                   </div>
                 )}
 

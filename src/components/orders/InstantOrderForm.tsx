@@ -10,7 +10,6 @@ import { Check, ChevronsUpDown, Plus } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { z } from "zod";
 
 // Validation schema for instant order creation
@@ -25,8 +24,6 @@ const instantOrderSchema = z.object({
   notes: z.string().max(1000, "Notes are too long").optional(),
   driver_paid_for_client: z.boolean(),
 });
-type FeePayer = 'customer' | 'client' | 'split';
-
 type NewOrderRow = {
   id: string;
   client_id: string;
@@ -38,9 +35,6 @@ type NewOrderRow = {
   delivery_fee_lbp: string;
   notes: string;
   driver_paid_for_client: boolean;
-  fee_payer: FeePayer;
-  client_fee_share_usd: string;
-  client_fee_share_lbp: string;
 };
 
 export function InstantOrderForm() {
@@ -57,9 +51,6 @@ export function InstantOrderForm() {
       delivery_fee_lbp: "",
       notes: "",
       driver_paid_for_client: false,
-      fee_payer: 'customer',
-      client_fee_share_usd: "",
-      client_fee_share_lbp: "",
     },
   ]);
 
@@ -109,9 +100,6 @@ export function InstantOrderForm() {
       delivery_fee_lbp: lastRow.delivery_fee_lbp,
       notes: "",
       driver_paid_for_client: lastRow.driver_paid_for_client,
-      fee_payer: lastRow.fee_payer,
-      client_fee_share_usd: lastRow.client_fee_share_usd,
-      client_fee_share_lbp: lastRow.client_fee_share_lbp,
     } : {
       id: `new-${Date.now()}`,
       client_id: lastRow?.client_id || "",
@@ -123,9 +111,6 @@ export function InstantOrderForm() {
       delivery_fee_lbp: lastRow?.delivery_fee_lbp || "",
       notes: "",
       driver_paid_for_client: false,
-      fee_payer: 'customer',
-      client_fee_share_usd: "",
-      client_fee_share_lbp: "",
     };
     
     setNewRows([...newRows, newRow]);
@@ -169,37 +154,7 @@ export function InstantOrderForm() {
       const timestamp = Date.now().toString().slice(-6);
       const order_id = `${prefix}-${timestamp}`;
 
-      // Determine client fee rule based on fee payer selection
-      // ADD_ON = customer pays full fee (charged separately)
-      // DEDUCT = client pays full fee (deducted from order amount)
-      // INCLUDED = fee split or client pays (fee included in order/client cost)
-      let clientFeeRule = client.client_rules?.[0]?.fee_rule || "ADD_ON";
-      
-      // Calculate client's share of delivery fee based on fee_payer selection
-      let clientFeeShareUsd = 0;
-      let clientFeeShareLbp = 0;
-      
-      if (rowData.fee_payer === 'client') {
-        // Client pays full delivery fee
-        clientFeeRule = "DEDUCT";
-        clientFeeShareUsd = validatedData.delivery_fee_usd;
-        clientFeeShareLbp = validatedData.delivery_fee_lbp;
-      } else if (rowData.fee_payer === 'split') {
-        // Split between client and customer
-        clientFeeRule = "INCLUDED";
-        clientFeeShareUsd = parseFloat(rowData.client_fee_share_usd) || 0;
-        clientFeeShareLbp = parseFloat(rowData.client_fee_share_lbp) || 0;
-      }
-      // fee_payer === 'customer' keeps the default ADD_ON (customer pays full fee)
-
-      // Build notes with fee payer info
-      let orderNotes = validatedData.notes || "";
-      if (rowData.fee_payer === 'client') {
-        orderNotes = orderNotes ? `${orderNotes} | Fee: Client pays` : "Fee: Client pays";
-      } else if (rowData.fee_payer === 'split') {
-        const splitInfo = `Fee split: Client $${clientFeeShareUsd} / LL${clientFeeShareLbp}`;
-        orderNotes = orderNotes ? `${orderNotes} | ${splitInfo}` : splitInfo;
-      }
+      const clientFeeRule = client.client_rules?.[0]?.fee_rule || "ADD_ON";
 
       const orderData: any = {
         order_id,
@@ -215,7 +170,7 @@ export function InstantOrderForm() {
         client_fee_rule: clientFeeRule,
         status: "New",
         address: validatedData.address,
-        notes: orderNotes || null,
+        notes: validatedData.notes || null,
         driver_paid_for_client: validatedData.driver_paid_for_client,
       };
 
@@ -253,9 +208,6 @@ export function InstantOrderForm() {
             delivery_fee_lbp: savedRow?.delivery_fee_lbp || "",
             notes: "",
             driver_paid_for_client: false,
-            fee_payer: savedRow?.fee_payer || 'customer',
-            client_fee_share_usd: "",
-            client_fee_share_lbp: "",
           }];
         }
         return filtered;
@@ -464,7 +416,6 @@ export function InstantOrderForm() {
               <TableHead className="w-[100px]">Amount USD</TableHead>
               <TableHead className="w-[90px]">Fee LBP</TableHead>
               <TableHead className="w-[90px]">Fee USD</TableHead>
-              <TableHead className="w-[110px]">Fee Payer</TableHead>
               <TableHead className="w-[150px]">Notes</TableHead>
               <TableHead className="w-[80px]">Driver Paid</TableHead>
               <TableHead className="w-[140px]">Actions</TableHead>
@@ -551,55 +502,11 @@ export function InstantOrderForm() {
                     />
                   </TableCell>
                   <TableCell>
-                    <div className="flex flex-col gap-1">
-                      <Select
-                        value={row.fee_payer}
-                        onValueChange={(value: FeePayer) => {
-                          updateRow(row.id, "fee_payer", value);
-                          // Reset client share when changing from split
-                          if (value !== 'split') {
-                            updateRow(row.id, "client_fee_share_usd", "");
-                            updateRow(row.id, "client_fee_share_lbp", "");
-                          }
-                        }}
-                      >
-                        <SelectTrigger className="h-8 text-xs" tabIndex={baseTabIndex + 8}>
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="customer">Customer</SelectItem>
-                          <SelectItem value="client">Client</SelectItem>
-                          <SelectItem value="split">Split</SelectItem>
-                        </SelectContent>
-                      </Select>
-                      {row.fee_payer === 'split' && (
-                        <div className="flex gap-1">
-                          <Input
-                            type="number"
-                            step="0.01"
-                            placeholder="Client $"
-                            value={row.client_fee_share_usd}
-                            onChange={(e) => updateRow(row.id, "client_fee_share_usd", e.target.value)}
-                            className="h-6 text-xs w-16 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                          />
-                          <Input
-                            type="number"
-                            step="1"
-                            placeholder="LL"
-                            value={row.client_fee_share_lbp}
-                            onChange={(e) => updateRow(row.id, "client_fee_share_lbp", e.target.value)}
-                            className="h-6 text-xs w-16 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                          />
-                        </div>
-                      )}
-                    </div>
-                  </TableCell>
-                  <TableCell>
                     <Input 
                       value={row.notes} 
                       onChange={(e) => updateRow(row.id, "notes", e.target.value)} 
                       className="h-8 text-xs"
-                      tabIndex={baseTabIndex + 9}
+                      tabIndex={baseTabIndex + 8}
                     />
                   </TableCell>
                   <TableCell>
@@ -608,7 +515,7 @@ export function InstantOrderForm() {
                         checked={row.driver_paid_for_client}
                         onCheckedChange={(checked) => updateRow(row.id, "driver_paid_for_client", checked)}
                         title="Driver paid for client"
-                        tabIndex={baseTabIndex + 10}
+                        tabIndex={baseTabIndex + 9}
                       />
                     </div>
                   </TableCell>
@@ -619,7 +526,7 @@ export function InstantOrderForm() {
                         onClick={() => createOrderMutation.mutate(row)} 
                         disabled={!row.client_id || !row.address} 
                         className="h-8 text-xs"
-                        tabIndex={baseTabIndex + 11}
+                        tabIndex={baseTabIndex + 10}
                       >
                         Save
                       </Button>
