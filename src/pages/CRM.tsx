@@ -1,5 +1,6 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useSearchParams } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import Layout from '@/components/Layout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -25,6 +26,9 @@ import {
 import { useToast } from '@/hooks/use-toast';
 
 const CRM = () => {
+  const [searchParams] = useSearchParams();
+  const tabFromUrl = searchParams.get('tab');
+  const [activeTab, setActiveTab] = useState(tabFromUrl === 'statements' ? 'statements' : 'list');
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [selectedClient, setSelectedClient] = useState<any>(null);
@@ -32,6 +36,12 @@ const CRM = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const { toast } = useToast();
   const queryClient = useQueryClient();
+
+  useEffect(() => {
+    if (tabFromUrl === 'statements') {
+      setActiveTab('statements');
+    }
+  }, [tabFromUrl]);
   
   const { data: clients, isLoading } = useQuery({
     queryKey: ['clients'],
@@ -146,7 +156,7 @@ Fee Rule: ${client.client_rules?.[0]?.fee_rule || 'N/A'}
           </Button>
         </div>
 
-        <Tabs defaultValue="list" className="w-full">
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
           <TabsList className="grid w-full grid-cols-2">
             <TabsTrigger value="list">
               <Users className="mr-2 h-4 w-4" />

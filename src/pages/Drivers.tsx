@@ -1,5 +1,6 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import { useSearchParams } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import Layout from '@/components/Layout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -13,8 +14,17 @@ import DriverCashSettlementDialog from '@/components/drivers/DriverCashSettlemen
 import { DriverStatementsTab } from '@/components/drivers/DriverStatementsTab';
 
 const Drivers = () => {
+  const [searchParams] = useSearchParams();
+  const tabFromUrl = searchParams.get('tab');
+  const [activeTab, setActiveTab] = useState(tabFromUrl === 'statements' ? 'statements' : 'list');
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [settleCashDriver, setSettleCashDriver] = useState<any>(null);
+
+  useEffect(() => {
+    if (tabFromUrl === 'statements') {
+      setActiveTab('statements');
+    }
+  }, [tabFromUrl]);
 
   const { data: drivers, isLoading } = useQuery({
     queryKey: ['drivers'],
@@ -42,7 +52,7 @@ const Drivers = () => {
           </Button>
         </div>
 
-        <Tabs defaultValue="list" className="w-full">
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
           <TabsList className="grid w-full grid-cols-2">
             <TabsTrigger value="list">
               <Truck className="mr-2 h-4 w-4" />
