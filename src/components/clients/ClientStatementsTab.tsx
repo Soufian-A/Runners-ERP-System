@@ -10,12 +10,13 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { FileText, Download, CheckCircle, Search, DollarSign, History, ArrowUpRight, ArrowDownLeft, Eye } from 'lucide-react';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
+import { FileText, Download, CheckCircle, Search, DollarSign, ChevronDown, ChevronUp, Wallet, Clock, TrendingUp, ArrowUpRight, ArrowDownLeft, Eye } from 'lucide-react';
 import { format } from 'date-fns';
 import { toast } from 'sonner';
 import { useAuth } from '@/hooks/useAuth';
 import { ClientStatementPreview } from './ClientStatementPreview';
+import { StatusBadge } from '@/components/ui/status-badge';
 
 export function ClientStatementsTab() {
   const { user } = useAuth();
@@ -34,6 +35,7 @@ export function ClientStatementsTab() {
   const [recordPaymentMode, setRecordPaymentMode] = useState(false);
   const [previewDialogOpen, setPreviewDialogOpen] = useState(false);
   const [previewStatement, setPreviewStatement] = useState<any>(null);
+  const [pendingExpanded, setPendingExpanded] = useState(true);
 
   const { data: clients } = useQuery({
     queryKey: ['clients-for-statement'],
@@ -63,19 +65,16 @@ export function ClientStatementsTab() {
     },
   });
 
-  // Get pending orders for the selected client (excluding those already in ANY statement - paid OR unpaid)
   const { data: orders, isLoading } = useQuery({
     queryKey: ['client-pending-orders', selectedClient, dateFrom, dateTo],
     queryFn: async () => {
       if (!selectedClient) return [];
 
-      // Get ALL statements for this client (both paid and unpaid) to exclude their orders
       const { data: statementsData } = await supabase
         .from('client_statements')
         .select('order_refs')
         .eq('client_id', selectedClient);
 
-      // Collect ALL order refs that are already in any statement
       const usedOrderRefs = new Set<string>();
       statementsData?.forEach(stmt => {
         if (stmt.order_refs) {
@@ -94,7 +93,6 @@ export function ClientStatementsTab() {
 
       if (error) throw error;
 
-      // Filter out orders already in ANY statement (prevents duplicate statements)
       return data?.filter(order => {
         const orderRef = order.order_type === 'ecom' ? (order.voucher_no || order.order_id) : order.order_id;
         return !usedOrderRefs.has(orderRef);
@@ -103,7 +101,6 @@ export function ClientStatementsTab() {
     enabled: !!selectedClient,
   });
 
-  // Get statement history for the selected client
   const { data: statementHistory, isLoading: loadingHistory } = useQuery({
     queryKey: ['client-statements-history', selectedClient],
     queryFn: async () => {
@@ -122,7 +119,6 @@ export function ClientStatementsTab() {
     },
   });
 
-  // Fetch orders for a specific statement (for preview of issued statements)
   const { data: statementOrders } = useQuery({
     queryKey: ['statement-orders', previewStatement?.id],
     queryFn: async () => {
@@ -208,9 +204,9 @@ export function ClientStatementsTab() {
   const totals = calculateTotals();
   const selectedClientData = clients?.find(c => c.id === selectedClient);
   const clientBalance = clientBalances?.get(selectedClient) || { usd: 0, lbp: 0 };
-  
-  // Positive balance = we owe client, Negative balance = client owes us
   const weOweClient = clientBalance.usd > 0 || clientBalance.lbp > 0;
+  const unpaidStatements = statementHistory?.filter(s => s.status === 'unpaid')?.length || 0;
+  const totalPending = orders?.length || 0;
 
   const issueStatementMutation = useMutation({
     mutationFn: async () => {
@@ -261,12 +257,8 @@ export function ClientStatementsTab() {
       
       if (amountUsd === 0 && amountLbp === 0) throw new Error('Enter a payment amount');
 
-      // Determine payment direction based on current balance
-      // If we owe client (positive balance), we pay them (cash out)
-      // If client owes us (negative balance), they pay us (cash in)
       const isPayingClient = weOweClient;
 
-      // Update cashbox
       const today = new Date().toISOString().split('T')[0];
       const { data: existingCashbox } = await supabase
         .from('cashbox_daily')
@@ -296,7 +288,6 @@ export function ClientStatementsTab() {
         });
       }
 
-      // Record client transaction
       await supabase.from('client_transactions').insert({
         client_id: selectedClient,
         type: isPayingClient ? 'Debit' : 'Credit',
@@ -305,7 +296,6 @@ export function ClientStatementsTab() {
         note: `Payment ${isPayingClient ? 'to' : 'from'} client - ${paymentMethod}`,
       });
 
-      // If there's a selected statement, mark it as paid and update related orders
       if (selectedStatement) {
         await supabase.from('client_statements').update({
           status: 'paid',
@@ -314,8 +304,6 @@ export function ClientStatementsTab() {
           notes: paymentNotes || null,
         }).eq('id', selectedStatement.id);
 
-        // Update orders in this statement to mark them as settled
-        // This updates driver_remit_status to 'Collected' for tracking
         if (selectedStatement.order_refs?.length) {
           await supabase.from('orders')
             .update({ driver_remit_status: 'Collected' })
@@ -360,200 +348,222 @@ export function ClientStatementsTab() {
 
   return (
     <div className="space-y-4">
-      <Tabs defaultValue="issue" className="w-full">
-        <TabsList className="grid w-full grid-cols-2">
-          <TabsTrigger value="issue">Issue Statement</TabsTrigger>
-          <TabsTrigger value="history">
-            <History className="mr-2 h-4 w-4" />
-            Statement History
-          </TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="issue" className="space-y-4">
-          {/* Filters */}
-          <Card>
-            <CardContent className="pt-4">
-              <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
-                <div className="space-y-2">
-                  <Label>Client</Label>
-                  <Select value={selectedClient} onValueChange={setSelectedClient}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select client..." />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {clients?.map((client) => {
-                        const bal = clientBalances?.get(client.id) || { usd: 0, lbp: 0 };
-                        return (
-                          <SelectItem key={client.id} value={client.id}>
-                            {client.name} (${bal.usd.toFixed(2)})
-                          </SelectItem>
-                        );
-                      })}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label>From Date</Label>
-                  <Input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} />
-                </div>
-                <div className="space-y-2">
-                  <Label>To Date</Label>
-                  <Input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} />
-                </div>
-                <div className="space-y-2">
-                  <Label>Search</Label>
-                  <div className="relative">
-                    <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                    <Input
-                      placeholder="Search orders..."
-                      value={searchTerm}
-                      onChange={(e) => setSearchTerm(e.target.value)}
-                      className="pl-10"
-                    />
-                  </div>
-                </div>
-                <div className="space-y-2">
-                  <Label>Actions</Label>
-                  <Button 
-                    variant="outline" 
-                    className="w-full"
-                    onClick={() => openPaymentDialog()}
-                    disabled={!selectedClient}
-                  >
-                    <DollarSign className="mr-2 h-4 w-4" />
-                    {weOweClient ? 'Pay Client' : 'Receive Payment'}
-                  </Button>
-                </div>
+      {/* Filter Bar */}
+      <Card className="border-sidebar-border bg-sidebar/50">
+        <CardContent className="pt-4 pb-3">
+          <div className="grid grid-cols-1 md:grid-cols-6 gap-3">
+            <div className="md:col-span-2">
+              <Label className="text-xs text-muted-foreground mb-1 block">Client</Label>
+              <Select value={selectedClient} onValueChange={setSelectedClient}>
+                <SelectTrigger className="h-9">
+                  <SelectValue placeholder="Select client..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {clients?.map((client) => {
+                    const bal = clientBalances?.get(client.id) || { usd: 0, lbp: 0 };
+                    return (
+                      <SelectItem key={client.id} value={client.id}>
+                        <span className="flex items-center gap-2">
+                          {client.name}
+                          <span className={`text-xs font-mono ${bal.usd < 0 ? 'text-status-error' : 'text-status-success'}`}>
+                            ${bal.usd.toFixed(2)}
+                          </span>
+                        </span>
+                      </SelectItem>
+                    );
+                  })}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label className="text-xs text-muted-foreground mb-1 block">From</Label>
+              <Input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} className="h-9" />
+            </div>
+            <div>
+              <Label className="text-xs text-muted-foreground mb-1 block">To</Label>
+              <Input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} className="h-9" />
+            </div>
+            <div>
+              <Label className="text-xs text-muted-foreground mb-1 block">Search</Label>
+              <div className="relative">
+                <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  placeholder="Search..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="pl-8 h-9"
+                />
               </div>
+            </div>
+            <div>
+              <Label className="text-xs text-muted-foreground mb-1 block">Actions</Label>
+              <Button 
+                variant="outline" 
+                className="w-full h-9 text-xs"
+                onClick={() => openPaymentDialog()}
+                disabled={!selectedClient}
+              >
+                <DollarSign className="mr-1.5 h-3.5 w-3.5" />
+                {weOweClient ? 'Pay Client' : 'Receive'}
+              </Button>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
 
-              {/* Client Balance Summary */}
-              {selectedClient && (
-                <div className="mt-4 p-3 bg-muted rounded-lg flex items-center justify-between">
-                  <div className="flex items-center gap-4">
-                    <span className="text-sm font-medium">{selectedClientData?.name} Balance:</span>
-                    <span className={`font-bold ${clientBalance.usd < 0 ? 'text-red-600' : 'text-green-600'}`}>
-                      ${Math.abs(clientBalance.usd).toFixed(2)} USD / {Math.abs(clientBalance.lbp).toLocaleString()} LL
-                    </span>
-                    <Badge variant={weOweClient ? 'default' : 'destructive'}>
-                      {weOweClient ? (
-                        <><ArrowUpRight className="mr-1 h-3 w-3" />We Owe Client</>
-                      ) : (
-                        <><ArrowDownLeft className="mr-1 h-3 w-3" />Client Owes Us</>
-                      )}
-                    </Badge>
-                  </div>
-                </div>
-              )}
+      {/* Summary Cards */}
+      {selectedClient && (
+        <div className="grid grid-cols-5 gap-3">
+          <Card className="border-sidebar-border">
+            <CardContent className="p-3">
+              <div className="flex items-center gap-2">
+                <Wallet className="h-4 w-4 text-muted-foreground" />
+                <span className="text-xs text-muted-foreground">Balance</span>
+              </div>
+              <p className={`text-lg font-bold font-mono mt-1 ${clientBalance.usd < 0 ? 'text-status-error' : 'text-status-success'}`}>
+                ${Math.abs(clientBalance.usd).toFixed(2)}
+              </p>
+              <Badge variant="outline" className={`text-xs mt-1 ${weOweClient ? 'border-status-success text-status-success' : 'border-status-error text-status-error'}`}>
+                {weOweClient ? (
+                  <><ArrowUpRight className="mr-0.5 h-3 w-3" />We Owe</>
+                ) : (
+                  <><ArrowDownLeft className="mr-0.5 h-3 w-3" />They Owe</>
+                )}
+              </Badge>
             </CardContent>
           </Card>
+          <Card className="border-sidebar-border">
+            <CardContent className="p-3">
+              <div className="flex items-center gap-2">
+                <Clock className="h-4 w-4 text-muted-foreground" />
+                <span className="text-xs text-muted-foreground">Pending Orders</span>
+              </div>
+              <p className="text-lg font-bold font-mono mt-1">{totalPending}</p>
+            </CardContent>
+          </Card>
+          <Card className="border-sidebar-border">
+            <CardContent className="p-3">
+              <div className="flex items-center gap-2">
+                <FileText className="h-4 w-4 text-muted-foreground" />
+                <span className="text-xs text-muted-foreground">Unpaid Statements</span>
+              </div>
+              <p className={`text-lg font-bold font-mono mt-1 ${unpaidStatements > 0 ? 'text-status-warning' : ''}`}>
+                {unpaidStatements}
+              </p>
+            </CardContent>
+          </Card>
+          <Card className="border-sidebar-border">
+            <CardContent className="p-3">
+              <div className="flex items-center gap-2">
+                <TrendingUp className="h-4 w-4 text-muted-foreground" />
+                <span className="text-xs text-muted-foreground">Selected Orders</span>
+              </div>
+              <p className="text-lg font-bold font-mono mt-1">{selectedOrders.length}</p>
+            </CardContent>
+          </Card>
+          <Card className="border-sidebar-border">
+            <CardContent className="p-3">
+              <div className="flex items-center gap-2">
+                <DollarSign className="h-4 w-4 text-muted-foreground" />
+                <span className="text-xs text-muted-foreground">Selected Total</span>
+              </div>
+              <p className="text-lg font-bold font-mono mt-1 text-status-success">
+                ${totals.totalDueToClientUsd.toFixed(2)}
+              </p>
+            </CardContent>
+          </Card>
+        </div>
+      )}
 
-          {/* Orders Table */}
-          {selectedClient && (
-            <Card>
-              <CardHeader className="py-3">
+      {/* Pending Orders Section */}
+      {selectedClient && (
+        <Collapsible open={pendingExpanded} onOpenChange={setPendingExpanded}>
+          <Card className="border-sidebar-border">
+            <CollapsibleTrigger asChild>
+              <CardHeader className="py-2 px-4 cursor-pointer hover:bg-muted/50 transition-colors">
                 <div className="flex items-center justify-between">
-                  <CardTitle className="text-lg">
-                    Unpaid Orders - {selectedClientData?.name}
+                  <CardTitle className="text-sm font-medium flex items-center gap-2">
+                    {pendingExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                    Pending Orders ({filteredOrders.length})
                   </CardTitle>
-                  <div className="flex items-center gap-4">
-                    <Button variant="outline" size="sm" onClick={handleSelectAll}>
-                      {selectedOrders.length === filteredOrders.length ? 'Deselect All' : 'Select All'}
+                  <div className="flex items-center gap-3">
+                    {selectedOrders.length > 0 && (
+                      <span className="text-xs bg-primary/10 text-primary px-2 py-0.5 rounded">
+                        {selectedOrders.length} selected
+                      </span>
+                    )}
+                    <Button variant="ghost" size="sm" onClick={(e) => { e.stopPropagation(); handleSelectAll(); }}>
+                      {selectedOrders.length === filteredOrders.length ? 'Clear' : 'Select All'}
                     </Button>
-                    <span className="text-sm text-muted-foreground">{selectedOrders.length} selected</span>
                   </div>
                 </div>
               </CardHeader>
+            </CollapsibleTrigger>
+            <CollapsibleContent>
               <CardContent className="p-0">
                 {isLoading ? (
-                  <p className="text-center py-8 text-muted-foreground">Loading...</p>
+                  <p className="text-center py-6 text-muted-foreground text-sm">Loading...</p>
                 ) : filteredOrders.length > 0 ? (
-                  <div className="overflow-x-auto">
+                  <div className="overflow-x-auto max-h-[300px] overflow-y-auto">
                     <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead className="w-10"></TableHead>
-                          <TableHead>Date</TableHead>
-                          <TableHead>Order ID</TableHead>
-                          <TableHead>Type</TableHead>
-                          <TableHead>Notes</TableHead>
-                          <TableHead>Order Amount</TableHead>
-                          <TableHead>Driver Paid</TableHead>
-                          <TableHead>Delivery Fee</TableHead>
-                          <TableHead>Due Amount</TableHead>
+                      <TableHeader className="sticky top-0 bg-background">
+                        <TableRow className="text-xs">
+                          <TableHead className="w-8 py-2"></TableHead>
+                          <TableHead className="py-2">Date</TableHead>
+                          <TableHead className="py-2">Order</TableHead>
+                          <TableHead className="py-2">Type</TableHead>
+                          <TableHead className="py-2 text-right">Order Amt</TableHead>
+                          <TableHead className="py-2 text-center">Driver Paid</TableHead>
+                          <TableHead className="py-2 text-right">Fee</TableHead>
+                          <TableHead className="py-2 text-right">Due</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
                         {filteredOrders.map((order) => {
                           let dueToClientUsd = 0;
-                          let dueToClientLbp = 0;
-                          
                           const orderAmountUsd = Number(order.order_amount_usd || 0);
-                          const orderAmountLbp = Number(order.order_amount_lbp || 0);
                           const feeUsd = Number(order.delivery_fee_usd || 0);
-                          const feeLbp = Number(order.delivery_fee_lbp || 0);
                           
                           if (order.order_type === 'instant') {
                             if (order.driver_paid_for_client) {
-                              // Driver paid: client owes order + fee
                               dueToClientUsd = orderAmountUsd + feeUsd;
-                              dueToClientLbp = orderAmountLbp + feeLbp;
                             } else {
-                              // Regular delivery: client only owes order amount
                               dueToClientUsd = orderAmountUsd;
-                              dueToClientLbp = orderAmountLbp;
                             }
                           } else {
                             dueToClientUsd = Number(order.amount_due_to_client_usd || 0);
-                            dueToClientLbp = 0;
                           }
 
                           return (
-                            <TableRow key={order.id} className="h-10">
+                            <TableRow key={order.id} className="h-8 text-xs">
                               <TableCell className="py-1">
                                 <Checkbox
                                   checked={selectedOrders.includes(order.id)}
                                   onCheckedChange={() => handleToggleOrder(order.id)}
                                 />
                               </TableCell>
-                              <TableCell className="py-1 text-xs">
+                              <TableCell className="py-1 text-muted-foreground">
                                 {format(new Date(order.created_at), 'MMM dd')}
                               </TableCell>
-                              <TableCell className="py-1 text-xs font-mono">
+                              <TableCell className="py-1 font-mono">
                                 {order.order_type === 'ecom' ? (order.voucher_no || order.order_id) : order.order_id}
                               </TableCell>
                               <TableCell className="py-1">
-                                <Badge variant="outline" className="text-xs">{order.order_type}</Badge>
+                                <Badge variant="outline" className="text-[10px] px-1 py-0">{order.order_type}</Badge>
                               </TableCell>
-                              <TableCell className="py-1 text-xs max-w-[150px] truncate" title={order.notes || ''}>
-                                {order.notes || '-'}
+                              <TableCell className="py-1 text-right font-mono">
+                                ${orderAmountUsd.toFixed(2)}
                               </TableCell>
-                              <TableCell className="py-1 text-xs">
-                                {orderAmountUsd > 0 && <span>${orderAmountUsd.toFixed(2)}</span>}
-                                {orderAmountUsd > 0 && orderAmountLbp > 0 && ' / '}
-                                {orderAmountLbp > 0 && <span>{orderAmountLbp.toLocaleString()} LL</span>}
-                                {orderAmountUsd === 0 && orderAmountLbp === 0 && '-'}
-                              </TableCell>
-                              <TableCell className="py-1 text-xs">
+                              <TableCell className="py-1 text-center">
                                 {order.driver_paid_for_client ? (
-                                  <Badge variant="outline" className="text-xs text-blue-600">Yes</Badge>
+                                  <Badge variant="outline" className="text-[10px] px-1 py-0 text-status-info">Yes</Badge>
                                 ) : '-'}
                               </TableCell>
-                              <TableCell className="py-1 text-xs">
-                                {/* Only show fee for driver-paid orders */}
-                                {order.driver_paid_for_client ? (
-                                  <>
-                                    {feeUsd > 0 && <span>${feeUsd.toFixed(2)}</span>}
-                                    {feeUsd > 0 && feeLbp > 0 && ' / '}
-                                    {feeLbp > 0 && <span>{feeLbp.toLocaleString()} LL</span>}
-                                    {feeUsd === 0 && feeLbp === 0 && '-'}
-                                  </>
-                                ) : '-'}
+                              <TableCell className="py-1 text-right font-mono">
+                                {order.driver_paid_for_client ? `$${feeUsd.toFixed(2)}` : '-'}
                               </TableCell>
-                              <TableCell className="py-1 text-xs font-semibold">
-                                {dueToClientUsd > 0 && <span>${dueToClientUsd.toFixed(2)}</span>}
-                                {dueToClientUsd > 0 && dueToClientLbp > 0 && ' / '}
-                                {dueToClientLbp > 0 && <span>{dueToClientLbp.toLocaleString()} LL</span>}
-                                {dueToClientUsd === 0 && dueToClientLbp === 0 && '-'}
+                              <TableCell className="py-1 text-right font-mono font-semibold">
+                                ${dueToClientUsd.toFixed(2)}
                               </TableCell>
                             </TableRow>
                           );
@@ -562,155 +572,150 @@ export function ClientStatementsTab() {
                     </Table>
                   </div>
                 ) : (
-                  <p className="text-center py-8 text-muted-foreground">No unpaid orders found.</p>
+                  <p className="text-center py-6 text-muted-foreground text-sm">No pending orders in this period.</p>
                 )}
 
-                {/* Summary & Actions */}
+                {/* Action Bar */}
                 {selectedOrders.length > 0 && (
-                  <div className="border-t p-4 bg-muted/50">
-                    <div className="flex items-center justify-between">
-                      <div className="grid grid-cols-3 gap-6 text-sm">
-                        <div>
-                          <span className="text-muted-foreground">Orders:</span>
-                          <p className="font-semibold">{totals.totalOrders}</p>
-                        </div>
-                        <div>
-                          <span className="text-muted-foreground">Order Amount:</span>
-                          <p className="font-semibold">
-                            {totals.totalOrderAmountUsd > 0 && `$${totals.totalOrderAmountUsd.toFixed(2)}`}
-                            {totals.totalOrderAmountUsd > 0 && totals.totalOrderAmountLbp > 0 && ' / '}
-                            {totals.totalOrderAmountLbp > 0 && `${totals.totalOrderAmountLbp.toLocaleString()} LL`}
-                            {totals.totalOrderAmountUsd === 0 && totals.totalOrderAmountLbp === 0 && '$0.00'}
-                          </p>
-                        </div>
-                        <div>
-                          <span className="text-muted-foreground">Net Due:</span>
-                          <p className="font-bold text-lg">
-                            {totals.totalDueToClientUsd > 0 && `$${totals.totalDueToClientUsd.toFixed(2)}`}
-                            {totals.totalDueToClientUsd > 0 && totals.totalDueToClientLbp > 0 && ' / '}
-                            {totals.totalDueToClientLbp > 0 && `${totals.totalDueToClientLbp.toLocaleString()} LL`}
-                            {totals.totalDueToClientUsd === 0 && totals.totalDueToClientLbp === 0 && '$0.00'}
-                          </p>
-                        </div>
+                  <div className="border-t bg-muted/30 p-3 flex items-center justify-between">
+                    <div className="flex items-center gap-6 text-xs">
+                      <div>
+                        <span className="text-muted-foreground">Orders: </span>
+                        <span className="font-semibold">{totals.totalOrders}</span>
                       </div>
-                      <div className="flex gap-2">
-                        <Button variant="outline" onClick={() => setPreviewDialogOpen(true)}>
-                          <Eye className="mr-2 h-4 w-4" />
-                          Preview / Export
-                        </Button>
-                        <Button onClick={() => issueStatementMutation.mutate()} disabled={issueStatementMutation.isPending}>
-                          <FileText className="mr-2 h-4 w-4" />
-                          {issueStatementMutation.isPending ? 'Processing...' : 'Issue Statement'}
-                        </Button>
+                      <div>
+                        <span className="text-muted-foreground">Order Amt: </span>
+                        <span className="font-mono font-semibold">${totals.totalOrderAmountUsd.toFixed(2)}</span>
                       </div>
+                      <div className="border-l pl-6">
+                        <span className="text-muted-foreground">Net Due: </span>
+                        <span className="font-mono font-bold text-base">${totals.totalDueToClientUsd.toFixed(2)}</span>
+                      </div>
+                    </div>
+                    <div className="flex gap-2">
+                      <Button variant="outline" size="sm" onClick={() => setPreviewDialogOpen(true)}>
+                        <Eye className="mr-1.5 h-3.5 w-3.5" />
+                        Preview
+                      </Button>
+                      <Button size="sm" onClick={() => issueStatementMutation.mutate()} disabled={issueStatementMutation.isPending}>
+                        <FileText className="mr-1.5 h-3.5 w-3.5" />
+                        {issueStatementMutation.isPending ? 'Processing...' : 'Issue Statement'}
+                      </Button>
                     </div>
                   </div>
                 )}
               </CardContent>
-            </Card>
-          )}
-        </TabsContent>
-
-        <TabsContent value="history">
-          <Card>
-            <CardHeader className="py-3">
-              <CardTitle className="text-lg">Statement History</CardTitle>
-            </CardHeader>
-            <CardContent className="p-0">
-              {loadingHistory ? (
-                <p className="text-center py-8 text-muted-foreground">Loading...</p>
-              ) : statementHistory && statementHistory.length > 0 ? (
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Statement ID</TableHead>
-                      <TableHead>Client</TableHead>
-                      <TableHead>Period</TableHead>
-                      <TableHead>Net Due USD</TableHead>
-                      <TableHead>Net Due LBP</TableHead>
-                      <TableHead>Orders</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead>Issued</TableHead>
-                      <TableHead>Actions</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {statementHistory.map((statement) => (
-                      <TableRow key={statement.id}>
-                        <TableCell className="font-mono text-sm">{statement.statement_id}</TableCell>
-                        <TableCell>{statement.clients?.name}</TableCell>
-                        <TableCell className="text-xs">
-                          {format(new Date(statement.period_from), 'MMM dd')} - {format(new Date(statement.period_to), 'MMM dd')}
-                        </TableCell>
-                        <TableCell className="font-semibold">${Number(statement.net_due_usd).toFixed(2)}</TableCell>
-                        <TableCell className="font-semibold">{Number(statement.net_due_lbp).toLocaleString()} LL</TableCell>
-                        <TableCell>{statement.order_refs?.length || 0}</TableCell>
-                        <TableCell>
-                          <Badge variant={statement.status === 'paid' ? 'default' : 'secondary'}>
-                            {statement.status}
-                          </Badge>
-                        </TableCell>
-                        <TableCell className="text-xs">{format(new Date(statement.issued_date), 'MMM dd, yyyy')}</TableCell>
-                        <TableCell>
-                          <div className="flex gap-2">
-                            <Button 
-                              variant="outline" 
-                              size="sm"
-                              onClick={() => {
-                                setPreviewStatement(statement);
-                                setPreviewDialogOpen(true);
-                              }}
-                            >
-                              <Eye className="mr-1 h-3 w-3" />
-                              Preview
-                            </Button>
-                            {statement.status === 'unpaid' && (
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => openPaymentDialog(statement)}
-                              >
-                                <DollarSign className="mr-1 h-3 w-3" />
-                                Pay
-                              </Button>
-                            )}
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              ) : (
-                <p className="text-center py-8 text-muted-foreground">No statements found.</p>
-              )}
-            </CardContent>
+            </CollapsibleContent>
           </Card>
-        </TabsContent>
-      </Tabs>
+        </Collapsible>
+      )}
+
+      {/* Statement History */}
+      <Card className="border-sidebar-border">
+        <CardHeader className="py-2 px-4">
+          <CardTitle className="text-sm font-medium">Statement History</CardTitle>
+        </CardHeader>
+        <CardContent className="p-0">
+          {loadingHistory ? (
+            <p className="text-center py-6 text-muted-foreground text-sm">Loading...</p>
+          ) : statementHistory && statementHistory.length > 0 ? (
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow className="text-xs">
+                    <TableHead className="py-2">ID</TableHead>
+                    {!selectedClient && <TableHead className="py-2">Client</TableHead>}
+                    <TableHead className="py-2">Period</TableHead>
+                    <TableHead className="py-2 text-right">Net Due</TableHead>
+                    <TableHead className="py-2 text-center">Orders</TableHead>
+                    <TableHead className="py-2 text-center">Status</TableHead>
+                    <TableHead className="py-2">Issued</TableHead>
+                    <TableHead className="py-2 text-right">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {statementHistory.map((statement) => (
+                    <TableRow key={statement.id} className="h-9 text-xs">
+                      <TableCell className="py-1 font-mono">{statement.statement_id}</TableCell>
+                      {!selectedClient && <TableCell className="py-1">{statement.clients?.name}</TableCell>}
+                      <TableCell className="py-1 text-muted-foreground">
+                        {format(new Date(statement.period_from), 'MMM dd')} - {format(new Date(statement.period_to), 'MMM dd')}
+                      </TableCell>
+                      <TableCell className="py-1 text-right font-mono font-semibold">
+                        ${Number(statement.net_due_usd).toFixed(2)}
+                      </TableCell>
+                      <TableCell className="py-1 text-center">{statement.order_refs?.length || 0}</TableCell>
+                      <TableCell className="py-1 text-center">
+                        <StatusBadge status={statement.status} type="statement" />
+                      </TableCell>
+                      <TableCell className="py-1 text-muted-foreground">
+                        {format(new Date(statement.issued_date), 'MMM dd, yyyy')}
+                      </TableCell>
+                      <TableCell className="py-1 text-right">
+                        <div className="flex justify-end gap-1">
+                          <Button 
+                            variant="ghost" 
+                            size="sm"
+                            className="h-7 w-7 p-0"
+                            onClick={() => {
+                              setPreviewStatement(statement);
+                              setPreviewDialogOpen(true);
+                            }}
+                          >
+                            <Eye className="h-3 w-3" />
+                          </Button>
+                          {statement.status === 'unpaid' && (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="h-7 text-xs"
+                              onClick={() => openPaymentDialog(statement)}
+                            >
+                              <DollarSign className="mr-1 h-3 w-3" />
+                              Pay
+                            </Button>
+                          )}
+                          <Button variant="ghost" size="sm" className="h-7 w-7 p-0">
+                            <Download className="h-3 w-3" />
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          ) : (
+            <p className="text-center py-6 text-muted-foreground text-sm">
+              {selectedClient ? 'No statements found for this client.' : 'Select a client to view history, or view all statements.'}
+            </p>
+          )}
+        </CardContent>
+      </Card>
 
       {/* Payment Dialog */}
       <Dialog open={paymentDialogOpen} onOpenChange={setPaymentDialogOpen}>
-        <DialogContent>
+        <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>
-              {weOweClient ? 'Pay Client' : 'Receive Payment from Client'}
+              {weOweClient ? 'Pay Client' : 'Receive Payment'}
             </DialogTitle>
             <DialogDescription>
               {selectedStatement ? (
-                <>
-                  Statement: <span className="font-mono">{selectedStatement.statement_id}</span>
+                <span className="block mt-1">
+                  Statement <span className="font-mono font-medium">{selectedStatement.statement_id}</span>
                   <br />
-                  Amount Due: ${Math.abs(selectedStatement.net_due_usd || 0).toFixed(2)}
-                </>
+                  Amount: <span className="font-mono font-semibold">${Math.abs(selectedStatement.net_due_usd || 0).toFixed(2)}</span>
+                </span>
               ) : (
-                <>Client: {selectedClientData?.name}</>
+                <span className="block mt-1">Client: {selectedClientData?.name}</span>
               )}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label>Amount USD</Label>
+                <Label className="text-sm">Amount USD</Label>
                 <Input
                   type="number"
                   value={paymentAmountUsd}
@@ -719,7 +724,7 @@ export function ClientStatementsTab() {
                 />
               </div>
               <div className="space-y-2">
-                <Label>Amount LBP</Label>
+                <Label className="text-sm">Amount LBP</Label>
                 <Input
                   type="number"
                   value={paymentAmountLbp}
@@ -729,7 +734,7 @@ export function ClientStatementsTab() {
               </div>
             </div>
             <div className="space-y-2">
-              <Label>Payment Method</Label>
+              <Label className="text-sm">Payment Method</Label>
               <Select value={paymentMethod} onValueChange={setPaymentMethod}>
                 <SelectTrigger>
                   <SelectValue />
@@ -742,7 +747,7 @@ export function ClientStatementsTab() {
               </Select>
             </div>
             <div className="space-y-2">
-              <Label>Notes (Optional)</Label>
+              <Label className="text-sm">Notes (Optional)</Label>
               <Input value={paymentNotes} onChange={(e) => setPaymentNotes(e.target.value)} placeholder="Add notes..." />
             </div>
           </div>
@@ -750,7 +755,7 @@ export function ClientStatementsTab() {
             <Button variant="outline" onClick={() => setPaymentDialogOpen(false)}>Cancel</Button>
             <Button onClick={() => recordPaymentMutation.mutate()} disabled={recordPaymentMutation.isPending}>
               <CheckCircle className="mr-2 h-4 w-4" />
-              {recordPaymentMutation.isPending ? 'Processing...' : 'Confirm Payment'}
+              {recordPaymentMutation.isPending ? 'Processing...' : 'Confirm'}
             </Button>
           </DialogFooter>
         </DialogContent>

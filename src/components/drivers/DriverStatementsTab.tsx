@@ -7,14 +7,14 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { FileText, Download, CheckCircle, Search, DollarSign, History } from 'lucide-react';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
+import { FileText, Download, CheckCircle, Search, DollarSign, ChevronDown, ChevronUp, Wallet, Clock, TrendingUp } from 'lucide-react';
 import { format } from 'date-fns';
 import { toast } from 'sonner';
 import { useAuth } from '@/hooks/useAuth';
+import { StatusBadge } from '@/components/ui/status-badge';
 
 export function DriverStatementsTab() {
   const { user } = useAuth();
@@ -29,6 +29,7 @@ export function DriverStatementsTab() {
   const [paymentMethod, setPaymentMethod] = useState('cash');
   const [paymentNotes, setPaymentNotes] = useState('');
   const [collectCash, setCollectCash] = useState(true);
+  const [pendingExpanded, setPendingExpanded] = useState(true);
 
   const { data: drivers } = useQuery({
     queryKey: ['drivers-for-statement'],
@@ -39,19 +40,16 @@ export function DriverStatementsTab() {
     },
   });
 
-  // Get pending orders for the selected driver (excluding those already in ANY statement)
   const { data: orders, isLoading } = useQuery({
     queryKey: ['driver-pending-orders', selectedDriver, dateFrom, dateTo],
     queryFn: async () => {
       if (!selectedDriver) return [];
 
-      // Get ALL statements for this driver to exclude their orders (prevents duplicate statements)
       const { data: statementsData } = await supabase
         .from('driver_statements')
         .select('order_refs')
         .eq('driver_id', selectedDriver);
 
-      // Collect ALL order refs that are already in any statement
       const usedOrderRefs = new Set<string>();
       statementsData?.forEach(stmt => {
         if (stmt.order_refs) {
@@ -69,30 +67,28 @@ export function DriverStatementsTab() {
         .order('delivered_at', { ascending: false });
 
       if (error) throw error;
-      // Filter out orders already in ANY statement (prevents duplicate statements)
       return data?.filter(order => !usedOrderRefs.has(order.order_id)) || [];
     },
     enabled: !!selectedDriver,
   });
 
-  // Get statement history - show all statements, optionally filtered by driver
   const { data: statementHistory, isLoading: loadingHistory } = useQuery({
-    queryKey: ['driver-statements-history'],
+    queryKey: ['driver-statements-history', selectedDriver],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const query = supabase
         .from('driver_statements')
         .select(`*, drivers(name)`)
         .order('issued_date', { ascending: false });
       
+      if (selectedDriver) {
+        query.eq('driver_id', selectedDriver);
+      }
+      
+      const { data, error } = await query;
       if (error) throw error;
       return data;
     },
   });
-
-  // Filter history by selected driver if one is selected
-  const filteredHistory = selectedDriver 
-    ? statementHistory?.filter(s => s.driver_id === selectedDriver) 
-    : statementHistory;
 
   const filteredOrders = orders?.filter(order => {
     if (!searchTerm) return true;
@@ -153,7 +149,6 @@ export function DriverStatementsTab() {
       const { data: statementIdData, error: idError } = await supabase.rpc('generate_driver_statement_id');
       if (idError) throw idError;
 
-      // Insert statement
       const { error: insertError } = await supabase.from('driver_statements').insert({
         driver_id: selectedDriver,
         statement_id: statementIdData,
@@ -176,9 +171,7 @@ export function DriverStatementsTab() {
 
       if (insertError) throw insertError;
 
-      // If collecting cash, also update order remit status and handle cashbox
       if (collectCash) {
-        // Update orders remit status
         for (const order of selectedOrdersData) {
           await supabase.from('orders').update({
             driver_remit_status: 'Collected',
@@ -186,7 +179,6 @@ export function DriverStatementsTab() {
           }).eq('id', order.id);
         }
 
-        // Update cashbox
         const today = new Date().toISOString().split('T')[0];
         const { data: existingCashbox } = await supabase
           .from('cashbox_daily')
@@ -207,7 +199,6 @@ export function DriverStatementsTab() {
           });
         }
 
-        // Debit driver wallet
         const driver = drivers?.find(d => d.id === selectedDriver);
         if (driver) {
           await supabase.from('drivers').update({
@@ -215,7 +206,6 @@ export function DriverStatementsTab() {
             wallet_lbp: Number(driver.wallet_lbp || 0) - netDueLbp,
           }).eq('id', selectedDriver);
 
-          // Record driver transaction
           await supabase.from('driver_transactions').insert({
             driver_id: selectedDriver,
             type: 'Debit',
@@ -267,120 +257,172 @@ export function DriverStatementsTab() {
   });
 
   const selectedDriverData = drivers?.find(d => d.id === selectedDriver);
+  const unpaidStatements = statementHistory?.filter(s => s.status === 'unpaid')?.length || 0;
+  const totalPending = orders?.length || 0;
 
   return (
     <div className="space-y-4">
-      <Tabs defaultValue="issue" className="w-full">
-        <TabsList className="grid w-full grid-cols-2">
-          <TabsTrigger value="issue">Issue Statement</TabsTrigger>
-          <TabsTrigger value="history">
-            <History className="mr-2 h-4 w-4" />
-            Statement History
-          </TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="issue" className="space-y-4">
-          {/* Filters */}
-          <Card>
-            <CardContent className="pt-4">
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                <div className="space-y-2">
-                  <Label>Driver</Label>
-                  <Select value={selectedDriver} onValueChange={setSelectedDriver}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select driver..." />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {drivers?.map((driver) => (
-                        <SelectItem key={driver.id} value={driver.id}>
-                          {driver.name} (${Number(driver.wallet_usd || 0).toFixed(2)})
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label>From Date</Label>
-                  <Input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} />
-                </div>
-                <div className="space-y-2">
-                  <Label>To Date</Label>
-                  <Input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} />
-                </div>
-                <div className="space-y-2">
-                  <Label>Search</Label>
-                  <div className="relative">
-                    <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                    <Input
-                      placeholder="Search orders..."
-                      value={searchTerm}
-                      onChange={(e) => setSearchTerm(e.target.value)}
-                      className="pl-10"
-                    />
-                  </div>
-                </div>
+      {/* Filter Bar */}
+      <Card className="border-sidebar-border bg-sidebar/50">
+        <CardContent className="pt-4 pb-3">
+          <div className="grid grid-cols-1 md:grid-cols-5 gap-3">
+            <div className="md:col-span-2">
+              <Label className="text-xs text-muted-foreground mb-1 block">Driver</Label>
+              <Select value={selectedDriver} onValueChange={setSelectedDriver}>
+                <SelectTrigger className="h-9">
+                  <SelectValue placeholder="Select driver..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {drivers?.map((driver) => (
+                    <SelectItem key={driver.id} value={driver.id}>
+                      <span className="flex items-center gap-2">
+                        {driver.name}
+                        <span className="text-xs text-muted-foreground font-mono">
+                          ${Number(driver.wallet_usd || 0).toFixed(2)}
+                        </span>
+                      </span>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label className="text-xs text-muted-foreground mb-1 block">From</Label>
+              <Input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} className="h-9" />
+            </div>
+            <div>
+              <Label className="text-xs text-muted-foreground mb-1 block">To</Label>
+              <Input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} className="h-9" />
+            </div>
+            <div>
+              <Label className="text-xs text-muted-foreground mb-1 block">Search</Label>
+              <div className="relative">
+                <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  placeholder="Search..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="pl-8 h-9"
+                />
               </div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Summary Cards */}
+      {selectedDriver && (
+        <div className="grid grid-cols-4 gap-3">
+          <Card className="border-sidebar-border">
+            <CardContent className="p-3">
+              <div className="flex items-center gap-2">
+                <Wallet className="h-4 w-4 text-muted-foreground" />
+                <span className="text-xs text-muted-foreground">Wallet Balance</span>
+              </div>
+              <p className={`text-lg font-bold font-mono mt-1 ${Number(selectedDriverData?.wallet_usd || 0) < 0 ? 'text-status-error' : 'text-status-success'}`}>
+                ${Number(selectedDriverData?.wallet_usd || 0).toFixed(2)}
+              </p>
             </CardContent>
           </Card>
+          <Card className="border-sidebar-border">
+            <CardContent className="p-3">
+              <div className="flex items-center gap-2">
+                <Clock className="h-4 w-4 text-muted-foreground" />
+                <span className="text-xs text-muted-foreground">Pending Orders</span>
+              </div>
+              <p className="text-lg font-bold font-mono mt-1">{totalPending}</p>
+            </CardContent>
+          </Card>
+          <Card className="border-sidebar-border">
+            <CardContent className="p-3">
+              <div className="flex items-center gap-2">
+                <FileText className="h-4 w-4 text-muted-foreground" />
+                <span className="text-xs text-muted-foreground">Unpaid Statements</span>
+              </div>
+              <p className={`text-lg font-bold font-mono mt-1 ${unpaidStatements > 0 ? 'text-status-warning' : ''}`}>
+                {unpaidStatements}
+              </p>
+            </CardContent>
+          </Card>
+          <Card className="border-sidebar-border">
+            <CardContent className="p-3">
+              <div className="flex items-center gap-2">
+                <TrendingUp className="h-4 w-4 text-muted-foreground" />
+                <span className="text-xs text-muted-foreground">Selected Total</span>
+              </div>
+              <p className="text-lg font-bold font-mono mt-1 text-status-success">
+                ${netDueUsd.toFixed(2)}
+              </p>
+            </CardContent>
+          </Card>
+        </div>
+      )}
 
-          {/* Orders Table */}
-          {selectedDriver && (
-            <Card>
-              <CardHeader className="py-3">
+      {/* Pending Orders Section */}
+      {selectedDriver && (
+        <Collapsible open={pendingExpanded} onOpenChange={setPendingExpanded}>
+          <Card className="border-sidebar-border">
+            <CollapsibleTrigger asChild>
+              <CardHeader className="py-2 px-4 cursor-pointer hover:bg-muted/50 transition-colors">
                 <div className="flex items-center justify-between">
-                  <CardTitle className="text-lg">
-                    Pending Orders - {selectedDriverData?.name}
+                  <CardTitle className="text-sm font-medium flex items-center gap-2">
+                    {pendingExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                    Pending Orders ({filteredOrders.length})
                   </CardTitle>
-                  <div className="flex items-center gap-4">
-                    <Button variant="outline" size="sm" onClick={handleSelectAll}>
-                      {selectedOrders.length === filteredOrders.length ? 'Deselect All' : 'Select All'}
+                  <div className="flex items-center gap-3">
+                    {selectedOrders.length > 0 && (
+                      <span className="text-xs bg-primary/10 text-primary px-2 py-0.5 rounded">
+                        {selectedOrders.length} selected
+                      </span>
+                    )}
+                    <Button variant="ghost" size="sm" onClick={(e) => { e.stopPropagation(); handleSelectAll(); }}>
+                      {selectedOrders.length === filteredOrders.length ? 'Clear' : 'Select All'}
                     </Button>
-                    <span className="text-sm text-muted-foreground">
-                      {selectedOrders.length} selected
-                    </span>
                   </div>
                 </div>
               </CardHeader>
+            </CollapsibleTrigger>
+            <CollapsibleContent>
               <CardContent className="p-0">
                 {isLoading ? (
-                  <p className="text-center py-8 text-muted-foreground">Loading...</p>
+                  <p className="text-center py-6 text-muted-foreground text-sm">Loading...</p>
                 ) : filteredOrders.length > 0 ? (
-                  <div className="overflow-x-auto">
+                  <div className="overflow-x-auto max-h-[300px] overflow-y-auto">
                     <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead className="w-10"></TableHead>
-                          <TableHead>Date</TableHead>
-                          <TableHead>Order ID</TableHead>
-                          <TableHead>Client</TableHead>
-                          <TableHead>Customer</TableHead>
-                          <TableHead>Collected USD</TableHead>
-                          <TableHead>Collected LBP</TableHead>
-                          <TableHead>Fee USD</TableHead>
-                          <TableHead>Driver Paid</TableHead>
+                      <TableHeader className="sticky top-0 bg-background">
+                        <TableRow className="text-xs">
+                          <TableHead className="w-8 py-2"></TableHead>
+                          <TableHead className="py-2">Date</TableHead>
+                          <TableHead className="py-2">Order</TableHead>
+                          <TableHead className="py-2">Client</TableHead>
+                          <TableHead className="py-2 text-right">Collected</TableHead>
+                          <TableHead className="py-2 text-right">Fee</TableHead>
+                          <TableHead className="py-2 text-right">Driver Paid</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
                         {filteredOrders.map((order) => (
-                          <TableRow key={order.id} className="h-10">
+                          <TableRow key={order.id} className="h-8 text-xs">
                             <TableCell className="py-1">
                               <Checkbox
                                 checked={selectedOrders.includes(order.id)}
                                 onCheckedChange={() => handleToggleOrder(order.id)}
                               />
                             </TableCell>
-                            <TableCell className="py-1 text-xs">
+                            <TableCell className="py-1 text-muted-foreground">
                               {order.delivered_at ? format(new Date(order.delivered_at), 'MMM dd') : '-'}
                             </TableCell>
-                            <TableCell className="py-1 text-xs font-mono">{order.order_id}</TableCell>
-                            <TableCell className="py-1 text-xs">{order.clients?.name}</TableCell>
-                            <TableCell className="py-1 text-xs">{order.customers?.name || order.customers?.phone}</TableCell>
-                            <TableCell className="py-1 text-xs">${Number(order.collected_amount_usd || 0).toFixed(2)}</TableCell>
-                            <TableCell className="py-1 text-xs">{Number(order.collected_amount_lbp || 0).toLocaleString()} LL</TableCell>
-                            <TableCell className="py-1 text-xs text-green-600">${Number(order.delivery_fee_usd || 0).toFixed(2)}</TableCell>
-                            <TableCell className="py-1 text-xs">
+                            <TableCell className="py-1 font-mono">{order.order_id}</TableCell>
+                            <TableCell className="py-1">{order.clients?.name}</TableCell>
+                            <TableCell className="py-1 text-right font-mono">
+                              ${Number(order.collected_amount_usd || 0).toFixed(2)}
+                            </TableCell>
+                            <TableCell className="py-1 text-right font-mono text-status-success">
+                              ${Number(order.delivery_fee_usd || 0).toFixed(2)}
+                            </TableCell>
+                            <TableCell className="py-1 text-right font-mono">
                               {order.driver_paid_for_client ? (
-                                <Badge variant="outline" className="text-xs">${Number(order.driver_paid_amount_usd || 0).toFixed(2)}</Badge>
+                                <span className="text-status-info">${Number(order.driver_paid_amount_usd || 0).toFixed(2)}</span>
                               ) : '-'}
                             </TableCell>
                           </TableRow>
@@ -389,139 +431,141 @@ export function DriverStatementsTab() {
                     </Table>
                   </div>
                 ) : (
-                  <p className="text-center py-8 text-muted-foreground">No pending orders found.</p>
+                  <p className="text-center py-6 text-muted-foreground text-sm">No pending orders in this period.</p>
                 )}
 
-                {/* Summary & Actions */}
+                {/* Action Bar */}
                 {selectedOrders.length > 0 && (
-                  <div className="border-t p-4 bg-muted/50">
-                    <div className="flex items-center justify-between">
-                      <div className="grid grid-cols-4 gap-6 text-sm">
-                        <div>
-                          <span className="text-muted-foreground">Collected:</span>
-                          <p className="font-semibold">${totals.totalCollectedUsd.toFixed(2)} / {totals.totalCollectedLbp.toLocaleString()} LL</p>
-                        </div>
-                        <div>
-                          <span className="text-muted-foreground">Fees:</span>
-                          <p className="font-semibold text-green-600">${totals.totalDeliveryFeesUsd.toFixed(2)}</p>
-                        </div>
-                        <div>
-                          <span className="text-muted-foreground">Driver Paid:</span>
-                          <p className="font-semibold text-blue-600">-${totals.totalDriverPaidUsd.toFixed(2)}</p>
-                        </div>
-                        <div>
-                          <span className="text-muted-foreground">Net Due:</span>
-                          <p className="font-bold text-lg">${netDueUsd.toFixed(2)} / {netDueLbp.toLocaleString()} LL</p>
-                        </div>
+                  <div className="border-t bg-muted/30 p-3 flex items-center justify-between">
+                    <div className="flex items-center gap-6 text-xs">
+                      <div>
+                        <span className="text-muted-foreground">Collected: </span>
+                        <span className="font-mono font-semibold">${totals.totalCollectedUsd.toFixed(2)}</span>
                       </div>
-                      <div className="flex items-center gap-4">
-                        <label className="flex items-center gap-2 text-sm">
-                          <Checkbox checked={collectCash} onCheckedChange={(v) => setCollectCash(!!v)} />
-                          Collect Cash Now
-                        </label>
-                        <Button onClick={() => issueStatementMutation.mutate()} disabled={issueStatementMutation.isPending}>
-                          <FileText className="mr-2 h-4 w-4" />
-                          {issueStatementMutation.isPending ? 'Processing...' : 'Issue Statement'}
-                        </Button>
+                      <div>
+                        <span className="text-muted-foreground">Fees: </span>
+                        <span className="font-mono font-semibold text-status-success">${totals.totalDeliveryFeesUsd.toFixed(2)}</span>
                       </div>
+                      <div>
+                        <span className="text-muted-foreground">Driver Paid: </span>
+                        <span className="font-mono font-semibold text-status-info">-${totals.totalDriverPaidUsd.toFixed(2)}</span>
+                      </div>
+                      <div className="border-l pl-6">
+                        <span className="text-muted-foreground">Net Due: </span>
+                        <span className="font-mono font-bold text-base">${netDueUsd.toFixed(2)}</span>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <label className="flex items-center gap-2 text-xs">
+                        <Checkbox checked={collectCash} onCheckedChange={(v) => setCollectCash(!!v)} />
+                        Collect Cash Now
+                      </label>
+                      <Button size="sm" onClick={() => issueStatementMutation.mutate()} disabled={issueStatementMutation.isPending}>
+                        <FileText className="mr-1.5 h-3.5 w-3.5" />
+                        {issueStatementMutation.isPending ? 'Processing...' : 'Issue Statement'}
+                      </Button>
                     </div>
                   </div>
                 )}
               </CardContent>
-            </Card>
-          )}
-        </TabsContent>
-
-        <TabsContent value="history">
-          <Card>
-            <CardHeader className="py-3">
-              <CardTitle className="text-lg">Statement History</CardTitle>
-            </CardHeader>
-            <CardContent className="p-0">
-              {loadingHistory ? (
-                <p className="text-center py-8 text-muted-foreground">Loading...</p>
-              ) : filteredHistory && filteredHistory.length > 0 ? (
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Statement ID</TableHead>
-                      <TableHead>Driver</TableHead>
-                      <TableHead>Period</TableHead>
-                      <TableHead>Net Due USD</TableHead>
-                      <TableHead>Net Due LBP</TableHead>
-                      <TableHead>Orders</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead>Issued</TableHead>
-                      <TableHead>Actions</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {filteredHistory.map((statement) => (
-                      <TableRow key={statement.id}>
-                        <TableCell className="font-mono text-sm">{statement.statement_id}</TableCell>
-                        <TableCell>{statement.drivers?.name}</TableCell>
-                        <TableCell className="text-xs">
-                          {format(new Date(statement.period_from), 'MMM dd')} - {format(new Date(statement.period_to), 'MMM dd')}
-                        </TableCell>
-                        <TableCell className="font-semibold">${Number(statement.net_due_usd).toFixed(2)}</TableCell>
-                        <TableCell className="font-semibold">{Number(statement.net_due_lbp).toLocaleString()} LL</TableCell>
-                        <TableCell>{statement.order_refs?.length || 0}</TableCell>
-                        <TableCell>
-                          <Badge variant={statement.status === 'paid' ? 'default' : 'secondary'}>
-                            {statement.status}
-                          </Badge>
-                        </TableCell>
-                        <TableCell className="text-xs">{format(new Date(statement.issued_date), 'MMM dd, yyyy')}</TableCell>
-                        <TableCell>
-                          <div className="flex gap-2">
-                            {statement.status === 'unpaid' && (
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => {
-                                  setSelectedStatement(statement);
-                                  setPaymentDialogOpen(true);
-                                }}
-                              >
-                                <DollarSign className="mr-1 h-3 w-3" />
-                                Collect
-                              </Button>
-                            )}
-                            <Button variant="ghost" size="sm">
-                              <Download className="h-3 w-3" />
-                            </Button>
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              ) : (
-                <p className="text-center py-8 text-muted-foreground">No statements found.</p>
-              )}
-            </CardContent>
+            </CollapsibleContent>
           </Card>
-        </TabsContent>
-      </Tabs>
+        </Collapsible>
+      )}
+
+      {/* Statement History */}
+      <Card className="border-sidebar-border">
+        <CardHeader className="py-2 px-4">
+          <CardTitle className="text-sm font-medium">Statement History</CardTitle>
+        </CardHeader>
+        <CardContent className="p-0">
+          {loadingHistory ? (
+            <p className="text-center py-6 text-muted-foreground text-sm">Loading...</p>
+          ) : statementHistory && statementHistory.length > 0 ? (
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow className="text-xs">
+                    <TableHead className="py-2">ID</TableHead>
+                    {!selectedDriver && <TableHead className="py-2">Driver</TableHead>}
+                    <TableHead className="py-2">Period</TableHead>
+                    <TableHead className="py-2 text-right">Net Due</TableHead>
+                    <TableHead className="py-2 text-center">Orders</TableHead>
+                    <TableHead className="py-2 text-center">Status</TableHead>
+                    <TableHead className="py-2">Issued</TableHead>
+                    <TableHead className="py-2 text-right">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {statementHistory.map((statement) => (
+                    <TableRow key={statement.id} className="h-9 text-xs">
+                      <TableCell className="py-1 font-mono">{statement.statement_id}</TableCell>
+                      {!selectedDriver && <TableCell className="py-1">{statement.drivers?.name}</TableCell>}
+                      <TableCell className="py-1 text-muted-foreground">
+                        {format(new Date(statement.period_from), 'MMM dd')} - {format(new Date(statement.period_to), 'MMM dd')}
+                      </TableCell>
+                      <TableCell className="py-1 text-right font-mono font-semibold">
+                        ${Number(statement.net_due_usd).toFixed(2)}
+                      </TableCell>
+                      <TableCell className="py-1 text-center">{statement.order_refs?.length || 0}</TableCell>
+                      <TableCell className="py-1 text-center">
+                        <StatusBadge status={statement.status} type="statement" />
+                      </TableCell>
+                      <TableCell className="py-1 text-muted-foreground">
+                        {format(new Date(statement.issued_date), 'MMM dd, yyyy')}
+                      </TableCell>
+                      <TableCell className="py-1 text-right">
+                        <div className="flex justify-end gap-1">
+                          {statement.status === 'unpaid' && (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="h-7 text-xs"
+                              onClick={() => {
+                                setSelectedStatement(statement);
+                                setPaymentDialogOpen(true);
+                              }}
+                            >
+                              <DollarSign className="mr-1 h-3 w-3" />
+                              Collect
+                            </Button>
+                          )}
+                          <Button variant="ghost" size="sm" className="h-7 w-7 p-0">
+                            <Download className="h-3 w-3" />
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          ) : (
+            <p className="text-center py-6 text-muted-foreground text-sm">
+              {selectedDriver ? 'No statements found for this driver.' : 'Select a driver to view history, or view all statements.'}
+            </p>
+          )}
+        </CardContent>
+      </Card>
 
       {/* Payment Dialog */}
       <Dialog open={paymentDialogOpen} onOpenChange={setPaymentDialogOpen}>
-        <DialogContent>
+        <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Collect Payment</DialogTitle>
             <DialogDescription>
               {selectedStatement && (
-                <>
-                  Statement: <span className="font-mono">{selectedStatement.statement_id}</span>
+                <span className="block mt-1">
+                  Statement <span className="font-mono font-medium">{selectedStatement.statement_id}</span>
                   <br />
-                  Amount: ${Number(selectedStatement.net_due_usd).toFixed(2)} / {Number(selectedStatement.net_due_lbp).toLocaleString()} LL
-                </>
+                  Amount: <span className="font-mono font-semibold">${Number(selectedStatement.net_due_usd).toFixed(2)}</span>
+                </span>
               )}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
             <div className="space-y-2">
-              <Label>Payment Method</Label>
+              <Label className="text-sm">Payment Method</Label>
               <Select value={paymentMethod} onValueChange={setPaymentMethod}>
                 <SelectTrigger>
                   <SelectValue />
@@ -534,7 +578,7 @@ export function DriverStatementsTab() {
               </Select>
             </div>
             <div className="space-y-2">
-              <Label>Notes (Optional)</Label>
+              <Label className="text-sm">Notes (Optional)</Label>
               <Input value={paymentNotes} onChange={(e) => setPaymentNotes(e.target.value)} placeholder="Add notes..." />
             </div>
           </div>
@@ -542,7 +586,7 @@ export function DriverStatementsTab() {
             <Button variant="outline" onClick={() => setPaymentDialogOpen(false)}>Cancel</Button>
             <Button onClick={() => markAsPaidMutation.mutate()} disabled={markAsPaidMutation.isPending}>
               <CheckCircle className="mr-2 h-4 w-4" />
-              {markAsPaidMutation.isPending ? 'Processing...' : 'Confirm Payment'}
+              {markAsPaidMutation.isPending ? 'Processing...' : 'Confirm'}
             </Button>
           </DialogFooter>
         </DialogContent>
