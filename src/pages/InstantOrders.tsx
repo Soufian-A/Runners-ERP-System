@@ -50,8 +50,9 @@ const getPaymentStatus = (order: Order) => {
   const hasAmount = (order.order_amount_usd > 0 || order.order_amount_lbp > 0 || 
                      order.delivery_fee_usd > 0 || order.delivery_fee_lbp > 0);
   
+  // No amount means nothing to collect - mark as Paid
   if (!hasAmount) {
-    return { label: "-", variant: "outline" as const };
+    return { label: "Paid", variant: "default" as const, className: "bg-green-600" };
   }
 
   if (order.driver_paid_for_client) {
