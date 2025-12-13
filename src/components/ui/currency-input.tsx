@@ -70,16 +70,10 @@ const CurrencyInput = React.forwardRef<HTMLInputElement, CurrencyInputProps>(
       }
     };
 
-    const prefix = currency === 'USD' ? '$' : '';
-    const suffix = currency === 'LBP' ? ' LBP' : '';
+    const suffix = currency === 'USD' ? '$' : 'LBP';
 
     return (
       <div className="relative">
-        {prefix && (
-          <span className="absolute left-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground pointer-events-none">
-            {prefix}
-          </span>
-        )}
         <Input
           ref={ref}
           type="text"
@@ -88,18 +82,14 @@ const CurrencyInput = React.forwardRef<HTMLInputElement, CurrencyInputProps>(
           onChange={handleChange}
           onBlur={handleBlur}
           className={cn(
-            "h-8 text-xs font-mono",
-            prefix && "pl-5",
-            suffix && "pr-10",
+            "h-8 text-xs font-mono pr-10 text-right",
             className
           )}
           {...props}
         />
-        {suffix && (
-          <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground pointer-events-none">
-            {suffix}
-          </span>
-        )}
+        <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground pointer-events-none">
+          {suffix}
+        </span>
       </div>
     );
   }
