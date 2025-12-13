@@ -47,11 +47,10 @@ interface Order {
 
 // Helper function to determine payment status
 const getPaymentStatus = (order: Order) => {
-  const hasAmount = (order.order_amount_usd > 0 || order.order_amount_lbp > 0 || 
-                     order.delivery_fee_usd > 0 || order.delivery_fee_lbp > 0);
+  const hasOrderAmount = (order.order_amount_usd > 0 || order.order_amount_lbp > 0);
   
-  // No amount means nothing to collect - mark as Paid
-  if (!hasAmount) {
+  // No order amount means nothing to collect - mark as Paid
+  if (!hasOrderAmount) {
     return { label: "Paid", variant: "default" as const, className: "bg-green-600" };
   }
 
