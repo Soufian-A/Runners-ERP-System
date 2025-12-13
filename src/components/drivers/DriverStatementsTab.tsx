@@ -415,14 +415,25 @@ export function DriverStatementsTab() {
                             <TableCell className="py-1 font-mono">{order.order_id}</TableCell>
                             <TableCell className="py-1">{order.clients?.name}</TableCell>
                             <TableCell className="py-1 text-right font-mono">
-                              ${Number(order.collected_amount_usd || 0).toFixed(2)}
+                              <div>${Number(order.collected_amount_usd || 0).toFixed(2)}</div>
+                              {Number(order.collected_amount_lbp || 0) > 0 && (
+                                <div className="text-muted-foreground text-[10px]">{Number(order.collected_amount_lbp || 0).toLocaleString()} LL</div>
+                              )}
                             </TableCell>
                             <TableCell className="py-1 text-right font-mono text-status-success">
-                              ${Number(order.delivery_fee_usd || 0).toFixed(2)}
+                              <div>${Number(order.delivery_fee_usd || 0).toFixed(2)}</div>
+                              {Number(order.delivery_fee_lbp || 0) > 0 && (
+                                <div className="text-muted-foreground text-[10px]">{Number(order.delivery_fee_lbp || 0).toLocaleString()} LL</div>
+                              )}
                             </TableCell>
                             <TableCell className="py-1 text-right font-mono">
                               {order.driver_paid_for_client ? (
-                                <span className="text-status-info">${Number(order.driver_paid_amount_usd || 0).toFixed(2)}</span>
+                                <div>
+                                  <div className="text-status-info">${Number(order.driver_paid_amount_usd || 0).toFixed(2)}</div>
+                                  {Number(order.driver_paid_amount_lbp || 0) > 0 && (
+                                    <div className="text-muted-foreground text-[10px]">{Number(order.driver_paid_amount_lbp || 0).toLocaleString()} LL</div>
+                                  )}
+                                </div>
                               ) : '-'}
                             </TableCell>
                           </TableRow>
@@ -441,18 +452,30 @@ export function DriverStatementsTab() {
                       <div>
                         <span className="text-muted-foreground">Collected: </span>
                         <span className="font-mono font-semibold">${totals.totalCollectedUsd.toFixed(2)}</span>
+                        {totals.totalCollectedLbp > 0 && (
+                          <span className="text-muted-foreground ml-1">/ {totals.totalCollectedLbp.toLocaleString()} LL</span>
+                        )}
                       </div>
                       <div>
                         <span className="text-muted-foreground">Fees: </span>
                         <span className="font-mono font-semibold text-status-success">${totals.totalDeliveryFeesUsd.toFixed(2)}</span>
+                        {totals.totalDeliveryFeesLbp > 0 && (
+                          <span className="text-muted-foreground ml-1">/ {totals.totalDeliveryFeesLbp.toLocaleString()} LL</span>
+                        )}
                       </div>
                       <div>
                         <span className="text-muted-foreground">Driver Paid: </span>
                         <span className="font-mono font-semibold text-status-info">-${totals.totalDriverPaidUsd.toFixed(2)}</span>
+                        {totals.totalDriverPaidLbp > 0 && (
+                          <span className="text-muted-foreground ml-1">/ -{totals.totalDriverPaidLbp.toLocaleString()} LL</span>
+                        )}
                       </div>
                       <div className="border-l pl-6">
                         <span className="text-muted-foreground">Net Due: </span>
                         <span className="font-mono font-bold text-base">${netDueUsd.toFixed(2)}</span>
+                        {netDueLbp !== 0 && (
+                          <span className="text-muted-foreground ml-1">/ {netDueLbp.toLocaleString()} LL</span>
+                        )}
                       </div>
                     </div>
                     <div className="flex items-center gap-3">
