@@ -4,6 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { CurrencyInput } from "@/components/ui/currency-input";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Check, ChevronsUpDown, Plus } from "lucide-react";
@@ -487,43 +488,35 @@ export function InstantOrderForm() {
                     />
                   </TableCell>
                   <TableCell>
-                    <Input
+                    <CurrencyInput
                       ref={amountLbpRef}
-                      type="number"
-                      step="1"
+                      currency="LBP"
                       value={row.order_amount_lbp}
-                      onChange={(e) => updateRow(row.id, "order_amount_lbp", e.target.value)}
-                      className="h-8 text-xs [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                      onChange={(val) => updateRow(row.id, "order_amount_lbp", val)}
                     />
                   </TableCell>
                   <TableCell>
-                    <Input
+                    <CurrencyInput
                       ref={amountUsdRef}
-                      type="number"
-                      step="0.01"
+                      currency="USD"
                       value={row.order_amount_usd}
-                      onChange={(e) => updateRow(row.id, "order_amount_usd", e.target.value)}
-                      className="h-8 text-xs [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                      onChange={(val) => updateRow(row.id, "order_amount_usd", val)}
                     />
                   </TableCell>
                   <TableCell>
-                    <Input
+                    <CurrencyInput
                       ref={feeLbpRef}
-                      type="number"
-                      step="1"
+                      currency="LBP"
                       value={row.delivery_fee_lbp}
-                      onChange={(e) => updateRow(row.id, "delivery_fee_lbp", e.target.value)}
-                      className="h-8 text-xs [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                      onChange={(val) => updateRow(row.id, "delivery_fee_lbp", val)}
                     />
                   </TableCell>
                   <TableCell>
-                    <Input
+                    <CurrencyInput
                       ref={feeUsdRef}
-                      type="number"
-                      step="0.01"
+                      currency="USD"
                       value={row.delivery_fee_usd}
-                      onChange={(e) => updateRow(row.id, "delivery_fee_usd", e.target.value)}
-                      className="h-8 text-xs [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                      onChange={(val) => updateRow(row.id, "delivery_fee_usd", val)}
                     />
                   </TableCell>
                   <TableCell>
