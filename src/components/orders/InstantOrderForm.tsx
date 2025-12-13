@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef, useCallback } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -223,13 +223,15 @@ export function InstantOrderForm() {
     onSelect,
     items,
     placeholder,
-    tabIndex,
+    onComplete,
+    triggerRef,
   }: {
     value: string;
     onSelect: (id: string) => void;
     items: any[];
     placeholder: string;
-    tabIndex?: number;
+    onComplete?: () => void;
+    triggerRef?: React.RefObject<HTMLButtonElement>;
   }) => {
     const [open, setOpen] = useState(false);
     const [searchTerm, setSearchTerm] = useState("");
@@ -239,11 +241,18 @@ export function InstantOrderForm() {
       item.name.toLowerCase().includes(searchTerm.toLowerCase())
     );
 
+    const handleSelect = useCallback((id: string) => {
+      onSelect(id);
+      setSearchTerm("");
+      setOpen(false);
+      setTimeout(() => {
+        onComplete?.();
+      }, 0);
+    }, [onSelect, onComplete]);
+
     const handleTabSelect = () => {
       if (filteredItems.length > 0) {
-        onSelect(filteredItems[0].id);
-        setSearchTerm("");
-        setOpen(false);
+        handleSelect(filteredItems[0].id);
         return true;
       }
       return false;
@@ -253,9 +262,9 @@ export function InstantOrderForm() {
       <Popover open={open} onOpenChange={setOpen}>
         <PopoverTrigger asChild>
           <Button 
+            ref={triggerRef}
             variant="outline" 
             className="w-full justify-between h-8 text-xs"
-            tabIndex={tabIndex}
             onKeyDown={(e) => {
               if (e.key === 'Enter' || (e.key.length === 1 && !e.ctrlKey && !e.metaKey)) {
                 e.preventDefault();
@@ -287,11 +296,7 @@ export function InstantOrderForm() {
                 {filteredItems.map((item) => (
                   <CommandItem
                     key={item.id}
-                    onSelect={() => {
-                      onSelect(item.id);
-                      setOpen(false);
-                      setSearchTerm("");
-                    }}
+                    onSelect={() => handleSelect(item.id)}
                   >
                     <Check className={cn("mr-2 h-4 w-4", value === item.id ? "opacity-100" : "opacity-0")} />
                     {item.name}
@@ -305,7 +310,15 @@ export function InstantOrderForm() {
     );
   };
 
-  const AddressField = ({ row, tabIndex }: { row: NewOrderRow; tabIndex?: number }) => {
+  const AddressField = ({ 
+    row, 
+    onComplete,
+    triggerRef,
+  }: { 
+    row: NewOrderRow; 
+    onComplete?: () => void;
+    triggerRef?: React.RefObject<HTMLButtonElement>;
+  }) => {
     const [open, setOpen] = useState(false);
     const [searchValue, setSearchValue] = useState("");
 
@@ -313,15 +326,22 @@ export function InstantOrderForm() {
       typeof addr === 'string' && addr.toLowerCase().includes(searchValue.toLowerCase())
     );
 
+    const handleSelect = useCallback((address: string) => {
+      updateRow(row.id, "address", address);
+      setSearchValue("");
+      setOpen(false);
+      setTimeout(() => {
+        onComplete?.();
+      }, 0);
+    }, [row.id, onComplete]);
+
     const handleTabSelect = () => {
       const addressToUse = filteredAddresses.length > 0 
         ? filteredAddresses[0]
         : searchValue;
       
       if (addressToUse) {
-        updateRow(row.id, "address", addressToUse);
-        setSearchValue("");
-        setOpen(false);
+        handleSelect(addressToUse);
         return true;
       }
       return false;
@@ -331,9 +351,9 @@ export function InstantOrderForm() {
       <Popover open={open} onOpenChange={setOpen}>
         <PopoverTrigger asChild>
           <Button 
+            ref={triggerRef}
             variant="outline" 
             className="w-full justify-between h-8 text-xs"
-            tabIndex={tabIndex}
             onKeyDown={(e) => {
               if (e.key === 'Enter' || (e.key.length === 1 && !e.ctrlKey && !e.metaKey)) {
                 e.preventDefault();
@@ -364,11 +384,7 @@ export function InstantOrderForm() {
                 <Button 
                   variant="ghost" 
                   className="w-full text-xs" 
-                  onClick={() => {
-                    updateRow(row.id, "address", searchValue);
-                    setOpen(false);
-                    setSearchValue("");
-                  }}
+                  onClick={() => handleSelect(searchValue)}
                 >
                   Use "{searchValue}"
                 </Button>
@@ -377,11 +393,7 @@ export function InstantOrderForm() {
                 {filteredAddresses.map((address, idx) => (
                   <CommandItem
                     key={idx}
-                    onSelect={() => {
-                      updateRow(row.id, "address", address);
-                      setOpen(false);
-                      setSearchValue("");
-                    }}
+                    onSelect={() => handleSelect(address)}
                   >
                     <Check className={cn("mr-2 h-4 w-4", row.address === address ? "opacity-100" : "opacity-0")} />
                     {address}
@@ -423,7 +435,15 @@ export function InstantOrderForm() {
           </TableHeader>
           <TableBody>
             {newRows.map((row, rowIndex) => {
-              const baseTabIndex = rowIndex * 100;
+              // Create refs for each field in the row
+              const addressRef = useRef<HTMLButtonElement>(null);
+              const driverRef = useRef<HTMLButtonElement>(null);
+              const amountLbpRef = useRef<HTMLInputElement>(null);
+              const amountUsdRef = useRef<HTMLInputElement>(null);
+              const feeLbpRef = useRef<HTMLInputElement>(null);
+              const feeUsdRef = useRef<HTMLInputElement>(null);
+              const notesRef = useRef<HTMLInputElement>(null);
+
               return (
                 <TableRow 
                   key={row.id} 
@@ -446,11 +466,15 @@ export function InstantOrderForm() {
                       onSelect={(id) => updateRow(row.id, "client_id", id)} 
                       items={clients} 
                       placeholder="Client"
-                      tabIndex={baseTabIndex + 1}
+                      onComplete={() => addressRef.current?.click()}
                     />
                   </TableCell>
                   <TableCell>
-                    <AddressField row={row} tabIndex={baseTabIndex + 2} />
+                    <AddressField 
+                      row={row} 
+                      onComplete={() => driverRef.current?.click()}
+                      triggerRef={addressRef}
+                    />
                   </TableCell>
                   <TableCell>
                     <ComboboxField 
@@ -458,55 +482,56 @@ export function InstantOrderForm() {
                       onSelect={(id) => updateRow(row.id, "driver_id", id)} 
                       items={drivers} 
                       placeholder="Driver"
-                      tabIndex={baseTabIndex + 3}
+                      onComplete={() => amountLbpRef.current?.focus()}
+                      triggerRef={driverRef}
                     />
                   </TableCell>
                   <TableCell>
                     <Input
+                      ref={amountLbpRef}
                       type="number"
                       step="1"
                       value={row.order_amount_lbp}
                       onChange={(e) => updateRow(row.id, "order_amount_lbp", e.target.value)}
                       className="h-8 text-xs [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                      tabIndex={baseTabIndex + 4}
                     />
                   </TableCell>
                   <TableCell>
                     <Input
+                      ref={amountUsdRef}
                       type="number"
                       step="0.01"
                       value={row.order_amount_usd}
                       onChange={(e) => updateRow(row.id, "order_amount_usd", e.target.value)}
                       className="h-8 text-xs [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                      tabIndex={baseTabIndex + 5}
                     />
                   </TableCell>
                   <TableCell>
                     <Input
+                      ref={feeLbpRef}
                       type="number"
                       step="1"
                       value={row.delivery_fee_lbp}
                       onChange={(e) => updateRow(row.id, "delivery_fee_lbp", e.target.value)}
                       className="h-8 text-xs [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                      tabIndex={baseTabIndex + 6}
                     />
                   </TableCell>
                   <TableCell>
                     <Input
+                      ref={feeUsdRef}
                       type="number"
                       step="0.01"
                       value={row.delivery_fee_usd}
                       onChange={(e) => updateRow(row.id, "delivery_fee_usd", e.target.value)}
                       className="h-8 text-xs [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                      tabIndex={baseTabIndex + 7}
                     />
                   </TableCell>
                   <TableCell>
                     <Input 
+                      ref={notesRef}
                       value={row.notes} 
                       onChange={(e) => updateRow(row.id, "notes", e.target.value)} 
                       className="h-8 text-xs"
-                      tabIndex={baseTabIndex + 8}
                     />
                   </TableCell>
                   <TableCell>
@@ -515,7 +540,6 @@ export function InstantOrderForm() {
                         checked={row.driver_paid_for_client}
                         onCheckedChange={(checked) => updateRow(row.id, "driver_paid_for_client", checked)}
                         title="Driver paid for client"
-                        tabIndex={baseTabIndex + 9}
                       />
                     </div>
                   </TableCell>
@@ -526,7 +550,6 @@ export function InstantOrderForm() {
                         onClick={() => createOrderMutation.mutate(row)} 
                         disabled={!row.client_id || !row.address} 
                         className="h-8 text-xs"
-                        tabIndex={baseTabIndex + 10}
                       >
                         Save
                       </Button>
