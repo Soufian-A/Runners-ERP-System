@@ -10,11 +10,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Checkbox } from '@/components/ui/checkbox';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
-import { FileText, Download, CheckCircle, Search, DollarSign, ChevronDown, ChevronUp, Wallet, Clock, TrendingUp } from 'lucide-react';
+import { FileText, Download, CheckCircle, Search, DollarSign, ChevronDown, ChevronUp, Wallet, Clock, TrendingUp, Eye } from 'lucide-react';
 import { format } from 'date-fns';
 import { toast } from 'sonner';
 import { useAuth } from '@/hooks/useAuth';
 import { StatusBadge } from '@/components/ui/status-badge';
+import { DriverStatementPreview } from './DriverStatementPreview';
 
 export function DriverStatementsTab() {
   const { user } = useAuth();
@@ -30,6 +31,8 @@ export function DriverStatementsTab() {
   const [paymentNotes, setPaymentNotes] = useState('');
   const [collectCash, setCollectCash] = useState(true);
   const [pendingExpanded, setPendingExpanded] = useState(true);
+  const [previewDialogOpen, setPreviewDialogOpen] = useState(false);
+  const [previewStatement, setPreviewStatement] = useState<any>(null);
 
   const { data: drivers } = useQuery({
     queryKey: ['drivers-for-statement'],
@@ -88,6 +91,22 @@ export function DriverStatementsTab() {
       if (error) throw error;
       return data;
     },
+  });
+
+  const { data: statementOrders } = useQuery({
+    queryKey: ['statement-orders', previewStatement?.id],
+    queryFn: async () => {
+      if (!previewStatement?.order_refs?.length) return [];
+      
+      const { data, error } = await supabase
+        .from('orders')
+        .select(`*, clients(name)`)
+        .or(previewStatement.order_refs.map((ref: string) => `order_id.eq.${ref},voucher_no.eq.${ref}`).join(','));
+
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!previewStatement?.order_refs?.length,
   });
 
   const filteredOrders = orders?.filter(order => {
@@ -279,6 +298,9 @@ export function DriverStatementsTab() {
                         {driver.name}
                         <span className="text-xs text-muted-foreground font-mono">
                           ${Number(driver.wallet_usd || 0).toFixed(2)}
+                          {Number(driver.wallet_lbp || 0) !== 0 && (
+                            <span className="ml-1">/ {Number(driver.wallet_lbp || 0).toLocaleString()} LL</span>
+                          )}
                         </span>
                       </span>
                     </SelectItem>
@@ -528,7 +550,10 @@ export function DriverStatementsTab() {
                         {format(new Date(statement.period_from), 'MMM dd')} - {format(new Date(statement.period_to), 'MMM dd')}
                       </TableCell>
                       <TableCell className="py-1 text-right font-mono font-semibold">
-                        ${Number(statement.net_due_usd).toFixed(2)}
+                        <div>${Number(statement.net_due_usd).toFixed(2)}</div>
+                        {Number(statement.net_due_lbp || 0) !== 0 && (
+                          <div className="text-muted-foreground text-[10px]">{Number(statement.net_due_lbp || 0).toLocaleString()} LL</div>
+                        )}
                       </TableCell>
                       <TableCell className="py-1 text-center">{statement.order_refs?.length || 0}</TableCell>
                       <TableCell className="py-1 text-center">
@@ -539,6 +564,17 @@ export function DriverStatementsTab() {
                       </TableCell>
                       <TableCell className="py-1 text-right">
                         <div className="flex justify-end gap-1">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-7 w-7 p-0"
+                            onClick={() => {
+                              setPreviewStatement(statement);
+                              setPreviewDialogOpen(true);
+                            }}
+                          >
+                            <Eye className="h-3 w-3" />
+                          </Button>
                           {statement.status === 'unpaid' && (
                             <Button
                               variant="outline"
@@ -553,9 +589,6 @@ export function DriverStatementsTab() {
                               Collect
                             </Button>
                           )}
-                          <Button variant="ghost" size="sm" className="h-7 w-7 p-0">
-                            <Download className="h-3 w-3" />
-                          </Button>
                         </div>
                       </TableCell>
                     </TableRow>
@@ -614,6 +647,28 @@ export function DriverStatementsTab() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Statement Preview Dialog */}
+      {previewStatement && (
+        <DriverStatementPreview
+          open={previewDialogOpen}
+          onOpenChange={setPreviewDialogOpen}
+          orders={statementOrders || []}
+          driverName={previewStatement.drivers?.name || 'Driver'}
+          dateFrom={previewStatement.period_from}
+          dateTo={previewStatement.period_to}
+          totals={{
+            totalCollectedUsd: Number(previewStatement.total_collected_usd || 0),
+            totalCollectedLbp: Number(previewStatement.total_collected_lbp || 0),
+            totalDeliveryFeesUsd: Number(previewStatement.total_delivery_fees_usd || 0),
+            totalDeliveryFeesLbp: Number(previewStatement.total_delivery_fees_lbp || 0),
+            totalDriverPaidUsd: Number(previewStatement.total_driver_paid_refund_usd || 0),
+            totalDriverPaidLbp: Number(previewStatement.total_driver_paid_refund_lbp || 0),
+          }}
+          netDueUsd={Number(previewStatement.net_due_usd || 0)}
+          netDueLbp={Number(previewStatement.net_due_lbp || 0)}
+        />
+      )}
     </div>
   );
 }
