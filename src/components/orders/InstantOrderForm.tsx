@@ -426,9 +426,9 @@ export function InstantOrderForm() {
               <TableHead className="w-[180px]">Address</TableHead>
               <TableHead className="w-[150px]">Driver</TableHead>
               <TableHead className="w-[100px]">Amount LBP</TableHead>
-              <TableHead className="w-[100px]">Amount USD</TableHead>
-              <TableHead className="w-[90px]">Fee LBP</TableHead>
-              <TableHead className="w-[90px]">Fee USD</TableHead>
+              <TableHead className="w-[100px] border-r border-border">Amount USD</TableHead>
+              <TableHead className="w-[90px] bg-muted/50 text-primary">Fee LBP</TableHead>
+              <TableHead className="w-[90px] bg-muted/50 text-primary border-r border-border">Fee USD</TableHead>
               <TableHead className="w-[150px]">Notes</TableHead>
               <TableHead className="w-[80px]">Driver Paid</TableHead>
               <TableHead className="w-[140px]">Actions</TableHead>
@@ -495,7 +495,7 @@ export function InstantOrderForm() {
                       onChange={(val) => updateRow(row.id, "order_amount_lbp", val)}
                     />
                   </TableCell>
-                  <TableCell>
+                  <TableCell className="border-r border-border">
                     <CurrencyInput
                       ref={amountUsdRef}
                       currency="USD"
@@ -503,7 +503,7 @@ export function InstantOrderForm() {
                       onChange={(val) => updateRow(row.id, "order_amount_usd", val)}
                     />
                   </TableCell>
-                  <TableCell>
+                  <TableCell className="bg-muted/30">
                     <CurrencyInput
                       ref={feeLbpRef}
                       currency="LBP"
@@ -511,7 +511,7 @@ export function InstantOrderForm() {
                       onChange={(val) => updateRow(row.id, "delivery_fee_lbp", val)}
                     />
                   </TableCell>
-                  <TableCell>
+                  <TableCell className="bg-muted/30 border-r border-border">
                     <CurrencyInput
                       ref={feeUsdRef}
                       currency="USD"
