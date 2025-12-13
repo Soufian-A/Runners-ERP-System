@@ -271,22 +271,22 @@ const InstantOrders = () => {
                       <TableCell>{order.clients?.name}</TableCell>
                       <TableCell>{order.drivers?.name || "-"}</TableCell>
                       <TableCell className="max-w-[200px] truncate">{order.address}</TableCell>
-                      <TableCell>
+                      <TableCell className="font-mono text-right">
                         {order.driver_paid_for_client ? (
-                          <span className="text-blue-600">${order.driver_paid_amount_usd?.toFixed(2) || order.order_amount_usd?.toFixed(2) || "0.00"}</span>
+                          <span className="text-blue-600">${(order.driver_paid_amount_usd || order.order_amount_usd || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                         ) : (
-                          `$${order.order_amount_usd?.toFixed(2) || "0.00"}`
+                          `$${(order.order_amount_usd || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
                         )}
                       </TableCell>
-                      <TableCell>
+                      <TableCell className="font-mono text-right">
                         {order.driver_paid_for_client ? (
-                          <span className="text-blue-600">{(order.driver_paid_amount_lbp || order.order_amount_lbp)?.toLocaleString() || "0"} LL</span>
+                          <span className="text-blue-600">{(order.driver_paid_amount_lbp || order.order_amount_lbp || 0).toLocaleString('en-US')} LBP</span>
                         ) : (
-                          `${order.order_amount_lbp?.toLocaleString() || "0"} LL`
+                          `${(order.order_amount_lbp || 0).toLocaleString('en-US')} LBP`
                         )}
                       </TableCell>
-                      <TableCell>${order.delivery_fee_usd?.toFixed(2) || "0.00"}</TableCell>
-                      <TableCell>{order.delivery_fee_lbp?.toLocaleString() || "0"} LL</TableCell>
+                      <TableCell className="font-mono text-right">${(order.delivery_fee_usd || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</TableCell>
+                      <TableCell className="font-mono text-right">{(order.delivery_fee_lbp || 0).toLocaleString('en-US')} LBP</TableCell>
                       <TableCell>{getStatusBadge(order.status)}</TableCell>
                       <TableCell>
                         <Badge variant={paymentStatus.variant} className={paymentStatus.className}>
