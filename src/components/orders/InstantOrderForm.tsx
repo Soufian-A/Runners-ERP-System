@@ -422,16 +422,16 @@ export function InstantOrderForm() {
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead className="w-[150px]">Client</TableHead>
-              <TableHead className="w-[180px]">Address</TableHead>
-              <TableHead className="w-[150px]">Driver</TableHead>
-              <TableHead className="w-[100px]">Amount LBP</TableHead>
+              <TableHead className="w-[130px]">Client</TableHead>
+              <TableHead className="w-[140px]">Address</TableHead>
+              <TableHead className="w-[120px]">Driver</TableHead>
+              <TableHead className="w-[130px]">Amount LBP</TableHead>
               <TableHead className="w-[100px] border-r border-border">Amount USD</TableHead>
-              <TableHead className="w-[90px] bg-muted/50 text-primary">Fee LBP</TableHead>
-              <TableHead className="w-[90px] bg-muted/50 text-primary border-r border-border">Fee USD</TableHead>
-              <TableHead className="w-[150px]">Notes</TableHead>
-              <TableHead className="w-[80px]">Driver Paid</TableHead>
-              <TableHead className="w-[140px]">Actions</TableHead>
+              <TableHead className="w-[130px] bg-muted/50 text-primary">Fee LBP</TableHead>
+              <TableHead className="w-[100px] bg-muted/50 text-primary border-r border-border">Fee USD</TableHead>
+              <TableHead className="w-[120px]">Notes</TableHead>
+              <TableHead className="w-[70px]">Driver Paid</TableHead>
+              <TableHead className="w-[120px]">Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
