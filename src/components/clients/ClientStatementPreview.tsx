@@ -53,8 +53,14 @@ export function ClientStatementPreview({
 }: ClientStatementPreviewProps) {
   const previewRef = useRef<HTMLDivElement>(null);
 
-  const instantOrders = orders.filter(o => o.order_type === 'instant' || o.order_type === 'errand');
-  const ecomOrders = orders.filter(o => o.order_type === 'ecom');
+  // Filter out orders with zero order amounts - statements are only for paid/collected amounts
+  const filteredOrders = orders.filter(o => {
+    const hasOrderAmount = Number(o.order_amount_usd || 0) > 0 || Number(o.order_amount_lbp || 0) > 0;
+    return hasOrderAmount;
+  });
+
+  const instantOrders = filteredOrders.filter(o => o.order_type === 'instant' || o.order_type === 'errand');
+  const ecomOrders = filteredOrders.filter(o => o.order_type === 'ecom');
 
   const calculateDue = (order: Order) => {
     if (order.order_type === 'instant' || order.order_type === 'errand') {

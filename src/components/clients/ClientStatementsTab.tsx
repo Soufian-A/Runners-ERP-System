@@ -95,7 +95,14 @@ export function ClientStatementsTab() {
 
       return data?.filter(order => {
         const orderRef = order.order_type === 'ecom' ? (order.voucher_no || order.order_id) : order.order_id;
-        return !usedOrderRefs.has(orderRef);
+        // Filter out orders already in statements
+        if (usedOrderRefs.has(orderRef)) return false;
+        
+        // Filter out orders with zero order amounts - statements are only for paid/collected amounts
+        const hasOrderAmount = Number(order.order_amount_usd || 0) > 0 || Number(order.order_amount_lbp || 0) > 0;
+        if (!hasOrderAmount) return false;
+        
+        return true;
       }) || [];
     },
     enabled: !!selectedClient,
@@ -367,6 +374,9 @@ export function ClientStatementsTab() {
                           {client.name}
                           <span className={`text-xs font-mono ${bal.usd < 0 ? 'text-status-error' : 'text-status-success'}`}>
                             ${bal.usd.toFixed(2)}
+                            {bal.lbp !== 0 && (
+                              <span className="ml-1">/ {bal.lbp.toLocaleString()} LL</span>
+                            )}
                           </span>
                         </span>
                       </SelectItem>
@@ -642,7 +652,10 @@ export function ClientStatementsTab() {
                         {format(new Date(statement.period_from), 'MMM dd')} - {format(new Date(statement.period_to), 'MMM dd')}
                       </TableCell>
                       <TableCell className="py-1 text-right font-mono font-semibold">
-                        ${Number(statement.net_due_usd).toFixed(2)}
+                        <div>${Number(statement.net_due_usd).toFixed(2)}</div>
+                        {Number(statement.net_due_lbp || 0) !== 0 && (
+                          <div className="text-muted-foreground text-[10px]">{Number(statement.net_due_lbp || 0).toLocaleString()} LL</div>
+                        )}
                       </TableCell>
                       <TableCell className="py-1 text-center">{statement.order_refs?.length || 0}</TableCell>
                       <TableCell className="py-1 text-center">
