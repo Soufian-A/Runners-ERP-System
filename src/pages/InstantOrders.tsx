@@ -17,6 +17,7 @@ import { AddressSettingsDialog } from "@/components/orders/AddressSettingsDialog
 import { useMutation } from "@tanstack/react-query";
 import { toast } from "@/hooks/use-toast";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+import { formatUSD, formatLBP } from "@/lib/utils";
 
 interface Order {
   id: string;
@@ -273,20 +274,20 @@ const InstantOrders = () => {
                       <TableCell className="max-w-[200px] truncate">{order.address}</TableCell>
                       <TableCell className="font-mono text-right">
                         {order.driver_paid_for_client ? (
-                          <span className="text-blue-600">${(order.driver_paid_amount_usd || order.order_amount_usd || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                          <span className="text-blue-600">{formatUSD(order.driver_paid_amount_usd || order.order_amount_usd)}</span>
                         ) : (
-                          `$${(order.order_amount_usd || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                          formatUSD(order.order_amount_usd)
                         )}
                       </TableCell>
                       <TableCell className="font-mono text-right">
                         {order.driver_paid_for_client ? (
-                          <span className="text-blue-600">{(order.driver_paid_amount_lbp || order.order_amount_lbp || 0).toLocaleString('en-US')} LBP</span>
+                          <span className="text-blue-600">{formatLBP(order.driver_paid_amount_lbp || order.order_amount_lbp)}</span>
                         ) : (
-                          `${(order.order_amount_lbp || 0).toLocaleString('en-US')} LBP`
+                          formatLBP(order.order_amount_lbp)
                         )}
                       </TableCell>
-                      <TableCell className="font-mono text-right">${(order.delivery_fee_usd || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</TableCell>
-                      <TableCell className="font-mono text-right">{(order.delivery_fee_lbp || 0).toLocaleString('en-US')} LBP</TableCell>
+                      <TableCell className="font-mono text-right">{formatUSD(order.delivery_fee_usd)}</TableCell>
+                      <TableCell className="font-mono text-right">{formatLBP(order.delivery_fee_lbp)}</TableCell>
                       <TableCell>{getStatusBadge(order.status)}</TableCell>
                       <TableCell>
                         <Badge variant={paymentStatus.variant} className={paymentStatus.className}>
