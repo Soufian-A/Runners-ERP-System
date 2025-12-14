@@ -46,6 +46,9 @@ export function ClientStatementsTab() {
     },
   });
 
+  // Balance calculation: 
+  // Credit = we owe the client (positive balance means we owe them)
+  // Debit = client owes us (negative balance means they owe us)
   const { data: clientBalances } = useQuery({
     queryKey: ['client-balances-all'],
     queryFn: async () => {
@@ -55,6 +58,7 @@ export function ClientStatementsTab() {
       const balances = new Map<string, { usd: number; lbp: number }>();
       data?.forEach((tx: any) => {
         const current = balances.get(tx.client_id) || { usd: 0, lbp: 0 };
+        // Credit = we owe client (+), Debit = client owes us (-)
         const multiplier = tx.type === 'Credit' ? 1 : -1;
         balances.set(tx.client_id, {
           usd: current.usd + Number(tx.amount_usd || 0) * multiplier,
@@ -211,7 +215,11 @@ export function ClientStatementsTab() {
   const totals = calculateTotals();
   const selectedClientData = clients?.find(c => c.id === selectedClient);
   const clientBalance = clientBalances?.get(selectedClient) || { usd: 0, lbp: 0 };
-  const weOweClient = clientBalance.usd > 0 || clientBalance.lbp > 0;
+  // Determine if we owe client or they owe us based on net balance
+  // Positive balance = we owe client, Negative = they owe us
+  // If mixed (one positive, one negative), use the dominant currency or sum them logically
+  const netBalanceIndicator = clientBalance.usd + (clientBalance.lbp / 100000); // rough comparison
+  const weOweClient = netBalanceIndicator > 0 || (clientBalance.usd === 0 && clientBalance.lbp > 0);
   const unpaidStatements = statementHistory?.filter(s => s.status === 'unpaid')?.length || 0;
   const totalPending = orders?.length || 0;
 
@@ -264,7 +272,11 @@ export function ClientStatementsTab() {
       
       if (amountUsd === 0 && amountLbp === 0) throw new Error('Enter a payment amount');
 
-      const isPayingClient = weOweClient;
+      // Determine payment direction based on current balance:
+      // If we owe the client (positive balance) = we're paying them = cash out
+      // If client owes us (negative balance) = they're paying us = cash in
+      const currentNetBalance = clientBalance.usd + (clientBalance.lbp / 100000);
+      const isPayingClient = currentNetBalance > 0 || (clientBalance.usd === 0 && clientBalance.lbp > 0);
 
       const today = new Date().toISOString().split('T')[0];
       const { data: existingCashbox } = await supabase
@@ -295,12 +307,17 @@ export function ClientStatementsTab() {
         });
       }
 
+      // Record transaction: 
+      // When we pay client (reduce our debt to them), we Debit their account
+      // When client pays us (reduce their debt to us), we Credit their account
       await supabase.from('client_transactions').insert({
         client_id: selectedClient,
         type: isPayingClient ? 'Debit' : 'Credit',
         amount_usd: amountUsd,
         amount_lbp: amountLbp,
-        note: `Payment ${isPayingClient ? 'to' : 'from'} client - ${paymentMethod}`,
+        note: selectedStatement 
+          ? `Payment ${isPayingClient ? 'to' : 'from'} client - Statement ${selectedStatement.statement_id} - ${paymentMethod}`
+          : `Payment ${isPayingClient ? 'to' : 'from'} client - ${paymentMethod}${paymentNotes ? ` - ${paymentNotes}` : ''}`,
       });
 
       if (selectedStatement) {
@@ -732,7 +749,17 @@ export function ClientStatementsTab() {
                   </span>
                 </span>
               ) : (
-                <span className="block mt-1">Client: {selectedClientData?.name}</span>
+                <span className="block mt-1">
+                  Client: <span className="font-medium">{selectedClientData?.name}</span>
+                  <br />
+                  Current Balance: <span className={`font-mono font-semibold ${weOweClient ? 'text-status-success' : 'text-status-error'}`}>
+                    ${Math.abs(clientBalance.usd).toFixed(2)}
+                    {clientBalance.lbp !== 0 && (
+                      <span className="ml-2">{Math.abs(clientBalance.lbp).toLocaleString()} LL</span>
+                    )}
+                  </span>
+                  <span className="text-xs ml-2">({weOweClient ? 'We owe client' : 'Client owes us'})</span>
+                </span>
               )}
             </DialogDescription>
           </DialogHeader>
