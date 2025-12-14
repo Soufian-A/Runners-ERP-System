@@ -430,9 +430,12 @@ export function ClientStatementsTab() {
                 <Wallet className="h-4 w-4 text-muted-foreground" />
                 <span className="text-xs text-muted-foreground">Balance</span>
               </div>
-              <p className={`text-lg font-bold font-mono mt-1 ${clientBalance.usd < 0 ? 'text-status-error' : 'text-status-success'}`}>
-                ${Math.abs(clientBalance.usd).toFixed(2)}
-              </p>
+              <div className={`font-bold font-mono mt-1 ${clientBalance.usd < 0 || clientBalance.lbp < 0 ? 'text-status-error' : 'text-status-success'}`}>
+                <p className="text-lg">${Math.abs(clientBalance.usd).toFixed(2)}</p>
+                {clientBalance.lbp !== 0 && (
+                  <p className="text-sm">{Math.abs(clientBalance.lbp).toLocaleString()} LL</p>
+                )}
+              </div>
               <Badge variant="outline" className={`text-xs mt-1 ${weOweClient ? 'border-status-success text-status-success' : 'border-status-error text-status-error'}`}>
                 {weOweClient ? (
                   <><ArrowUpRight className="mr-0.5 h-3 w-3" />We Owe</>
@@ -477,9 +480,12 @@ export function ClientStatementsTab() {
                 <DollarSign className="h-4 w-4 text-muted-foreground" />
                 <span className="text-xs text-muted-foreground">Selected Total</span>
               </div>
-              <p className="text-lg font-bold font-mono mt-1 text-status-success">
-                ${totals.totalDueToClientUsd.toFixed(2)}
-              </p>
+              <div className="font-bold font-mono mt-1 text-status-success">
+                <p className="text-lg">${totals.totalDueToClientUsd.toFixed(2)}</p>
+                {totals.totalDueToClientLbp > 0 && (
+                  <p className="text-sm">{totals.totalDueToClientLbp.toLocaleString()} LL</p>
+                )}
+              </div>
             </CardContent>
           </Card>
         </div>
@@ -718,7 +724,12 @@ export function ClientStatementsTab() {
                 <span className="block mt-1">
                   Statement <span className="font-mono font-medium">{selectedStatement.statement_id}</span>
                   <br />
-                  Amount: <span className="font-mono font-semibold">${Math.abs(selectedStatement.net_due_usd || 0).toFixed(2)}</span>
+                  Amount: <span className="font-mono font-semibold">
+                    ${Math.abs(selectedStatement.net_due_usd || 0).toFixed(2)}
+                    {Number(selectedStatement.net_due_lbp || 0) !== 0 && (
+                      <span className="ml-2">{Math.abs(Number(selectedStatement.net_due_lbp || 0)).toLocaleString()} LL</span>
+                    )}
+                  </span>
                 </span>
               ) : (
                 <span className="block mt-1">Client: {selectedClientData?.name}</span>
