@@ -11,17 +11,21 @@ import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
-import { FileText, Download, CheckCircle, Search, DollarSign, ChevronDown, ChevronUp, Wallet, Clock, TrendingUp, ArrowUpRight, ArrowDownLeft, Eye } from 'lucide-react';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
+import { FileText, Download, CheckCircle, Search, DollarSign, ChevronDown, ChevronUp, Wallet, Clock, TrendingUp, ArrowUpRight, ArrowDownLeft, Eye, ChevronsUpDown, Check } from 'lucide-react';
 import { format } from 'date-fns';
 import { toast } from 'sonner';
 import { useAuth } from '@/hooks/useAuth';
 import { ClientStatementPreview } from './ClientStatementPreview';
 import { StatusBadge } from '@/components/ui/status-badge';
+import { cn } from '@/lib/utils';
 
 export function ClientStatementsTab() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const [selectedClient, setSelectedClient] = useState('');
+  const [clientSearchOpen, setClientSearchOpen] = useState(false);
   const [dateFrom, setDateFrom] = useState(new Date().toISOString().split('T')[0]);
   const [dateTo, setDateTo] = useState(new Date().toISOString().split('T')[0]);
   const [searchTerm, setSearchTerm] = useState('');
@@ -378,29 +382,58 @@ export function ClientStatementsTab() {
           <div className="grid grid-cols-1 md:grid-cols-6 gap-3">
             <div className="md:col-span-2">
               <Label className="text-xs text-muted-foreground mb-1 block">Client</Label>
-              <Select value={selectedClient} onValueChange={setSelectedClient}>
-                <SelectTrigger className="h-9">
-                  <SelectValue placeholder="Select client..." />
-                </SelectTrigger>
-                <SelectContent>
-                  {clients?.map((client) => {
-                    const bal = clientBalances?.get(client.id) || { usd: 0, lbp: 0 };
-                    return (
-                      <SelectItem key={client.id} value={client.id}>
-                        <span className="flex items-center gap-2">
-                          {client.name}
-                          <span className={`text-xs font-mono ${bal.usd < 0 ? 'text-status-error' : 'text-status-success'}`}>
-                            ${bal.usd.toFixed(2)}
-                            {bal.lbp !== 0 && (
-                              <span className="ml-1">/ {bal.lbp.toLocaleString()} LL</span>
-                            )}
-                          </span>
-                        </span>
-                      </SelectItem>
-                    );
-                  })}
-                </SelectContent>
-              </Select>
+              <Popover open={clientSearchOpen} onOpenChange={setClientSearchOpen}>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    role="combobox"
+                    aria-expanded={clientSearchOpen}
+                    className="w-full justify-between h-9 font-normal"
+                  >
+                    {selectedClient
+                      ? clients?.find((c) => c.id === selectedClient)?.name
+                      : "Search client..."}
+                    <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-[300px] p-0 bg-popover" align="start">
+                  <Command>
+                    <CommandInput placeholder="Search client..." />
+                    <CommandList>
+                      <CommandEmpty>No client found.</CommandEmpty>
+                      <CommandGroup>
+                        {clients?.map((client) => {
+                          const bal = clientBalances?.get(client.id) || { usd: 0, lbp: 0 };
+                          return (
+                            <CommandItem
+                              key={client.id}
+                              value={client.name}
+                              onSelect={() => {
+                                setSelectedClient(client.id);
+                                setClientSearchOpen(false);
+                              }}
+                            >
+                              <Check
+                                className={cn(
+                                  "mr-2 h-4 w-4",
+                                  selectedClient === client.id ? "opacity-100" : "opacity-0"
+                                )}
+                              />
+                              <span className="flex-1">{client.name}</span>
+                              <span className={`text-xs font-mono ${bal.usd < 0 ? 'text-status-error' : 'text-status-success'}`}>
+                                ${bal.usd.toFixed(2)}
+                                {bal.lbp !== 0 && (
+                                  <span className="ml-1">/ {bal.lbp.toLocaleString()} LL</span>
+                                )}
+                              </span>
+                            </CommandItem>
+                          );
+                        })}
+                      </CommandGroup>
+                    </CommandList>
+                  </Command>
+                </PopoverContent>
+              </Popover>
             </div>
             <div>
               <Label className="text-xs text-muted-foreground mb-1 block">From</Label>
