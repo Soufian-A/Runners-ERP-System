@@ -38,6 +38,328 @@ type NewOrderRow = {
   driver_paid_for_client: boolean;
 };
 
+// Separate component to properly use hooks (refs) for each row
+function OrderRow({
+  row,
+  clients,
+  drivers,
+  addresses,
+  updateRow,
+  removeRow,
+  addNewRow,
+  createOrderMutation,
+}: {
+  row: NewOrderRow;
+  clients: any[];
+  drivers: any[];
+  addresses: string[];
+  updateRow: (id: string, field: keyof NewOrderRow, value: any) => void;
+  removeRow: (id: string) => void;
+  addNewRow: (duplicateLast?: boolean) => void;
+  createOrderMutation: any;
+}) {
+  const addressRef = useRef<HTMLButtonElement>(null);
+  const driverRef = useRef<HTMLButtonElement>(null);
+  const amountLbpRef = useRef<HTMLInputElement>(null);
+  const amountUsdRef = useRef<HTMLInputElement>(null);
+  const feeLbpRef = useRef<HTMLInputElement>(null);
+  const feeUsdRef = useRef<HTMLInputElement>(null);
+  const notesRef = useRef<HTMLInputElement>(null);
+
+  const [clientOpen, setClientOpen] = useState(false);
+  const [clientSearch, setClientSearch] = useState("");
+  const [driverOpen, setDriverOpen] = useState(false);
+  const [driverSearch, setDriverSearch] = useState("");
+  const [addressOpen, setAddressOpen] = useState(false);
+  const [addressSearch, setAddressSearch] = useState("");
+
+  const filteredClients = clients.filter((c) =>
+    c.name.toLowerCase().includes(clientSearch.toLowerCase())
+  );
+  const filteredDrivers = drivers.filter((d) =>
+    d.name.toLowerCase().includes(driverSearch.toLowerCase())
+  );
+  const filteredAddresses = addresses.filter((addr) =>
+    addr.toLowerCase().includes(addressSearch.toLowerCase())
+  );
+
+  const selectedClient = clients.find((c) => c.id === row.client_id);
+  const selectedDriver = drivers.find((d) => d.id === row.driver_id);
+
+  const handleClientSelect = useCallback((id: string) => {
+    updateRow(row.id, "client_id", id);
+    setClientSearch("");
+    setClientOpen(false);
+    setTimeout(() => addressRef.current?.click(), 0);
+  }, [row.id, updateRow]);
+
+  const handleDriverSelect = useCallback((id: string) => {
+    updateRow(row.id, "driver_id", id);
+    setDriverSearch("");
+    setDriverOpen(false);
+    setTimeout(() => amountLbpRef.current?.focus(), 0);
+  }, [row.id, updateRow]);
+
+  const handleAddressSelect = useCallback((address: string) => {
+    updateRow(row.id, "address", address);
+    setAddressSearch("");
+    setAddressOpen(false);
+    setTimeout(() => driverRef.current?.click(), 0);
+  }, [row.id, updateRow]);
+
+  return (
+    <TableRow 
+      className="bg-accent/20"
+      onKeyDown={(e) => {
+        if ((e.ctrlKey || e.metaKey) && e.key === 'd') {
+          e.preventDefault();
+          addNewRow(true);
+        } else if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+          e.preventDefault();
+          if (row.client_id && row.address) {
+            createOrderMutation.mutate(row);
+          }
+        }
+      }}
+    >
+      {/* Client */}
+      <TableCell>
+        <Popover open={clientOpen} onOpenChange={setClientOpen}>
+          <PopoverTrigger asChild>
+            <Button 
+              variant="outline" 
+              className="w-full justify-between h-8 text-xs"
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || (e.key.length === 1 && !e.ctrlKey && !e.metaKey)) {
+                  e.preventDefault();
+                  setClientOpen(true);
+                }
+              }}
+            >
+              {selectedClient?.name || "Client"}
+              <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent className="w-[200px] p-0 bg-popover z-50" onOpenAutoFocus={(e) => e.preventDefault()}>
+            <Command shouldFilter={false}>
+              <CommandInput 
+                placeholder="Search..." 
+                value={clientSearch}
+                onValueChange={setClientSearch}
+                autoFocus
+                onKeyDown={(e) => {
+                  if (e.key === 'Tab' && filteredClients.length > 0) {
+                    e.preventDefault();
+                    handleClientSelect(filteredClients[0].id);
+                  }
+                }}
+              />
+              <CommandList>
+                <CommandEmpty>No results found.</CommandEmpty>
+                <CommandGroup>
+                  {filteredClients.map((client) => (
+                    <CommandItem key={client.id} onSelect={() => handleClientSelect(client.id)}>
+                      <Check className={cn("mr-2 h-4 w-4", row.client_id === client.id ? "opacity-100" : "opacity-0")} />
+                      {client.name}
+                    </CommandItem>
+                  ))}
+                </CommandGroup>
+              </CommandList>
+            </Command>
+          </PopoverContent>
+        </Popover>
+      </TableCell>
+
+      {/* Address */}
+      <TableCell>
+        <Popover open={addressOpen} onOpenChange={setAddressOpen}>
+          <PopoverTrigger asChild>
+            <Button 
+              ref={addressRef}
+              variant="outline" 
+              className="w-full justify-between h-8 text-xs"
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || (e.key.length === 1 && !e.ctrlKey && !e.metaKey)) {
+                  e.preventDefault();
+                  setAddressOpen(true);
+                }
+              }}
+            >
+              {row.address || "Address..."}
+              <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent className="w-[200px] p-0 bg-popover z-50" onOpenAutoFocus={(e) => e.preventDefault()}>
+            <Command shouldFilter={false}>
+              <CommandInput 
+                placeholder="Type address..." 
+                value={addressSearch}
+                onValueChange={setAddressSearch}
+                autoFocus
+                onKeyDown={(e) => {
+                  if (e.key === 'Tab') {
+                    e.preventDefault();
+                    const addr = filteredAddresses.length > 0 ? filteredAddresses[0] : addressSearch;
+                    if (addr) handleAddressSelect(addr);
+                  }
+                }}
+              />
+              <CommandList>
+                <CommandEmpty>
+                  <Button variant="ghost" className="w-full text-xs" onClick={() => handleAddressSelect(addressSearch)}>
+                    Use "{addressSearch}"
+                  </Button>
+                </CommandEmpty>
+                <CommandGroup>
+                  {filteredAddresses.map((address, idx) => (
+                    <CommandItem key={idx} onSelect={() => handleAddressSelect(address)}>
+                      <Check className={cn("mr-2 h-4 w-4", row.address === address ? "opacity-100" : "opacity-0")} />
+                      {address}
+                    </CommandItem>
+                  ))}
+                </CommandGroup>
+              </CommandList>
+            </Command>
+          </PopoverContent>
+        </Popover>
+      </TableCell>
+
+      {/* Driver */}
+      <TableCell>
+        <Popover open={driverOpen} onOpenChange={setDriverOpen}>
+          <PopoverTrigger asChild>
+            <Button 
+              ref={driverRef}
+              variant="outline" 
+              className="w-full justify-between h-8 text-xs"
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || (e.key.length === 1 && !e.ctrlKey && !e.metaKey)) {
+                  e.preventDefault();
+                  setDriverOpen(true);
+                }
+              }}
+            >
+              {selectedDriver?.name || "Driver"}
+              <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent className="w-[200px] p-0 bg-popover z-50" onOpenAutoFocus={(e) => e.preventDefault()}>
+            <Command shouldFilter={false}>
+              <CommandInput 
+                placeholder="Search..." 
+                value={driverSearch}
+                onValueChange={setDriverSearch}
+                autoFocus
+                onKeyDown={(e) => {
+                  if (e.key === 'Tab' && filteredDrivers.length > 0) {
+                    e.preventDefault();
+                    handleDriverSelect(filteredDrivers[0].id);
+                  }
+                }}
+              />
+              <CommandList>
+                <CommandEmpty>No results found.</CommandEmpty>
+                <CommandGroup>
+                  {filteredDrivers.map((driver) => (
+                    <CommandItem key={driver.id} onSelect={() => handleDriverSelect(driver.id)}>
+                      <Check className={cn("mr-2 h-4 w-4", row.driver_id === driver.id ? "opacity-100" : "opacity-0")} />
+                      {driver.name}
+                    </CommandItem>
+                  ))}
+                </CommandGroup>
+              </CommandList>
+            </Command>
+          </PopoverContent>
+        </Popover>
+      </TableCell>
+
+      {/* Amount LBP */}
+      <TableCell>
+        <CurrencyInput
+          ref={amountLbpRef}
+          currency="LBP"
+          value={row.order_amount_lbp}
+          onChange={(val) => updateRow(row.id, "order_amount_lbp", val)}
+        />
+      </TableCell>
+
+      {/* Amount USD */}
+      <TableCell className="border-r border-border">
+        <CurrencyInput
+          ref={amountUsdRef}
+          currency="USD"
+          value={row.order_amount_usd}
+          onChange={(val) => updateRow(row.id, "order_amount_usd", val)}
+        />
+      </TableCell>
+
+      {/* Fee LBP */}
+      <TableCell className="bg-muted/30">
+        <CurrencyInput
+          ref={feeLbpRef}
+          currency="LBP"
+          value={row.delivery_fee_lbp}
+          onChange={(val) => updateRow(row.id, "delivery_fee_lbp", val)}
+        />
+      </TableCell>
+
+      {/* Fee USD */}
+      <TableCell className="bg-muted/30 border-r border-border">
+        <CurrencyInput
+          ref={feeUsdRef}
+          currency="USD"
+          value={row.delivery_fee_usd}
+          onChange={(val) => updateRow(row.id, "delivery_fee_usd", val)}
+        />
+      </TableCell>
+
+      {/* Notes */}
+      <TableCell>
+        <Input 
+          ref={notesRef}
+          value={row.notes} 
+          onChange={(e) => updateRow(row.id, "notes", e.target.value)} 
+          className="h-8 text-xs"
+        />
+      </TableCell>
+
+      {/* Driver Paid */}
+      <TableCell>
+        <div className="flex justify-center">
+          <Checkbox 
+            checked={row.driver_paid_for_client}
+            onCheckedChange={(checked) => updateRow(row.id, "driver_paid_for_client", checked)}
+            title="Driver paid for client"
+          />
+        </div>
+      </TableCell>
+
+      {/* Actions */}
+      <TableCell>
+        <div className="flex gap-1">
+          <Button 
+            size="sm" 
+            onClick={() => createOrderMutation.mutate(row)} 
+            disabled={!row.client_id || !row.address} 
+            className="h-8 text-xs"
+          >
+            Save
+          </Button>
+          <Button 
+            size="sm" 
+            variant="destructive"
+            onClick={() => removeRow(row.id)} 
+            className="h-8 text-xs"
+            tabIndex={-1}
+          >
+            Delete
+          </Button>
+        </div>
+      </TableCell>
+    </TableRow>
+  );
+}
+
 export function InstantOrderForm() {
   const queryClient = useQueryClient();
   const [newRows, setNewRows] = useState<NewOrderRow[]>([
@@ -219,194 +541,6 @@ export function InstantOrderForm() {
     },
   });
 
-  const ComboboxField = ({
-    value,
-    onSelect,
-    items,
-    placeholder,
-    onComplete,
-    triggerRef,
-  }: {
-    value: string;
-    onSelect: (id: string) => void;
-    items: any[];
-    placeholder: string;
-    onComplete?: () => void;
-    triggerRef?: React.RefObject<HTMLButtonElement>;
-  }) => {
-    const [open, setOpen] = useState(false);
-    const [searchTerm, setSearchTerm] = useState("");
-    const selected = items.find((item) => item.id === value);
-
-    const filteredItems = items.filter((item) =>
-      item.name.toLowerCase().includes(searchTerm.toLowerCase())
-    );
-
-    const handleSelect = useCallback((id: string) => {
-      onSelect(id);
-      setSearchTerm("");
-      setOpen(false);
-      setTimeout(() => {
-        onComplete?.();
-      }, 0);
-    }, [onSelect, onComplete]);
-
-    const handleTabSelect = () => {
-      if (filteredItems.length > 0) {
-        handleSelect(filteredItems[0].id);
-        return true;
-      }
-      return false;
-    };
-
-    return (
-      <Popover open={open} onOpenChange={setOpen}>
-        <PopoverTrigger asChild>
-          <Button 
-            ref={triggerRef}
-            variant="outline" 
-            className="w-full justify-between h-8 text-xs"
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' || (e.key.length === 1 && !e.ctrlKey && !e.metaKey)) {
-                e.preventDefault();
-                setOpen(true);
-              }
-            }}
-          >
-            {selected?.name || placeholder}
-            <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-          </Button>
-        </PopoverTrigger>
-        <PopoverContent className="w-[200px] p-0 bg-popover z-50" onOpenAutoFocus={(e) => e.preventDefault()}>
-          <Command shouldFilter={false}>
-            <CommandInput 
-              placeholder="Search..." 
-              value={searchTerm}
-              onValueChange={setSearchTerm}
-              autoFocus
-              onKeyDown={(e) => {
-                if (e.key === 'Tab') {
-                  e.preventDefault();
-                  handleTabSelect();
-                }
-              }}
-            />
-            <CommandList>
-              <CommandEmpty>No results found.</CommandEmpty>
-              <CommandGroup>
-                {filteredItems.map((item) => (
-                  <CommandItem
-                    key={item.id}
-                    onSelect={() => handleSelect(item.id)}
-                  >
-                    <Check className={cn("mr-2 h-4 w-4", value === item.id ? "opacity-100" : "opacity-0")} />
-                    {item.name}
-                  </CommandItem>
-                ))}
-              </CommandGroup>
-            </CommandList>
-          </Command>
-        </PopoverContent>
-      </Popover>
-    );
-  };
-
-  const AddressField = ({ 
-    row, 
-    onComplete,
-    triggerRef,
-  }: { 
-    row: NewOrderRow; 
-    onComplete?: () => void;
-    triggerRef?: React.RefObject<HTMLButtonElement>;
-  }) => {
-    const [open, setOpen] = useState(false);
-    const [searchValue, setSearchValue] = useState("");
-
-    const filteredAddresses = addresses.filter((addr): addr is string =>
-      typeof addr === 'string' && addr.toLowerCase().includes(searchValue.toLowerCase())
-    );
-
-    const handleSelect = useCallback((address: string) => {
-      updateRow(row.id, "address", address);
-      setSearchValue("");
-      setOpen(false);
-      setTimeout(() => {
-        onComplete?.();
-      }, 0);
-    }, [row.id, onComplete]);
-
-    const handleTabSelect = () => {
-      const addressToUse = filteredAddresses.length > 0 
-        ? filteredAddresses[0]
-        : searchValue;
-      
-      if (addressToUse) {
-        handleSelect(addressToUse);
-        return true;
-      }
-      return false;
-    };
-
-    return (
-      <Popover open={open} onOpenChange={setOpen}>
-        <PopoverTrigger asChild>
-          <Button 
-            ref={triggerRef}
-            variant="outline" 
-            className="w-full justify-between h-8 text-xs"
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' || (e.key.length === 1 && !e.ctrlKey && !e.metaKey)) {
-                e.preventDefault();
-                setOpen(true);
-              }
-            }}
-          >
-            {row.address || "Address..."}
-            <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-          </Button>
-        </PopoverTrigger>
-        <PopoverContent className="w-[200px] p-0 bg-popover z-50" onOpenAutoFocus={(e) => e.preventDefault()}>
-          <Command shouldFilter={false}>
-            <CommandInput 
-              placeholder="Type address..." 
-              value={searchValue}
-              onValueChange={setSearchValue}
-              autoFocus
-              onKeyDown={(e) => {
-                if (e.key === 'Tab') {
-                  e.preventDefault();
-                  handleTabSelect();
-                }
-              }}
-            />
-            <CommandList>
-              <CommandEmpty>
-                <Button 
-                  variant="ghost" 
-                  className="w-full text-xs" 
-                  onClick={() => handleSelect(searchValue)}
-                >
-                  Use "{searchValue}"
-                </Button>
-              </CommandEmpty>
-              <CommandGroup>
-                {filteredAddresses.map((address, idx) => (
-                  <CommandItem
-                    key={idx}
-                    onSelect={() => handleSelect(address)}
-                  >
-                    <Check className={cn("mr-2 h-4 w-4", row.address === address ? "opacity-100" : "opacity-0")} />
-                    {address}
-                  </CommandItem>
-                ))}
-              </CommandGroup>
-            </CommandList>
-          </Command>
-        </PopoverContent>
-      </Popover>
-    );
-  };
 
   return (
     <div className="space-y-2">
@@ -435,131 +569,19 @@ export function InstantOrderForm() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {newRows.map((row, rowIndex) => {
-              // Create refs for each field in the row
-              const addressRef = useRef<HTMLButtonElement>(null);
-              const driverRef = useRef<HTMLButtonElement>(null);
-              const amountLbpRef = useRef<HTMLInputElement>(null);
-              const amountUsdRef = useRef<HTMLInputElement>(null);
-              const feeLbpRef = useRef<HTMLInputElement>(null);
-              const feeUsdRef = useRef<HTMLInputElement>(null);
-              const notesRef = useRef<HTMLInputElement>(null);
-
-              return (
-                <TableRow 
-                  key={row.id} 
-                  className="bg-accent/20"
-                  onKeyDown={(e) => {
-                    if ((e.ctrlKey || e.metaKey) && e.key === 'd') {
-                      e.preventDefault();
-                      addNewRow(true);
-                    } else if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
-                      e.preventDefault();
-                      if (row.client_id && row.address) {
-                        createOrderMutation.mutate(row);
-                      }
-                    }
-                  }}
-                >
-                  <TableCell>
-                    <ComboboxField 
-                      value={row.client_id} 
-                      onSelect={(id) => updateRow(row.id, "client_id", id)} 
-                      items={clients} 
-                      placeholder="Client"
-                      onComplete={() => addressRef.current?.click()}
-                    />
-                  </TableCell>
-                  <TableCell>
-                    <AddressField 
-                      row={row} 
-                      onComplete={() => driverRef.current?.click()}
-                      triggerRef={addressRef}
-                    />
-                  </TableCell>
-                  <TableCell>
-                    <ComboboxField 
-                      value={row.driver_id} 
-                      onSelect={(id) => updateRow(row.id, "driver_id", id)} 
-                      items={drivers} 
-                      placeholder="Driver"
-                      onComplete={() => amountLbpRef.current?.focus()}
-                      triggerRef={driverRef}
-                    />
-                  </TableCell>
-                  <TableCell>
-                    <CurrencyInput
-                      ref={amountLbpRef}
-                      currency="LBP"
-                      value={row.order_amount_lbp}
-                      onChange={(val) => updateRow(row.id, "order_amount_lbp", val)}
-                    />
-                  </TableCell>
-                  <TableCell className="border-r border-border">
-                    <CurrencyInput
-                      ref={amountUsdRef}
-                      currency="USD"
-                      value={row.order_amount_usd}
-                      onChange={(val) => updateRow(row.id, "order_amount_usd", val)}
-                    />
-                  </TableCell>
-                  <TableCell className="bg-muted/30">
-                    <CurrencyInput
-                      ref={feeLbpRef}
-                      currency="LBP"
-                      value={row.delivery_fee_lbp}
-                      onChange={(val) => updateRow(row.id, "delivery_fee_lbp", val)}
-                    />
-                  </TableCell>
-                  <TableCell className="bg-muted/30 border-r border-border">
-                    <CurrencyInput
-                      ref={feeUsdRef}
-                      currency="USD"
-                      value={row.delivery_fee_usd}
-                      onChange={(val) => updateRow(row.id, "delivery_fee_usd", val)}
-                    />
-                  </TableCell>
-                  <TableCell>
-                    <Input 
-                      ref={notesRef}
-                      value={row.notes} 
-                      onChange={(e) => updateRow(row.id, "notes", e.target.value)} 
-                      className="h-8 text-xs"
-                    />
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex justify-center">
-                      <Checkbox 
-                        checked={row.driver_paid_for_client}
-                        onCheckedChange={(checked) => updateRow(row.id, "driver_paid_for_client", checked)}
-                        title="Driver paid for client"
-                      />
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex gap-1">
-                      <Button 
-                        size="sm" 
-                        onClick={() => createOrderMutation.mutate(row)} 
-                        disabled={!row.client_id || !row.address} 
-                        className="h-8 text-xs"
-                      >
-                        Save
-                      </Button>
-                      <Button 
-                        size="sm" 
-                        variant="destructive"
-                        onClick={() => removeRow(row.id)} 
-                        className="h-8 text-xs"
-                        tabIndex={-1}
-                      >
-                        Delete
-                      </Button>
-                    </div>
-                  </TableCell>
-                </TableRow>
-              );
-            })}
+            {newRows.map((row) => (
+              <OrderRow
+                key={row.id}
+                row={row}
+                clients={clients}
+                drivers={drivers}
+                addresses={addresses}
+                updateRow={updateRow}
+                removeRow={removeRow}
+                addNewRow={addNewRow}
+                createOrderMutation={createOrderMutation}
+              />
+            ))}
           </TableBody>
         </Table>
       </div>
