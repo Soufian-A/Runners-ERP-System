@@ -10,17 +10,21 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Checkbox } from '@/components/ui/checkbox';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
-import { FileText, Download, CheckCircle, Search, DollarSign, ChevronDown, ChevronUp, Wallet, Clock, TrendingUp, Eye } from 'lucide-react';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
+import { FileText, Download, CheckCircle, Search, DollarSign, ChevronDown, ChevronUp, Wallet, Clock, TrendingUp, Eye, ChevronsUpDown, Check } from 'lucide-react';
 import { format } from 'date-fns';
 import { toast } from 'sonner';
 import { useAuth } from '@/hooks/useAuth';
 import { StatusBadge } from '@/components/ui/status-badge';
 import { DriverStatementPreview } from './DriverStatementPreview';
+import { cn } from '@/lib/utils';
 
 export function DriverStatementsTab() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const [selectedDriver, setSelectedDriver] = useState('');
+  const [driverSearchOpen, setDriverSearchOpen] = useState(false);
   const [dateFrom, setDateFrom] = useState(new Date().toISOString().split('T')[0]);
   const [dateTo, setDateTo] = useState(new Date().toISOString().split('T')[0]);
   const [searchTerm, setSearchTerm] = useState('');
@@ -287,26 +291,55 @@ export function DriverStatementsTab() {
           <div className="grid grid-cols-1 md:grid-cols-5 gap-3">
             <div className="md:col-span-2">
               <Label className="text-xs text-muted-foreground mb-1 block">Driver</Label>
-              <Select value={selectedDriver} onValueChange={setSelectedDriver}>
-                <SelectTrigger className="h-9">
-                  <SelectValue placeholder="Select driver..." />
-                </SelectTrigger>
-                <SelectContent>
-                  {drivers?.map((driver) => (
-                    <SelectItem key={driver.id} value={driver.id}>
-                      <span className="flex items-center gap-2">
-                        {driver.name}
-                        <span className="text-xs text-muted-foreground font-mono">
-                          ${Number(driver.wallet_usd || 0).toFixed(2)}
-                          {Number(driver.wallet_lbp || 0) !== 0 && (
-                            <span className="ml-1">/ {Number(driver.wallet_lbp || 0).toLocaleString()} LL</span>
-                          )}
-                        </span>
-                      </span>
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Popover open={driverSearchOpen} onOpenChange={setDriverSearchOpen}>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    role="combobox"
+                    aria-expanded={driverSearchOpen}
+                    className="w-full justify-between h-9 font-normal"
+                  >
+                    {selectedDriver
+                      ? drivers?.find((d) => d.id === selectedDriver)?.name
+                      : "Search driver..."}
+                    <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-[300px] p-0 bg-popover" align="start">
+                  <Command>
+                    <CommandInput placeholder="Search driver..." />
+                    <CommandList>
+                      <CommandEmpty>No driver found.</CommandEmpty>
+                      <CommandGroup>
+                        {drivers?.map((driver) => (
+                          <CommandItem
+                            key={driver.id}
+                            value={driver.name}
+                            onSelect={() => {
+                              setSelectedDriver(driver.id);
+                              setDriverSearchOpen(false);
+                            }}
+                          >
+                            <Check
+                              className={cn(
+                                "mr-2 h-4 w-4",
+                                selectedDriver === driver.id ? "opacity-100" : "opacity-0"
+                              )}
+                            />
+                            <span className="flex-1">{driver.name}</span>
+                            <span className="text-xs text-muted-foreground font-mono">
+                              ${Number(driver.wallet_usd || 0).toFixed(2)}
+                              {Number(driver.wallet_lbp || 0) !== 0 && (
+                                <span className="ml-1">/ {Number(driver.wallet_lbp || 0).toLocaleString()} LL</span>
+                              )}
+                            </span>
+                          </CommandItem>
+                        ))}
+                      </CommandGroup>
+                    </CommandList>
+                  </Command>
+                </PopoverContent>
+              </Popover>
             </div>
             <div>
               <Label className="text-xs text-muted-foreground mb-1 block">From</Label>
