@@ -10,9 +10,8 @@ import { BulkActionsBar } from "@/components/orders/BulkActionsBar";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { LayoutGrid, List, Settings, Search, Pencil, Trash2 } from "lucide-react";
+import { Settings, Search, Pencil, Trash2 } from "lucide-react";
 import EditOrderDialog from "@/components/orders/EditOrderDialog";
-import CreateOrderDialog from "@/components/orders/CreateOrderDialog";
 import { AddressSettingsDialog } from "@/components/orders/AddressSettingsDialog";
 import { useMutation } from "@tanstack/react-query";
 import { toast } from "@/hooks/use-toast";
@@ -78,8 +77,6 @@ const InstantOrders = () => {
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
-  const [viewMode, setViewMode] = useState<"quick" | "form">("quick");
-  const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [addressSettingsOpen, setAddressSettingsOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [deleteOrderId, setDeleteOrderId] = useState<string | null>(null);
@@ -196,29 +193,13 @@ const InstantOrders = () => {
       <div className="space-y-6">
         <div className="flex justify-between items-center">
           <h1 className="text-3xl font-bold">Instant Orders</h1>
-          <div className="flex gap-2">
-            <Button variant="outline" size="sm" onClick={() => setAddressSettingsOpen(true)}>
-              <Settings className="h-4 w-4 mr-2" />
-              Address Areas
-            </Button>
-            <Button variant={viewMode === "quick" ? "default" : "outline"} size="sm" onClick={() => setViewMode("quick")}>
-              <List className="h-4 w-4 mr-2" />
-              Quick Entry
-            </Button>
-            <Button variant={viewMode === "form" ? "default" : "outline"} size="sm" onClick={() => setViewMode("form")}>
-              <LayoutGrid className="h-4 w-4 mr-2" />
-              Form Entry
-            </Button>
-          </div>
+          <Button variant="outline" size="sm" onClick={() => setAddressSettingsOpen(true)}>
+            <Settings className="h-4 w-4 mr-2" />
+            Address Areas
+          </Button>
         </div>
 
-        {viewMode === "quick" ? (
-          <InstantOrderForm />
-        ) : (
-          <div className="flex justify-end">
-            <Button onClick={() => setCreateDialogOpen(true)}>Create Instant Order</Button>
-          </div>
-        )}
+        <InstantOrderForm />
 
         <Card>
           <CardContent className="p-6">
@@ -346,7 +327,7 @@ const InstantOrders = () => {
           />
         )}
 
-        {createDialogOpen && <CreateOrderDialog open={createDialogOpen} onOpenChange={setCreateDialogOpen} orderType="instant" />}
+        
 
         <AddressSettingsDialog open={addressSettingsOpen} onOpenChange={setAddressSettingsOpen} />
 
