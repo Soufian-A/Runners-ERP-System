@@ -80,7 +80,7 @@ function OrderRow({
     d.name.toLowerCase().includes(driverSearch.toLowerCase())
   );
   const filteredAddresses = addresses.filter((addr) =>
-    addr.toLowerCase().includes(addressSearch.toLowerCase())
+    typeof addr === 'string' && addr.toLowerCase().includes(addressSearch.toLowerCase())
   );
 
   const selectedClient = clients.find((c) => c.id === row.client_id);
