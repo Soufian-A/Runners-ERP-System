@@ -203,8 +203,9 @@ const EcomOrders = () => {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">All Statuses</SelectItem>
-                    <SelectItem value="Pending">Pending</SelectItem>
-                    <SelectItem value="Dispatched">Dispatched</SelectItem>
+                    <SelectItem value="New">New</SelectItem>
+                    <SelectItem value="Assigned">Assigned</SelectItem>
+                    <SelectItem value="PickedUp">Picked Up</SelectItem>
                     <SelectItem value="Delivered">Delivered</SelectItem>
                     <SelectItem value="Returned">Returned</SelectItem>
                     <SelectItem value="Cancelled">Cancelled</SelectItem>
