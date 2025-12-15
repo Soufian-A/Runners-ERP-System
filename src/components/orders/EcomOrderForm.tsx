@@ -394,23 +394,26 @@ export function EcomOrderForm() {
       queryClient.invalidateQueries({ queryKey: ["ecom-orders"] });
       queryClient.invalidateQueries({ queryKey: ["customers"] });
       toast.success("E-commerce order created successfully!");
-      // Reset the saved row to empty instead of removing it
-      setNewRows(prevRows => prevRows.map(r =>
-        r.id === rowId
-          ? {
-              id: `new-${Date.now()}`,
-              voucher_no: "",
-              client_id: "",
-              customer_phone: "",
-              customer_name: "",
-              customer_address: "",
-              total_with_delivery_usd: "",
-              delivery_fee_usd: "",
-              amount_due_to_client_usd: "",
-              prepaid_by_company: false,
-            }
-          : r
-      ));
+      // Remove saved row
+      setNewRows(prevRows => {
+        const remaining = prevRows.filter(r => r.id !== rowId);
+        // Keep at least one empty row
+        if (remaining.length === 0) {
+          return [{
+            id: `new-${Date.now()}`,
+            voucher_no: "",
+            client_id: "",
+            customer_phone: "",
+            customer_name: "",
+            customer_address: "",
+            total_with_delivery_usd: "",
+            delivery_fee_usd: "",
+            amount_due_to_client_usd: "",
+            prepaid_by_company: false,
+          }];
+        }
+        return remaining;
+      });
     },
     onError: (error: Error) => {
       console.error('Error creating order:', error);
@@ -418,14 +421,56 @@ export function EcomOrderForm() {
     },
   });
 
+  const [isBulkSaving, setIsBulkSaving] = useState(false);
+
+  const saveAllOrders = async () => {
+    const validRows = newRows.filter(row => row.client_id && row.customer_phone);
+    if (validRows.length === 0) {
+      toast.error("No valid orders to save. Each order needs a client and customer phone.");
+      return;
+    }
+
+    setIsBulkSaving(true);
+    let successCount = 0;
+    let errorCount = 0;
+
+    for (const row of validRows) {
+      try {
+        await createOrderMutation.mutateAsync(row);
+        successCount++;
+      } catch (error) {
+        errorCount++;
+      }
+    }
+
+    setIsBulkSaving(false);
+    
+    if (successCount > 0 && errorCount === 0) {
+      toast.success(`${successCount} order(s) saved successfully!`);
+    } else if (successCount > 0 && errorCount > 0) {
+      toast.warning(`${successCount} saved, ${errorCount} failed`);
+    }
+  };
+
+  const validRowCount = newRows.filter(row => row.client_id && row.customer_phone).length;
+
   return (
     <div className="space-y-2">
       <div className="flex justify-between items-center">
         <h3 className="text-sm font-semibold">Quick E-commerce Entry</h3>
-        <Button onClick={addNewRow} size="sm" variant="outline">
-          <Plus className="h-4 w-4 mr-1" />
-          Add Row
-        </Button>
+        <div className="flex gap-2">
+          <Button onClick={addNewRow} size="sm" variant="outline">
+            <Plus className="h-4 w-4 mr-1" />
+            Add Row
+          </Button>
+          <Button 
+            onClick={saveAllOrders} 
+            size="sm" 
+            disabled={validRowCount === 0 || isBulkSaving}
+          >
+            {isBulkSaving ? 'Saving...' : `Save All (${validRowCount})`}
+          </Button>
+        </div>
       </div>
 
       <div className="border rounded-lg overflow-x-auto">
