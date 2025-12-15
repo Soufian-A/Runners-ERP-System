@@ -106,11 +106,15 @@ export function ClientStatementsTab() {
         // Filter out orders already in statements
         if (usedOrderRefs.has(orderRef)) return false;
         
-        // Filter out orders with zero order amounts - statements are only for paid/collected amounts
-        const hasOrderAmount = Number(order.order_amount_usd || 0) > 0 || Number(order.order_amount_lbp || 0) > 0;
-        if (!hasOrderAmount) return false;
+        // For driver-paid orders, include even if order amount is zero (delivery fee is still due)
+        if (order.driver_paid_for_client) {
+          const hasDeliveryFee = Number(order.delivery_fee_usd || 0) > 0 || Number(order.delivery_fee_lbp || 0) > 0;
+          return hasDeliveryFee || Number(order.order_amount_usd || 0) > 0 || Number(order.order_amount_lbp || 0) > 0;
+        }
         
-        return true;
+        // For non-driver-paid orders, only include if there's an order amount
+        const hasOrderAmount = Number(order.order_amount_usd || 0) > 0 || Number(order.order_amount_lbp || 0) > 0;
+        return hasOrderAmount;
       }) || [];
     },
     enabled: !!selectedClient,
