@@ -11,7 +11,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { LayoutGrid, List, Search } from "lucide-react";
+import { LayoutGrid, List, Pencil, Search } from "lucide-react";
 import EditOrderDialog from "@/components/orders/EditOrderDialog";
 import CreateOrderDialog from "@/components/orders/CreateOrderDialog";
 
@@ -237,6 +237,7 @@ const EcomOrders = () => {
                   <TableHead>Delivery</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead>Created</TableHead>
+                  <TableHead className="w-[80px]">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -297,6 +298,18 @@ const EcomOrders = () => {
                         hour: '2-digit', 
                         minute: '2-digit' 
                       })}
+                    </TableCell>
+                    <TableCell>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => {
+                          setSelectedOrder(order);
+                          setDialogOpen(true);
+                        }}
+                      >
+                        <Pencil className="h-4 w-4" />
+                      </Button>
                     </TableCell>
                   </TableRow>
                 ))}
