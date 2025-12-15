@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef, useCallback } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -30,6 +30,230 @@ type Customer = {
   name: string | null;
   address: string | null;
 };
+
+// Separate component for each row with proper refs
+function EcomOrderRow({
+  row,
+  clients,
+  customers,
+  updateRow,
+  createOrderMutation,
+  setNewRows,
+}: {
+  row: NewOrderRow;
+  clients: any[];
+  customers: Customer[];
+  updateRow: (id: string, field: keyof NewOrderRow, value: any) => void;
+  createOrderMutation: any;
+  setNewRows: React.Dispatch<React.SetStateAction<NewOrderRow[]>>;
+}) {
+  const clientRef = useRef<HTMLButtonElement>(null);
+  const phoneRef = useRef<HTMLInputElement>(null);
+  const nameRef = useRef<HTMLInputElement>(null);
+  const addressRef = useRef<HTMLInputElement>(null);
+  const totalRef = useRef<HTMLInputElement>(null);
+  const feeRef = useRef<HTMLInputElement>(null);
+
+  const [clientOpen, setClientOpen] = useState(false);
+  const [clientSearch, setClientSearch] = useState("");
+
+  const filteredClients = clients.filter((c) =>
+    c.name.toLowerCase().includes(clientSearch.toLowerCase())
+  );
+
+  const selectedClient = clients.find((c) => c.id === row.client_id);
+
+  const handleClientSelect = useCallback((id: string) => {
+    updateRow(row.id, "client_id", id);
+    setClientSearch("");
+    setClientOpen(false);
+    setTimeout(() => phoneRef.current?.focus(), 0);
+  }, [row.id, updateRow]);
+
+  const handlePhoneBlur = useCallback(() => {
+    const matchingCustomer = customers.find((c) => c.phone === row.customer_phone);
+    if (matchingCustomer) {
+      setNewRows((prevRows) => prevRows.map((r) =>
+        r.id === row.id
+          ? {
+              ...r,
+              customer_name: matchingCustomer.name || r.customer_name,
+              customer_address: matchingCustomer.address || r.customer_address
+            }
+          : r
+      ));
+    }
+  }, [row.id, row.customer_phone, customers, setNewRows]);
+
+  return (
+    <TableRow className="bg-accent/20">
+      {/* Voucher */}
+      <TableCell>
+        <Input
+          value={row.voucher_no}
+          onChange={(e) => updateRow(row.id, "voucher_no", e.target.value)}
+          className="h-8 text-xs"
+          placeholder="#"
+          onKeyDown={(e) => {
+            if (e.key === 'Tab' && !e.shiftKey) {
+              e.preventDefault();
+              clientRef.current?.focus();
+            }
+          }}
+        />
+      </TableCell>
+
+      {/* Client */}
+      <TableCell>
+        <Popover open={clientOpen} onOpenChange={setClientOpen}>
+          <PopoverTrigger asChild>
+            <Button
+              ref={clientRef}
+              variant="outline"
+              className="w-full justify-between h-8 text-xs"
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || (e.key.length === 1 && !e.ctrlKey && !e.metaKey)) {
+                  e.preventDefault();
+                  setClientOpen(true);
+                }
+              }}
+            >
+              {selectedClient?.name || "Client"}
+              <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent className="w-[200px] p-0 bg-popover z-50" onOpenAutoFocus={(e) => e.preventDefault()}>
+            <Command shouldFilter={false}>
+              <CommandInput
+                placeholder="Search..."
+                value={clientSearch}
+                onValueChange={setClientSearch}
+                autoFocus
+                onKeyDown={(e) => {
+                  if (e.key === 'Tab' && filteredClients.length > 0) {
+                    e.preventDefault();
+                    handleClientSelect(filteredClients[0].id);
+                  }
+                }}
+              />
+              <CommandList>
+                <CommandEmpty>No results found.</CommandEmpty>
+                <CommandGroup>
+                  {filteredClients.map((client) => (
+                    <CommandItem key={client.id} onSelect={() => handleClientSelect(client.id)}>
+                      <Check className={cn("mr-2 h-4 w-4", row.client_id === client.id ? "opacity-100" : "opacity-0")} />
+                      {client.name}
+                    </CommandItem>
+                  ))}
+                </CommandGroup>
+              </CommandList>
+            </Command>
+          </PopoverContent>
+        </Popover>
+      </TableCell>
+
+      {/* Customer Phone */}
+      <TableCell>
+        <Input
+          ref={phoneRef}
+          value={row.customer_phone}
+          onChange={(e) => updateRow(row.id, "customer_phone", e.target.value)}
+          onBlur={handlePhoneBlur}
+          className="h-8 text-xs"
+          placeholder="Phone..."
+          onKeyDown={(e) => {
+            if (e.key === 'Tab' && !e.shiftKey) {
+              e.preventDefault();
+              handlePhoneBlur();
+              nameRef.current?.focus();
+            }
+          }}
+        />
+      </TableCell>
+
+      {/* Customer Name */}
+      <TableCell>
+        <Input
+          ref={nameRef}
+          value={row.customer_name}
+          onChange={(e) => updateRow(row.id, "customer_name", e.target.value)}
+          className="h-8 text-xs"
+        />
+      </TableCell>
+
+      {/* Address */}
+      <TableCell>
+        <Input
+          ref={addressRef}
+          value={row.customer_address}
+          onChange={(e) => updateRow(row.id, "customer_address", e.target.value)}
+          className="h-8 text-xs"
+        />
+      </TableCell>
+
+      {/* Total USD */}
+      <TableCell>
+        <Input
+          ref={totalRef}
+          type="number"
+          step="0.01"
+          value={row.total_with_delivery_usd}
+          onChange={(e) => updateRow(row.id, "total_with_delivery_usd", e.target.value)}
+          className="h-8 text-xs"
+        />
+      </TableCell>
+
+      {/* Fee USD */}
+      <TableCell>
+        <Input
+          ref={feeRef}
+          type="number"
+          step="0.01"
+          value={row.delivery_fee_usd}
+          onChange={(e) => updateRow(row.id, "delivery_fee_usd", e.target.value)}
+          className="h-8 text-xs"
+        />
+      </TableCell>
+
+      {/* Due USD (readonly) */}
+      <TableCell>
+        <Input
+          type="number"
+          step="0.01"
+          value={row.amount_due_to_client_usd}
+          onChange={(e) => updateRow(row.id, "amount_due_to_client_usd", e.target.value)}
+          className="h-8 text-xs"
+          readOnly
+          title="Auto-calculated: Total - Delivery Fee"
+        />
+      </TableCell>
+
+      {/* Prepaid Checkbox */}
+      <TableCell>
+        <div className="flex justify-center">
+          <Checkbox
+            checked={row.prepaid_by_company}
+            onCheckedChange={(checked) => updateRow(row.id, "prepaid_by_company", checked === true)}
+            title="Cash-based order (will require prepayment)"
+          />
+        </div>
+      </TableCell>
+
+      {/* Save Button */}
+      <TableCell>
+        <Button
+          size="sm"
+          onClick={() => createOrderMutation.mutate(row)}
+          disabled={!row.client_id || !row.customer_phone || createOrderMutation.isPending}
+          className="h-8 text-xs"
+          title={!row.client_id ? 'Please select a client' : !row.customer_phone ? 'Please enter customer phone' : 'Save order'}
+        >
+          {createOrderMutation.isPending ? 'Saving...' : 'Save'}
+        </Button>
+      </TableCell>
+    </TableRow>
+  );
+}
 
 export function EcomOrderForm() {
   const queryClient = useQueryClient();
@@ -87,16 +311,16 @@ export function EcomOrderForm() {
   const updateRow = (id: string, field: keyof NewOrderRow, value: any) => {
     setNewRows((prevRows) => prevRows.map((row) => {
       if (row.id !== id) return row;
-      
+
       const updatedRow = { ...row, [field]: value };
-      
+
       // Auto-calculate Due USD when total or delivery fee changes
       if (field === "total_with_delivery_usd" || field === "delivery_fee_usd") {
         const total = parseFloat(field === "total_with_delivery_usd" ? value : row.total_with_delivery_usd) || 0;
         const deliveryFee = parseFloat(field === "delivery_fee_usd" ? value : row.delivery_fee_usd) || 0;
         updatedRow.amount_due_to_client_usd = (total - deliveryFee).toString();
       }
-      
+
       return updatedRow;
     }));
   };
@@ -171,8 +395,8 @@ export function EcomOrderForm() {
       queryClient.invalidateQueries({ queryKey: ["customers"] });
       toast.success("E-commerce order created successfully!");
       // Reset the saved row to empty instead of removing it
-      setNewRows(prevRows => prevRows.map(r => 
-        r.id === rowId 
+      setNewRows(prevRows => prevRows.map(r =>
+        r.id === rowId
           ? {
               id: `new-${Date.now()}`,
               voucher_no: "",
@@ -193,81 +417,6 @@ export function EcomOrderForm() {
       toast.error(`Failed to create order: ${error.message}`);
     },
   });
-
-  const ComboboxField = ({
-    value,
-    onSelect,
-    items,
-    placeholder,
-  }: {
-    value: string;
-    onSelect: (id: string) => void;
-    items: any[];
-    placeholder: string;
-  }) => {
-    const [open, setOpen] = useState(false);
-    const [searchValue, setSearchValue] = useState("");
-    const selected = items.find((item) => item.id === value);
-
-    return (
-      <Popover open={open} onOpenChange={setOpen}>
-        <PopoverTrigger asChild>
-          <Button 
-            variant="outline" 
-            className="w-full justify-between h-8 text-xs"
-            onKeyDown={(e) => {
-              // Allow typing to open the dropdown
-              if (e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey) {
-                e.preventDefault();
-                setSearchValue(e.key);
-                setOpen(true);
-              } else if (e.key === 'Enter' || e.key === ' ') {
-                e.preventDefault();
-                setOpen(true);
-              }
-            }}
-          >
-            {selected?.name || placeholder}
-            <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-          </Button>
-        </PopoverTrigger>
-        <PopoverContent className="w-[200px] p-0 bg-popover" onOpenAutoFocus={(e) => {
-          e.preventDefault();
-          const target = e.currentTarget as HTMLElement;
-          const input = target.querySelector('input');
-          if (input) {
-            input.value = searchValue;
-            input.focus();
-            // Trigger the input event so Command recognizes the value
-            input.dispatchEvent(new Event('input', { bubbles: true }));
-          }
-        }}>
-          <Command>
-            <CommandInput placeholder="Search..." />
-            <CommandList>
-              <CommandEmpty>No results found.</CommandEmpty>
-              <CommandGroup>
-                {items.map((item) => (
-                  <CommandItem
-                    key={item.id}
-                    onSelect={() => {
-                      onSelect(item.id);
-                      setOpen(false);
-                      setSearchValue("");
-                    }}
-                  >
-                    <Check className={cn("mr-2 h-4 w-4", value === item.id ? "opacity-100" : "opacity-0")} />
-                    {item.name}
-                  </CommandItem>
-                ))}
-              </CommandGroup>
-            </CommandList>
-          </Command>
-        </PopoverContent>
-      </Popover>
-    );
-  };
-
 
   return (
     <div className="space-y-2">
@@ -297,96 +446,15 @@ export function EcomOrderForm() {
           </TableHeader>
           <TableBody>
             {newRows.map((row) => (
-              <TableRow key={row.id} className="bg-accent/20">
-                <TableCell>
-                  <Input value={row.voucher_no} onChange={(e) => updateRow(row.id, "voucher_no", e.target.value)} className="h-8 text-xs" placeholder="#" />
-                </TableCell>
-                <TableCell>
-                  <ComboboxField value={row.client_id} onSelect={(id) => updateRow(row.id, "client_id", id)} items={clients} placeholder="Client" />
-                </TableCell>
-                <TableCell>
-                  <Input 
-                    value={row.customer_phone} 
-                    onChange={(e) => {
-                      updateRow(row.id, "customer_phone", e.target.value);
-                    }}
-                    onBlur={() => {
-                      const matchingCustomer = customers.find((c) => c.phone === row.customer_phone);
-                      if (matchingCustomer) {
-                        setNewRows((prevRows) => prevRows.map((r) => 
-                          r.id === row.id 
-                            ? { 
-                                ...r, 
-                                customer_name: matchingCustomer.name || r.customer_name,
-                                customer_address: matchingCustomer.address || r.customer_address
-                              }
-                            : r
-                        ));
-                      }
-                    }}
-                    className="h-8 text-xs" 
-                    placeholder="Phone..."
-                  />
-                </TableCell>
-                <TableCell>
-                  <Input value={row.customer_name} onChange={(e) => updateRow(row.id, "customer_name", e.target.value)} className="h-8 text-xs" />
-                </TableCell>
-                <TableCell>
-                  <Input value={row.customer_address} onChange={(e) => updateRow(row.id, "customer_address", e.target.value)} className="h-8 text-xs" />
-                </TableCell>
-                <TableCell>
-                  <Input
-                    type="number"
-                    step="0.01"
-                    value={row.total_with_delivery_usd}
-                    onChange={(e) => updateRow(row.id, "total_with_delivery_usd", e.target.value)}
-                    className="h-8 text-xs"
-                  />
-                </TableCell>
-                <TableCell>
-                  <Input
-                    type="number"
-                    step="0.01"
-                    value={row.delivery_fee_usd}
-                    onChange={(e) => updateRow(row.id, "delivery_fee_usd", e.target.value)}
-                    className="h-8 text-xs"
-                  />
-                </TableCell>
-                <TableCell>
-                  <Input
-                    type="number"
-                    step="0.01"
-                    value={row.amount_due_to_client_usd}
-                    onChange={(e) => updateRow(row.id, "amount_due_to_client_usd", e.target.value)}
-                    className="h-8 text-xs"
-                    readOnly
-                    title="Auto-calculated: Total - Delivery Fee"
-                  />
-                </TableCell>
-                <TableCell>
-                  <div className="flex justify-center">
-                    <Checkbox
-                      checked={row.prepaid_by_company}
-                      onCheckedChange={(checked) => updateRow(row.id, "prepaid_by_company", checked === true)}
-                      title="Cash-based order (will require prepayment)"
-                    />
-                  </div>
-                </TableCell>
-                <TableCell>
-                  <Button 
-                    size="sm" 
-                    onClick={() => {
-                      console.log('Save button clicked', { row, isValid: !!(row.client_id && row.customer_phone) });
-                      createOrderMutation.mutate(row);
-                    }} 
-                    disabled={!row.client_id || !row.customer_phone || createOrderMutation.isPending} 
-                    className="h-8 text-xs"
-                    title={!row.client_id ? 'Please select a client' : !row.customer_phone ? 'Please enter customer phone' : 'Save order'}
-                  >
-                    {createOrderMutation.isPending ? 'Saving...' : 'Save'}
-                  </Button>
-                </TableCell>
-              </TableRow>
+              <EcomOrderRow
+                key={row.id}
+                row={row}
+                clients={clients}
+                customers={customers}
+                updateRow={updateRow}
+                createOrderMutation={createOrderMutation}
+                setNewRows={setNewRows}
+              />
             ))}
           </TableBody>
         </Table>
