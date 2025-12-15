@@ -81,10 +81,19 @@ export function ClientStatementReport() {
 
       if (error) throw error;
 
-      // Filter out orders already in paid statements
+      // Filter out orders already in paid statements AND prepaid e-commerce orders
       const filteredData = data?.filter(order => {
         const orderRef = order.order_type === 'ecom' ? (order.voucher_no || order.order_id) : order.order_id;
-        return !paidOrderRefs.has(orderRef);
+        // Exclude orders in paid statements
+        if (paidOrderRefs.has(orderRef)) return false;
+        
+        // Exclude prepaid e-commerce orders - accounting already settled
+        // Company paid client upfront, driver collects from customer, no statement needed
+        if (order.order_type === 'ecom' && order.prepaid_by_company) {
+          return false;
+        }
+        
+        return true;
       }) || [];
 
       return filteredData;

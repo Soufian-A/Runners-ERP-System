@@ -106,6 +106,13 @@ export function ClientStatementsTab() {
         // Filter out orders already in statements
         if (usedOrderRefs.has(orderRef)) return false;
         
+        // EXCLUDE prepaid e-commerce orders - accounting is already settled
+        // When prepaid: company pays client upfront, driver collects from customer, 
+        // transaction offsets the prepayment debit - no statement needed
+        if (order.order_type === 'ecom' && order.prepaid_by_company) {
+          return false;
+        }
+        
         // For driver-paid orders, include even if order amount is zero (delivery fee is still due)
         if (order.driver_paid_for_client) {
           const hasDeliveryFee = Number(order.delivery_fee_usd || 0) > 0 || Number(order.delivery_fee_lbp || 0) > 0;
