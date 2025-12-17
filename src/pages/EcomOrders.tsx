@@ -35,6 +35,9 @@ interface Order {
   prepaid_by_runners?: boolean;
   driver_remit_status?: string;
   fulfillment?: string;
+  client_settlement_status?: string;
+  third_party_settlement_status?: string;
+  third_party_fee_usd?: number;
   clients?: { name: string };
   drivers?: { name: string };
   third_parties?: { name: string };
@@ -52,6 +55,7 @@ const EcomOrders = () => {
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [paymentFilter, setPaymentFilter] = useState<string>("all");
   const [fulfillmentFilter, setFulfillmentFilter] = useState<string>("all");
+  const [settlementFilter, setSettlementFilter] = useState<string>("all");
 
   const { data: orders, isLoading } = useQuery({
     queryKey: ["ecom-orders"],
@@ -111,12 +115,27 @@ const EcomOrders = () => {
       const matchesStatus = statusFilter === "all" || order.status === statusFilter;
       const matchesPayment = paymentFilter === "all" || 
         (paymentFilter === "cash" && order.prepaid_by_company) ||
-        (paymentFilter === "statement" && !order.prepaid_by_company);
+        (paymentFilter === "cash_pending" && order.prepaid_by_runners && !order.prepaid_by_company) ||
+        (paymentFilter === "statement" && !order.prepaid_by_company && !order.prepaid_by_runners);
       const matchesFulfillment = fulfillmentFilter === "all" || order.fulfillment === fulfillmentFilter;
+      
+      // Settlement filter
+      let matchesSettlement = true;
+      if (settlementFilter === "client_unpaid") {
+        matchesSettlement = order.status === 'Delivered' && order.client_settlement_status !== 'Paid';
+      } else if (settlementFilter === "client_paid") {
+        matchesSettlement = order.client_settlement_status === 'Paid';
+      } else if (settlementFilter === "3p_pending") {
+        matchesSettlement = order.fulfillment === 'ThirdParty' && order.third_party_settlement_status !== 'Received';
+      } else if (settlementFilter === "3p_received") {
+        matchesSettlement = order.fulfillment === 'ThirdParty' && order.third_party_settlement_status === 'Received';
+      } else if (settlementFilter === "pending_delivery") {
+        matchesSettlement = order.status !== 'Delivered' && order.status !== 'Cancelled' && order.status !== 'Returned';
+      }
 
-      return matchesSearch && matchesStatus && matchesPayment && matchesFulfillment;
+      return matchesSearch && matchesStatus && matchesPayment && matchesFulfillment && matchesSettlement;
     });
-  }, [orders, searchQuery, statusFilter, paymentFilter, fulfillmentFilter]);
+  }, [orders, searchQuery, statusFilter, paymentFilter, fulfillmentFilter, settlementFilter]);
 
   const getStatusBadge = (status: string) => {
     const variants: Record<string, "default" | "secondary" | "destructive" | "outline"> = {
@@ -187,11 +206,11 @@ const EcomOrders = () => {
                 )}
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                <div className="relative md:col-span-2">
+              <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+                <div className="relative md:col-span-1">
                   <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
                   <Input
-                    placeholder="Search by client, voucher, customer, address..."
+                    placeholder="Search..."
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
                     className="pl-8"
@@ -199,7 +218,7 @@ const EcomOrders = () => {
                 </div>
                 <Select value={statusFilter} onValueChange={setStatusFilter}>
                   <SelectTrigger>
-                    <SelectValue placeholder="Filter by status" />
+                    <SelectValue placeholder="Order Status" />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">All Statuses</SelectItem>
@@ -217,8 +236,32 @@ const EcomOrders = () => {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">All Payment Types</SelectItem>
-                    <SelectItem value="cash">Cash-Based</SelectItem>
+                    <SelectItem value="cash">Cash-Based (Prepaid)</SelectItem>
+                    <SelectItem value="cash_pending">Cash (Pending Prepay)</SelectItem>
                     <SelectItem value="statement">Statement-Based</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Select value={fulfillmentFilter} onValueChange={setFulfillmentFilter}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Fulfillment" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Fulfillment</SelectItem>
+                    <SelectItem value="InHouse">In-House</SelectItem>
+                    <SelectItem value="ThirdParty">Third Party</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Select value={settlementFilter} onValueChange={setSettlementFilter}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Settlement" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Settlement</SelectItem>
+                    <SelectItem value="pending_delivery">Pending Delivery</SelectItem>
+                    <SelectItem value="client_unpaid">Client Unpaid</SelectItem>
+                    <SelectItem value="client_paid">Client Paid</SelectItem>
+                    <SelectItem value="3p_pending">3P Pending</SelectItem>
+                    <SelectItem value="3p_received">3P Received</SelectItem>
                   </SelectContent>
                 </Select>
               </div>

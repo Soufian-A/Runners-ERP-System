@@ -336,18 +336,45 @@ export function ClientStatementsTab() {
       });
 
       if (selectedStatement) {
+        // Record CLIENT_PAYOUT transactions in audit log for each order
+        if (selectedStatement.order_refs?.length) {
+          // Get order IDs from order_refs
+          const { data: orderData } = await supabase
+            .from('orders')
+            .select('id, order_id, voucher_no, client_net_usd')
+            .or(selectedStatement.order_refs.map((ref: string) => `order_id.eq.${ref},voucher_no.eq.${ref}`).join(','));
+
+          if (orderData?.length) {
+            const transactions = orderData.map(order => ({
+              order_id: order.id,
+              party_type: 'CLIENT' as const,
+              party_id: selectedClient,
+              direction: isPayingClient ? 'OUT' as const : 'IN' as const,
+              amount_usd: Number(order.client_net_usd || 0),
+              tx_type: 'CLIENT_PAYOUT' as const,
+              tx_date: new Date().toISOString(),
+              recorded_by: user?.id,
+              note: `Statement ${selectedStatement.statement_id} - ${paymentMethod}`,
+            }));
+
+            await supabase.from('order_transactions').insert(transactions);
+
+            // Update orders client_settlement_status
+            await supabase.from('orders')
+              .update({ 
+                client_settlement_status: 'Paid',
+                driver_remit_status: 'Collected' 
+              })
+              .in('id', orderData.map(o => o.id));
+          }
+        }
+
         await supabase.from('client_statements').update({
           status: 'paid',
           paid_date: new Date().toISOString(),
           payment_method: paymentMethod,
           notes: paymentNotes || null,
         }).eq('id', selectedStatement.id);
-
-        if (selectedStatement.order_refs?.length) {
-          await supabase.from('orders')
-            .update({ driver_remit_status: 'Collected' })
-            .or(selectedStatement.order_refs.map((ref: string) => `order_id.eq.${ref},voucher_no.eq.${ref}`).join(','));
-        }
       }
     },
     onSuccess: () => {
@@ -359,6 +386,7 @@ export function ClientStatementsTab() {
       queryClient.invalidateQueries({ queryKey: ['orders'] });
       queryClient.invalidateQueries({ queryKey: ['instant-orders'] });
       queryClient.invalidateQueries({ queryKey: ['ecom-orders'] });
+      queryClient.invalidateQueries({ queryKey: ['order-transactions'] });
       setPaymentDialogOpen(false);
       setSelectedStatement(null);
       setPaymentAmountUsd('');

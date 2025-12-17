@@ -602,12 +602,66 @@ export type Database = {
         }
         Relationships: []
       }
+      order_transactions: {
+        Row: {
+          amount_usd: number
+          created_at: string
+          direction: Database["public"]["Enums"]["tx_direction"]
+          id: string
+          note: string | null
+          order_id: string
+          party_id: string | null
+          party_type: Database["public"]["Enums"]["party_type"]
+          recorded_by: string | null
+          tx_date: string
+          tx_type: Database["public"]["Enums"]["tx_type"]
+        }
+        Insert: {
+          amount_usd?: number
+          created_at?: string
+          direction: Database["public"]["Enums"]["tx_direction"]
+          id?: string
+          note?: string | null
+          order_id: string
+          party_id?: string | null
+          party_type: Database["public"]["Enums"]["party_type"]
+          recorded_by?: string | null
+          tx_date?: string
+          tx_type: Database["public"]["Enums"]["tx_type"]
+        }
+        Update: {
+          amount_usd?: number
+          created_at?: string
+          direction?: Database["public"]["Enums"]["tx_direction"]
+          id?: string
+          note?: string | null
+          order_id?: string
+          party_id?: string | null
+          party_type?: Database["public"]["Enums"]["party_type"]
+          recorded_by?: string | null
+          tx_date?: string
+          tx_type?: Database["public"]["Enums"]["tx_type"]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "order_transactions_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       orders: {
         Row: {
           address: string
           amount_due_to_client_usd: number | null
           client_fee_rule: Database["public"]["Enums"]["fee_rule_type"]
           client_id: string
+          client_net_usd: number | null
+          client_settlement_status:
+            | Database["public"]["Enums"]["client_settlement_status"]
+            | null
           client_type: Database["public"]["Enums"]["client_type"]
           collected_amount_lbp: number | null
           collected_amount_usd: number | null
@@ -638,7 +692,11 @@ export type Database = {
           prepay_amount_lbp: number | null
           prepay_amount_usd: number | null
           status: Database["public"]["Enums"]["order_status"] | null
+          third_party_fee_usd: number | null
           third_party_id: string | null
+          third_party_settlement_status:
+            | Database["public"]["Enums"]["third_party_settlement_status"]
+            | null
           voucher_no: string | null
         }
         Insert: {
@@ -646,6 +704,10 @@ export type Database = {
           amount_due_to_client_usd?: number | null
           client_fee_rule: Database["public"]["Enums"]["fee_rule_type"]
           client_id: string
+          client_net_usd?: number | null
+          client_settlement_status?:
+            | Database["public"]["Enums"]["client_settlement_status"]
+            | null
           client_type: Database["public"]["Enums"]["client_type"]
           collected_amount_lbp?: number | null
           collected_amount_usd?: number | null
@@ -676,7 +738,11 @@ export type Database = {
           prepay_amount_lbp?: number | null
           prepay_amount_usd?: number | null
           status?: Database["public"]["Enums"]["order_status"] | null
+          third_party_fee_usd?: number | null
           third_party_id?: string | null
+          third_party_settlement_status?:
+            | Database["public"]["Enums"]["third_party_settlement_status"]
+            | null
           voucher_no?: string | null
         }
         Update: {
@@ -684,6 +750,10 @@ export type Database = {
           amount_due_to_client_usd?: number | null
           client_fee_rule?: Database["public"]["Enums"]["fee_rule_type"]
           client_id?: string
+          client_net_usd?: number | null
+          client_settlement_status?:
+            | Database["public"]["Enums"]["client_settlement_status"]
+            | null
           client_type?: Database["public"]["Enums"]["client_type"]
           collected_amount_lbp?: number | null
           collected_amount_usd?: number | null
@@ -714,7 +784,11 @@ export type Database = {
           prepay_amount_lbp?: number | null
           prepay_amount_usd?: number | null
           status?: Database["public"]["Enums"]["order_status"] | null
+          third_party_fee_usd?: number | null
           third_party_id?: string | null
+          third_party_settlement_status?:
+            | Database["public"]["Enums"]["third_party_settlement_status"]
+            | null
           voucher_no?: string | null
         }
         Relationships: [
@@ -864,6 +938,7 @@ export type Database = {
         | "OtherExpense"
         | "OtherIncome"
       app_role: "admin" | "operator" | "viewer"
+      client_settlement_status: "Unpaid" | "Paid"
       client_type: "Ecom" | "Restaurant" | "Individual"
       currency_type: "USD" | "LBP"
       fee_rule_type: "ADD_ON" | "DEDUCT" | "INCLUDED"
@@ -876,9 +951,19 @@ export type Database = {
         | "Returned"
         | "Cancelled"
       order_type: "ecom" | "instant" | "errand"
+      party_type: "CLIENT" | "THIRD_PARTY" | "CASHBOX"
       remit_status: "Pending" | "Collected"
+      third_party_settlement_status: "Pending" | "Received"
       third_party_status: "New" | "With3P" | "Delivered" | "Paid"
       transaction_type: "Credit" | "Debit"
+      tx_direction: "IN" | "OUT"
+      tx_type:
+        | "CLIENT_PAYOUT"
+        | "THIRD_PARTY_REMITTANCE"
+        | "DELIVERY_FEE_INCOME"
+        | "PREPAYMENT"
+        | "COLLECTION"
+        | "ADJUSTMENT"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -1014,6 +1099,7 @@ export const Constants = {
         "OtherIncome",
       ],
       app_role: ["admin", "operator", "viewer"],
+      client_settlement_status: ["Unpaid", "Paid"],
       client_type: ["Ecom", "Restaurant", "Individual"],
       currency_type: ["USD", "LBP"],
       fee_rule_type: ["ADD_ON", "DEDUCT", "INCLUDED"],
@@ -1027,9 +1113,20 @@ export const Constants = {
         "Cancelled",
       ],
       order_type: ["ecom", "instant", "errand"],
+      party_type: ["CLIENT", "THIRD_PARTY", "CASHBOX"],
       remit_status: ["Pending", "Collected"],
+      third_party_settlement_status: ["Pending", "Received"],
       third_party_status: ["New", "With3P", "Delivered", "Paid"],
       transaction_type: ["Credit", "Debit"],
+      tx_direction: ["IN", "OUT"],
+      tx_type: [
+        "CLIENT_PAYOUT",
+        "THIRD_PARTY_REMITTANCE",
+        "DELIVERY_FEE_INCOME",
+        "PREPAYMENT",
+        "COLLECTION",
+        "ADJUSTMENT",
+      ],
     },
   },
 } as const

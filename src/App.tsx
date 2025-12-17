@@ -13,6 +13,7 @@ import CRM from "./pages/CRM";
 import Cashbox from "./pages/Cashbox";
 import Reports from "./pages/Reports";
 import TransactionHistory from "./pages/TransactionHistory";
+import ThirdPartyStatements from "./pages/ThirdPartyStatements";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -34,6 +35,7 @@ const App = () => (
           <Route path="/cashbox" element={<Cashbox />} />
           <Route path="/reports" element={<Reports />} />
           <Route path="/transactions" element={<TransactionHistory />} />
+          <Route path="/third-party-statements" element={<ThirdPartyStatements />} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
         </Routes>
