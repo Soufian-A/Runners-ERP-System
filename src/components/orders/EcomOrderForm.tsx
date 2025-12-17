@@ -22,6 +22,9 @@ type NewOrderRow = {
   delivery_fee_usd: string;
   amount_due_to_client_usd: string;
   prepaid_by_company: boolean;
+  fulfillment: "InHouse" | "ThirdParty";
+  third_party_id: string;
+  third_party_fee_usd: string;
 };
 
 type Customer = {
@@ -36,6 +39,7 @@ function EcomOrderRow({
   row,
   clients,
   customers,
+  thirdParties,
   updateRow,
   createOrderMutation,
   setNewRows,
@@ -43,6 +47,7 @@ function EcomOrderRow({
   row: NewOrderRow;
   clients: any[];
   customers: Customer[];
+  thirdParties: any[];
   updateRow: (id: string, field: keyof NewOrderRow, value: any) => void;
   createOrderMutation: any;
   setNewRows: React.Dispatch<React.SetStateAction<NewOrderRow[]>>;
@@ -228,6 +233,52 @@ function EcomOrderRow({
         />
       </TableCell>
 
+      {/* Fulfillment Type */}
+      <TableCell>
+        <select
+          value={row.fulfillment}
+          onChange={(e) => updateRow(row.id, "fulfillment", e.target.value as "InHouse" | "ThirdParty")}
+          className="h-8 text-xs w-full rounded border border-input bg-background px-2"
+        >
+          <option value="InHouse">In-House</option>
+          <option value="ThirdParty">3rd Party</option>
+        </select>
+      </TableCell>
+
+      {/* Third Party (only if ThirdParty fulfillment) */}
+      <TableCell>
+        {row.fulfillment === "ThirdParty" ? (
+          <select
+            value={row.third_party_id}
+            onChange={(e) => updateRow(row.id, "third_party_id", e.target.value)}
+            className="h-8 text-xs w-full rounded border border-input bg-background px-2"
+          >
+            <option value="">Select...</option>
+            {thirdParties.map((tp) => (
+              <option key={tp.id} value={tp.id}>{tp.name}</option>
+            ))}
+          </select>
+        ) : (
+          <span className="text-xs text-muted-foreground">-</span>
+        )}
+      </TableCell>
+
+      {/* 3P Fee (only if ThirdParty fulfillment) */}
+      <TableCell>
+        {row.fulfillment === "ThirdParty" ? (
+          <Input
+            type="number"
+            step="0.01"
+            value={row.third_party_fee_usd}
+            onChange={(e) => updateRow(row.id, "third_party_fee_usd", e.target.value)}
+            className="h-8 text-xs"
+            placeholder="0.00"
+          />
+        ) : (
+          <span className="text-xs text-muted-foreground">-</span>
+        )}
+      </TableCell>
+
       {/* Prepaid Checkbox */}
       <TableCell>
         <div className="flex justify-center">
@@ -244,9 +295,9 @@ function EcomOrderRow({
         <Button
           size="sm"
           onClick={() => createOrderMutation.mutate(row)}
-          disabled={!row.client_id || !row.customer_phone || createOrderMutation.isPending}
+          disabled={!row.client_id || !row.customer_phone || (row.fulfillment === "ThirdParty" && !row.third_party_id) || createOrderMutation.isPending}
           className="h-8 text-xs"
-          title={!row.client_id ? 'Please select a client' : !row.customer_phone ? 'Please enter customer phone' : 'Save order'}
+          title={!row.client_id ? 'Please select a client' : !row.customer_phone ? 'Please enter customer phone' : (row.fulfillment === "ThirdParty" && !row.third_party_id) ? 'Please select a third party' : 'Save order'}
         >
           {createOrderMutation.isPending ? 'Saving...' : 'Save'}
         </Button>
@@ -269,8 +320,20 @@ export function EcomOrderForm() {
       delivery_fee_usd: "",
       amount_due_to_client_usd: "",
       prepaid_by_company: false,
+      fulfillment: "InHouse",
+      third_party_id: "",
+      third_party_fee_usd: "",
     },
   ]);
+
+  const { data: thirdParties = [] } = useQuery({
+    queryKey: ["third-parties"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("third_parties").select("*").eq("active", true).order("name");
+      if (error) throw error;
+      return data;
+    },
+  });
 
   const { data: clients = [] } = useQuery({
     queryKey: ["clients"],
@@ -304,6 +367,9 @@ export function EcomOrderForm() {
         delivery_fee_usd: "",
         amount_due_to_client_usd: "",
         prepaid_by_company: false,
+        fulfillment: "InHouse",
+        third_party_id: "",
+        third_party_fee_usd: "",
       },
     ]);
   };
@@ -367,6 +433,11 @@ export function EcomOrderForm() {
       const orderAmount = totalWithDelivery - deliveryFee;
       const amountDue = parseFloat(rowData.amount_due_to_client_usd) || 0;
 
+      const thirdPartyFee = parseFloat(rowData.third_party_fee_usd) || 0;
+      const clientNetUsd = rowData.fulfillment === "ThirdParty" 
+        ? orderAmount - thirdPartyFee 
+        : amountDue;
+
       const { error } = await supabase.from("orders").insert({
         order_id,
         order_type: "ecom",
@@ -374,15 +445,20 @@ export function EcomOrderForm() {
         client_id: rowData.client_id,
         customer_id: customerId,
         client_type: client.type,
-        fulfillment: "InHouse",
+        fulfillment: rowData.fulfillment,
+        third_party_id: rowData.fulfillment === "ThirdParty" ? rowData.third_party_id || null : null,
+        third_party_fee_usd: rowData.fulfillment === "ThirdParty" ? thirdPartyFee : 0,
         order_amount_usd: orderAmount,
         delivery_fee_usd: deliveryFee,
         amount_due_to_client_usd: amountDue,
+        client_net_usd: clientNetUsd,
         client_fee_rule: client.client_rules?.[0]?.fee_rule || "ADD_ON",
-        prepaid_by_runners: rowData.prepaid_by_company, // Cash-based flag (intent)
-        prepaid_by_company: false, // Only set to true when prepayment is actually processed
+        prepaid_by_runners: rowData.prepaid_by_company,
+        prepaid_by_company: false,
         status: "New",
         address: rowData.customer_address || "",
+        client_settlement_status: "Unpaid",
+        third_party_settlement_status: rowData.fulfillment === "ThirdParty" ? "Pending" : null,
       });
 
       if (error) throw error;
@@ -410,6 +486,9 @@ export function EcomOrderForm() {
             delivery_fee_usd: "",
             amount_due_to_client_usd: "",
             prepaid_by_company: false,
+            fulfillment: "InHouse",
+            third_party_id: "",
+            third_party_fee_usd: "",
           }];
         }
         return remaining;
@@ -477,16 +556,19 @@ export function EcomOrderForm() {
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead className="w-[100px]">Voucher</TableHead>
-              <TableHead className="w-[150px]">Client</TableHead>
-              <TableHead className="w-[120px]">Customer Phone</TableHead>
-              <TableHead className="w-[120px]">Name</TableHead>
-              <TableHead className="w-[150px]">Address</TableHead>
-              <TableHead className="w-[100px]">Total USD</TableHead>
-              <TableHead className="w-[90px]">Fee USD</TableHead>
-              <TableHead className="w-[100px]">Due USD</TableHead>
-              <TableHead className="w-[80px]">Prepaid</TableHead>
-              <TableHead className="w-[80px]">Action</TableHead>
+              <TableHead className="w-[80px]">Voucher</TableHead>
+              <TableHead className="w-[130px]">Client</TableHead>
+              <TableHead className="w-[100px]">Phone</TableHead>
+              <TableHead className="w-[100px]">Name</TableHead>
+              <TableHead className="w-[120px]">Address</TableHead>
+              <TableHead className="w-[80px]">Total</TableHead>
+              <TableHead className="w-[70px]">Del Fee</TableHead>
+              <TableHead className="w-[80px]">Due</TableHead>
+              <TableHead className="w-[90px]">Fulfillment</TableHead>
+              <TableHead className="w-[100px]">3rd Party</TableHead>
+              <TableHead className="w-[70px]">3P Fee</TableHead>
+              <TableHead className="w-[60px]">Prepaid</TableHead>
+              <TableHead className="w-[70px]">Action</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -496,6 +578,7 @@ export function EcomOrderForm() {
                 row={row}
                 clients={clients}
                 customers={customers}
+                thirdParties={thirdParties}
                 updateRow={updateRow}
                 createOrderMutation={createOrderMutation}
                 setNewRows={setNewRows}
