@@ -609,7 +609,7 @@ export type Database = {
           direction: Database["public"]["Enums"]["tx_direction"]
           id: string
           note: string | null
-          order_id: string
+          order_id: string | null
           party_id: string | null
           party_type: Database["public"]["Enums"]["party_type"]
           recorded_by: string | null
@@ -622,7 +622,7 @@ export type Database = {
           direction: Database["public"]["Enums"]["tx_direction"]
           id?: string
           note?: string | null
-          order_id: string
+          order_id?: string | null
           party_id?: string | null
           party_type: Database["public"]["Enums"]["party_type"]
           recorded_by?: string | null
@@ -635,7 +635,7 @@ export type Database = {
           direction?: Database["public"]["Enums"]["tx_direction"]
           id?: string
           note?: string | null
-          order_id?: string
+          order_id?: string | null
           party_id?: string | null
           party_type?: Database["public"]["Enums"]["party_type"]
           recorded_by?: string | null
