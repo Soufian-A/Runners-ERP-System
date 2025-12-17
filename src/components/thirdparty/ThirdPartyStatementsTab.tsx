@@ -32,7 +32,11 @@ export function ThirdPartyStatementsTab() {
   const [receiveDialogOpen, setReceiveDialogOpen] = useState(false);
   const [receiveAmountUsd, setReceiveAmountUsd] = useState('');
   const [receiveNotes, setReceiveNotes] = useState('');
+  const [payDialogOpen, setPayDialogOpen] = useState(false);
+  const [payAmountUsd, setPayAmountUsd] = useState('');
+  const [payNotes, setPayNotes] = useState('');
   const [pendingExpanded, setPendingExpanded] = useState(true);
+  const [transactionsExpanded, setTransactionsExpanded] = useState(false);
   const [statusFilter, setStatusFilter] = useState<string>('all');
 
   // Fetch third parties
@@ -161,8 +165,13 @@ export function ThirdPartyStatementsTab() {
   const allReceivedOrders = orders?.filter(o => receivedOrderIds.has(o.id)) || [];
   
   const totalExpected = allPendingOrders.reduce((sum, o) => sum + Number(o.order_amount_usd || 0) - Number(o.third_party_fee_usd || 0), 0);
-  const totalReceived = orderTransactions?.filter(tx => tx.tx_type === 'THIRD_PARTY_REMITTANCE')
-    .reduce((sum, tx) => sum + Number(tx.amount_usd || 0), 0) || 0;
+  
+  // Get all remittance transactions (IN = received from 3P, OUT = paid to 3P)
+  const remittanceIn = orderTransactions?.filter(tx => tx.tx_type === 'THIRD_PARTY_REMITTANCE' && tx.direction === 'IN') || [];
+  const paymentsOut = orderTransactions?.filter(tx => tx.tx_type === 'THIRD_PARTY_REMITTANCE' && tx.direction === 'OUT') || [];
+  
+  const totalReceived = remittanceIn.reduce((sum, tx) => sum + Number(tx.amount_usd || 0), 0);
+  const totalPaidOut = paymentsOut.reduce((sum, tx) => sum + Number(tx.amount_usd || 0), 0);
 
   // Record remittance mutation
   const recordRemittanceMutation = useMutation({
@@ -224,6 +233,58 @@ export function ThirdPartyStatementsTab() {
       setSelectedOrders([]);
       setReceiveAmountUsd('');
       setReceiveNotes('');
+    },
+    onError: (error) => {
+      toast.error(`Failed: ${error.message}`);
+    },
+  });
+
+  // Pay third party mutation (for items they purchase for us)
+  const payThirdPartyMutation = useMutation({
+    mutationFn: async () => {
+      const amountUsd = parseFloat(payAmountUsd) || 0;
+      if (amountUsd === 0) throw new Error('Enter a payment amount');
+
+      // Create transaction for payment OUT
+      const { error: txError } = await supabase.from('order_transactions').insert({
+        order_id: null, // No order linked - standalone payment
+        party_type: 'THIRD_PARTY' as const,
+        party_id: selectedThirdParty,
+        direction: 'OUT' as const,
+        amount_usd: amountUsd,
+        tx_type: 'THIRD_PARTY_REMITTANCE' as const,
+        tx_date: new Date().toISOString(),
+        recorded_by: user?.id,
+        note: payNotes || `Payment to ${selectedThirdPartyData?.name}`,
+      });
+      if (txError) throw txError;
+
+      // Update cashbox - cash out
+      const today = new Date().toISOString().split('T')[0];
+      const { data: existingCashbox } = await supabase
+        .from('cashbox_daily')
+        .select('*')
+        .eq('date', today)
+        .maybeSingle();
+
+      if (existingCashbox) {
+        await supabase.from('cashbox_daily').update({
+          cash_out_usd: Number(existingCashbox.cash_out_usd || 0) + amountUsd,
+        }).eq('id', existingCashbox.id);
+      } else {
+        await supabase.from('cashbox_daily').insert({
+          date: today,
+          cash_out_usd: amountUsd,
+        });
+      }
+    },
+    onSuccess: () => {
+      toast.success('Payment to third party recorded');
+      queryClient.invalidateQueries({ queryKey: ['order-transactions-third-party'] });
+      queryClient.invalidateQueries({ queryKey: ['cashbox'] });
+      setPayDialogOpen(false);
+      setPayAmountUsd('');
+      setPayNotes('');
     },
     onError: (error) => {
       toast.error(`Failed: ${error.message}`);
@@ -327,51 +388,73 @@ export function ThirdPartyStatementsTab() {
 
       {/* Summary Cards */}
       {selectedThirdParty && (
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <Card className="bg-gradient-to-br from-blue-500/10 to-blue-600/5 border-blue-500/20">
-            <CardContent className="pt-4 pb-3">
-              <div className="flex items-center gap-2 text-blue-600">
-                <Truck className="h-4 w-4" />
-                <span className="text-xs font-medium">Total Orders</span>
-              </div>
-              <div className="mt-1">
-                <span className="text-2xl font-bold">{orders?.length || 0}</span>
-              </div>
-            </CardContent>
-          </Card>
-          <Card className="bg-gradient-to-br from-yellow-500/10 to-yellow-600/5 border-yellow-500/20">
-            <CardContent className="pt-4 pb-3">
-              <div className="flex items-center gap-2 text-yellow-600">
-                <Clock className="h-4 w-4" />
-                <span className="text-xs font-medium">Expected Remittance</span>
-              </div>
-              <div className="mt-1">
-                <span className="text-2xl font-bold">${totalExpected.toFixed(2)}</span>
-              </div>
-            </CardContent>
-          </Card>
-          <Card className="bg-gradient-to-br from-green-500/10 to-green-600/5 border-green-500/20">
-            <CardContent className="pt-4 pb-3">
-              <div className="flex items-center gap-2 text-green-600">
-                <CheckCircle className="h-4 w-4" />
-                <span className="text-xs font-medium">Received</span>
-              </div>
-              <div className="mt-1">
-                <span className="text-2xl font-bold">${totalReceived.toFixed(2)}</span>
-              </div>
-            </CardContent>
-          </Card>
-          <Card className="bg-gradient-to-br from-red-500/10 to-red-600/5 border-red-500/20">
-            <CardContent className="pt-4 pb-3">
-              <div className="flex items-center gap-2 text-red-600">
-                <DollarSign className="h-4 w-4" />
-                <span className="text-xs font-medium">Outstanding</span>
-              </div>
-              <div className="mt-1">
-                <span className="text-2xl font-bold">${(totalExpected - totalReceived).toFixed(2)}</span>
-              </div>
-            </CardContent>
-          </Card>
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <h3 className="text-sm font-medium text-muted-foreground">Summary for {selectedThirdPartyData?.name}</h3>
+            <Button variant="outline" size="sm" onClick={() => setPayDialogOpen(true)}>
+              <DollarSign className="h-4 w-4 mr-1" />
+              Pay Third Party
+            </Button>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+            <Card className="bg-gradient-to-br from-blue-500/10 to-blue-600/5 border-blue-500/20">
+              <CardContent className="pt-4 pb-3">
+                <div className="flex items-center gap-2 text-blue-600">
+                  <Truck className="h-4 w-4" />
+                  <span className="text-xs font-medium">Total Orders</span>
+                </div>
+                <div className="mt-1">
+                  <span className="text-2xl font-bold">{orders?.length || 0}</span>
+                </div>
+              </CardContent>
+            </Card>
+            <Card className="bg-gradient-to-br from-yellow-500/10 to-yellow-600/5 border-yellow-500/20">
+              <CardContent className="pt-4 pb-3">
+                <div className="flex items-center gap-2 text-yellow-600">
+                  <Clock className="h-4 w-4" />
+                  <span className="text-xs font-medium">Expected Remittance</span>
+                </div>
+                <div className="mt-1">
+                  <span className="text-2xl font-bold">${totalExpected.toFixed(2)}</span>
+                </div>
+              </CardContent>
+            </Card>
+            <Card className="bg-gradient-to-br from-green-500/10 to-green-600/5 border-green-500/20">
+              <CardContent className="pt-4 pb-3">
+                <div className="flex items-center gap-2 text-green-600">
+                  <CheckCircle className="h-4 w-4" />
+                  <span className="text-xs font-medium">Received</span>
+                </div>
+                <div className="mt-1">
+                  <span className="text-2xl font-bold">${totalReceived.toFixed(2)}</span>
+                </div>
+              </CardContent>
+            </Card>
+            <Card className="bg-gradient-to-br from-orange-500/10 to-orange-600/5 border-orange-500/20">
+              <CardContent className="pt-4 pb-3">
+                <div className="flex items-center gap-2 text-orange-600">
+                  <Wallet className="h-4 w-4" />
+                  <span className="text-xs font-medium">Paid Out</span>
+                </div>
+                <div className="mt-1">
+                  <span className="text-2xl font-bold">${totalPaidOut.toFixed(2)}</span>
+                </div>
+              </CardContent>
+            </Card>
+            <Card className="bg-gradient-to-br from-red-500/10 to-red-600/5 border-red-500/20">
+              <CardContent className="pt-4 pb-3">
+                <div className="flex items-center gap-2 text-red-600">
+                  <TrendingUp className="h-4 w-4" />
+                  <span className="text-xs font-medium">Net Balance</span>
+                </div>
+                <div className="mt-1">
+                  <span className={`text-2xl font-bold ${(totalExpected - totalReceived + totalPaidOut) > 0 ? 'text-red-600' : 'text-green-600'}`}>
+                    ${(totalExpected - totalReceived + totalPaidOut).toFixed(2)}
+                  </span>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
         </div>
       )}
 
@@ -467,6 +550,60 @@ export function ThirdPartyStatementsTab() {
         </Card>
       )}
 
+      {/* Transaction History Section */}
+      {selectedThirdParty && orderTransactions && orderTransactions.length > 0 && (
+        <Card>
+          <Collapsible open={transactionsExpanded} onOpenChange={setTransactionsExpanded}>
+            <CardHeader className="pb-2">
+              <CollapsibleTrigger asChild>
+                <div className="flex items-center justify-between cursor-pointer">
+                  <CardTitle className="text-base flex items-center gap-2">
+                    <FileText className="h-4 w-4" />
+                    Transaction History
+                    <Badge variant="secondary">{orderTransactions.length}</Badge>
+                  </CardTitle>
+                  {transactionsExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                </div>
+              </CollapsibleTrigger>
+            </CardHeader>
+            <CollapsibleContent>
+              <CardContent className="pt-0">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Date</TableHead>
+                      <TableHead>Type</TableHead>
+                      <TableHead className="text-right">Amount</TableHead>
+                      <TableHead>Note</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {orderTransactions
+                      .sort((a, b) => new Date(b.tx_date).getTime() - new Date(a.tx_date).getTime())
+                      .map((tx) => (
+                        <TableRow key={tx.id}>
+                          <TableCell>{format(new Date(tx.tx_date), 'MMM d, yyyy')}</TableCell>
+                          <TableCell>
+                            {tx.direction === 'IN' ? (
+                              <Badge variant="default" className="bg-green-600">Received</Badge>
+                            ) : (
+                              <Badge variant="default" className="bg-orange-600">Paid Out</Badge>
+                            )}
+                          </TableCell>
+                          <TableCell className={`text-right font-mono ${tx.direction === 'IN' ? 'text-green-600' : 'text-orange-600'}`}>
+                            {tx.direction === 'IN' ? '+' : '-'}${Number(tx.amount_usd).toFixed(2)}
+                          </TableCell>
+                          <TableCell className="text-muted-foreground">{tx.note || '-'}</TableCell>
+                        </TableRow>
+                      ))}
+                  </TableBody>
+                </Table>
+              </CardContent>
+            </CollapsibleContent>
+          </Collapsible>
+        </Card>
+      )}
+
       {!selectedThirdParty && (
         <Card>
           <CardContent className="py-12 text-center text-muted-foreground">
@@ -527,6 +664,45 @@ export function ThirdPartyStatementsTab() {
             <Button variant="outline" onClick={() => setReceiveDialogOpen(false)}>Cancel</Button>
             <Button onClick={() => recordRemittanceMutation.mutate()} disabled={recordRemittanceMutation.isPending}>
               {recordRemittanceMutation.isPending ? 'Processing...' : 'Record Remittance'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Pay Third Party Dialog */}
+      <Dialog open={payDialogOpen} onOpenChange={setPayDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Pay Third Party</DialogTitle>
+            <DialogDescription>
+              Record payment to {selectedThirdPartyData?.name} (e.g., for items purchased on your behalf)
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div>
+              <Label>Amount (USD)</Label>
+              <Input
+                type="number"
+                step="0.01"
+                value={payAmountUsd}
+                onChange={(e) => setPayAmountUsd(e.target.value)}
+                placeholder="0.00"
+                autoFocus
+              />
+            </div>
+            <div>
+              <Label>Notes</Label>
+              <Input
+                value={payNotes}
+                onChange={(e) => setPayNotes(e.target.value)}
+                placeholder="e.g., Item purchase from their coverage area"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setPayDialogOpen(false)}>Cancel</Button>
+            <Button onClick={() => payThirdPartyMutation.mutate()} disabled={payThirdPartyMutation.isPending}>
+              {payThirdPartyMutation.isPending ? 'Processing...' : 'Record Payment'}
             </Button>
           </DialogFooter>
         </DialogContent>
