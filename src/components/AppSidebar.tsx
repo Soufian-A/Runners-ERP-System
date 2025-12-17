@@ -55,6 +55,7 @@ const navGroups: NavGroup[] = [
       { icon: Wallet, label: "Cashbox", path: "/cashbox" },
       { icon: FileText, label: "Driver Settlements", path: "/drivers?tab=statements" },
       { icon: FileText, label: "Client Settlements", path: "/clients?tab=statements" },
+      { icon: Truck, label: "3P Settlements", path: "/third-party-statements" },
       { icon: History, label: "Transactions", path: "/transactions" },
     ],
   },

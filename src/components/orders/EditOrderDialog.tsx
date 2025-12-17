@@ -30,20 +30,27 @@ interface Order {
   status: string;
   client_id: string;
   driver_id?: string;
+  third_party_id?: string;
+  fulfillment?: string;
   order_amount_usd: number;
   order_amount_lbp: number;
   delivery_fee_usd: number;
   delivery_fee_lbp: number;
   amount_due_to_client_usd?: number;
+  third_party_fee_usd?: number;
+  client_net_usd?: number;
   prepaid_by_runners?: boolean;
   prepaid_by_company?: boolean;
   driver_remit_status?: string;
   client_fee_rule?: "ADD_ON" | "DEDUCT" | "INCLUDED";
+  client_settlement_status?: string;
+  third_party_settlement_status?: string;
   address: string;
   notes?: string;
   created_at: string;
   clients?: { name: string };
   drivers?: { name: string };
+  third_parties?: { name: string };
   customers?: { phone: string; name?: string };
   customer_id?: string;
 }
@@ -85,6 +92,7 @@ export default function EditOrderDialog({ order, open, onOpenChange }: EditOrder
     order_amount_usd: order.order_amount_usd.toString(),
     delivery_fee_usd: order.delivery_fee_usd.toString(),
     amount_due_to_client_usd: order.amount_due_to_client_usd?.toString() || "0",
+    third_party_fee_usd: (order as any).third_party_fee_usd?.toString() || "0",
     notes: order.notes || "",
     status: order.status as "New" | "Assigned" | "PickedUp" | "Delivered" | "Returned" | "Cancelled",
     driver_id: order.driver_id || "",
@@ -158,12 +166,19 @@ export default function EditOrderDialog({ order, open, onOpenChange }: EditOrder
       }
       
       // Prepare update data
+      const orderAmountUsd = parseFloat(formData.order_amount_usd) || 0;
+      const deliveryFeeUsd = parseFloat(formData.delivery_fee_usd) || 0;
+      const thirdPartyFeeUsd = parseFloat(formData.third_party_fee_usd) || 0;
+      const clientNetUsd = orderAmountUsd - deliveryFeeUsd;
+      
       const updateData: any = {
         voucher_no: formData.voucher_no || null,
         address: formData.address,
-        order_amount_usd: parseFloat(formData.order_amount_usd),
-        delivery_fee_usd: parseFloat(formData.delivery_fee_usd),
+        order_amount_usd: orderAmountUsd,
+        delivery_fee_usd: deliveryFeeUsd,
         amount_due_to_client_usd: parseFloat(formData.amount_due_to_client_usd) || 0,
+        third_party_fee_usd: thirdPartyFeeUsd,
+        client_net_usd: clientNetUsd,
         notes: formData.notes || null,
         status: formData.status,
         driver_id: formData.driver_id || null,
