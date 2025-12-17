@@ -16,7 +16,6 @@ import {
   DollarSign,
   Users,
   BarChart3,
-  Settings,
   ChevronDown,
   ChevronRight,
   Home,
@@ -25,6 +24,7 @@ import {
   Wallet,
   PanelLeftClose,
   PanelLeft,
+  Building2,
 } from "lucide-react";
 
 interface NavItem {
@@ -64,6 +64,7 @@ const navGroups: NavGroup[] = [
     icon: Truck,
     items: [
       { icon: Truck, label: "Drivers", path: "/drivers" },
+      { icon: Building2, label: "Third Parties", path: "/third-parties" },
     ],
   },
   {
