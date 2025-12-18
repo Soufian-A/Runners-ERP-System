@@ -142,16 +142,19 @@ export function BulkActionsBar({ selectedIds, onClearSelection }: BulkActionsBar
 
   const updateStatusMutation = useMutation({
     mutationFn: async (status: string) => {
-      // Validate: Cannot mark as Delivered without a driver for any selected order
+      // Validate: Cannot mark as Delivered without a driver OR third party assigned
       if (status === 'Delivered') {
         const { data: orders } = await supabase
           .from("orders")
-          .select("id, order_id, driver_id")
+          .select("id, order_id, driver_id, third_party_id, fulfillment")
           .in("id", selectedIds);
         
-        const ordersWithoutDriver = orders?.filter(order => !order.driver_id) || [];
-        if (ordersWithoutDriver.length > 0) {
-          throw new Error(`Cannot mark orders as Delivered without assigning drivers. ${ordersWithoutDriver.length} order(s) have no driver assigned.`);
+        const ordersWithoutAssignment = orders?.filter(order => 
+          !order.driver_id && !order.third_party_id
+        ) || [];
+        
+        if (ordersWithoutAssignment.length > 0) {
+          throw new Error(`Cannot mark orders as Delivered without assigning a driver or third party. ${ordersWithoutAssignment.length} order(s) have no assignment.`);
         }
       }
       
