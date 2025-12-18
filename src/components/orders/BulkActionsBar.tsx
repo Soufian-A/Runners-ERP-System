@@ -1,5 +1,5 @@
 import { Button } from "@/components/ui/button";
-import { Trash2, UserPlus, CheckCircle, Wallet } from "lucide-react";
+import { Trash2, UserPlus, CheckCircle, Wallet, Truck } from "lucide-react";
 import { useState, useMemo } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -26,6 +26,7 @@ interface BulkActionsBarProps {
 export function BulkActionsBar({ selectedIds, onClearSelection }: BulkActionsBarProps) {
   const queryClient = useQueryClient();
   const [driverOpen, setDriverOpen] = useState(false);
+  const [thirdPartyOpen, setThirdPartyOpen] = useState(false);
   const [statusOpen, setStatusOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [prepaidDialogOpen, setPrepaidDialogOpen] = useState(false);
@@ -34,6 +35,15 @@ export function BulkActionsBar({ selectedIds, onClearSelection }: BulkActionsBar
     queryKey: ["drivers-active"],
     queryFn: async () => {
       const { data, error } = await supabase.from("drivers").select("*").eq("active", true).order("name");
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  const { data: thirdParties = [] } = useQuery({
+    queryKey: ["third-parties-active"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("third_parties").select("*").eq("active", true).order("name");
       if (error) throw error;
       return data;
     },
@@ -72,19 +82,19 @@ export function BulkActionsBar({ selectedIds, onClearSelection }: BulkActionsBar
 
   const assignDriverMutation = useMutation({
     mutationFn: async (driverId: string) => {
-      // Update driver_id and set status to "Assigned" if currently "New"
+      // Update driver_id, set fulfillment to InHouse, clear third_party_id, and set status to "Assigned" if currently "New"
       const { error } = await supabase
         .from("orders")
-        .update({ driver_id: driverId, status: "Assigned" })
+        .update({ driver_id: driverId, fulfillment: "InHouse", third_party_id: null, status: "Assigned" })
         .in("id", selectedIds)
         .in("status", ["New", "Assigned"]); // Only update status for New or already Assigned orders
       
       if (error) throw error;
       
-      // Also update orders that are in other statuses (just driver_id, not status)
+      // Also update orders that are in other statuses (just driver_id and fulfillment, not status)
       const { error: error2 } = await supabase
         .from("orders")
-        .update({ driver_id: driverId })
+        .update({ driver_id: driverId, fulfillment: "InHouse", third_party_id: null })
         .in("id", selectedIds)
         .not("status", "in", '("New","Assigned")');
       
@@ -95,6 +105,34 @@ export function BulkActionsBar({ selectedIds, onClearSelection }: BulkActionsBar
       queryClient.invalidateQueries({ queryKey: ["instant-orders"] });
       queryClient.invalidateQueries({ queryKey: ["ecom-orders"] });
       toast.success(`Driver assigned to ${selectedIds.length} orders`);
+      onClearSelection();
+    },
+    onError: (error: Error) => {
+      toast.error(error.message);
+    },
+  });
+
+  const assignThirdPartyMutation = useMutation({
+    mutationFn: async (thirdPartyId: string) => {
+      // Update third_party_id, set fulfillment to ThirdParty, clear driver_id, and set status to "Assigned"
+      const { error } = await supabase
+        .from("orders")
+        .update({ 
+          third_party_id: thirdPartyId, 
+          fulfillment: "ThirdParty", 
+          driver_id: null, 
+          status: "Assigned",
+          third_party_settlement_status: "Pending"
+        })
+        .in("id", selectedIds);
+      
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["orders"] });
+      queryClient.invalidateQueries({ queryKey: ["instant-orders"] });
+      queryClient.invalidateQueries({ queryKey: ["ecom-orders"] });
+      toast.success(`Third party assigned to ${selectedIds.length} orders`);
       onClearSelection();
     },
     onError: (error: Error) => {
@@ -211,6 +249,36 @@ export function BulkActionsBar({ selectedIds, onClearSelection }: BulkActionsBar
                       }}
                     >
                       {driver.name}
+                    </CommandItem>
+                  ))}
+                </CommandGroup>
+              </CommandList>
+            </Command>
+          </PopoverContent>
+        </Popover>
+
+        <Popover open={thirdPartyOpen} onOpenChange={setThirdPartyOpen}>
+          <PopoverTrigger asChild>
+            <Button size="sm" variant="secondary">
+              <Truck className="h-4 w-4 mr-2" />
+              Assign 3rd Party
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent className="w-[200px] p-0 bg-popover">
+            <Command>
+              <CommandInput placeholder="Search 3rd party..." />
+              <CommandList>
+                <CommandEmpty>No third party found.</CommandEmpty>
+                <CommandGroup>
+                  {thirdParties.map((tp) => (
+                    <CommandItem
+                      key={tp.id}
+                      onSelect={() => {
+                        assignThirdPartyMutation.mutate(tp.id);
+                        setThirdPartyOpen(false);
+                      }}
+                    >
+                      {tp.name}
                     </CommandItem>
                   ))}
                 </CommandGroup>
