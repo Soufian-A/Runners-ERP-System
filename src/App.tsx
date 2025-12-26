@@ -15,6 +15,7 @@ import Reports from "./pages/Reports";
 import TransactionHistory from "./pages/TransactionHistory";
 import ThirdPartyStatements from "./pages/ThirdPartyStatements";
 import ThirdParties from "./pages/ThirdParties";
+import TrackOrder from "./pages/TrackOrder";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -38,6 +39,7 @@ const App = () => (
           <Route path="/transactions" element={<TransactionHistory />} />
           <Route path="/third-party-statements" element={<ThirdPartyStatements />} />
           <Route path="/third-parties" element={<ThirdParties />} />
+          <Route path="/track" element={<TrackOrder />} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
         </Routes>

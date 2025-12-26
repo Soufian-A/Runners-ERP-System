@@ -433,6 +433,152 @@ export type Database = {
           },
         ]
       }
+      delivery_attempts: {
+        Row: {
+          attempt_date: string | null
+          attempt_number: number
+          created_at: string | null
+          driver_id: string | null
+          failure_code: string | null
+          failure_reason: string | null
+          id: string
+          next_attempt_date: string | null
+          notes: string | null
+          order_id: string
+          status: string
+        }
+        Insert: {
+          attempt_date?: string | null
+          attempt_number?: number
+          created_at?: string | null
+          driver_id?: string | null
+          failure_code?: string | null
+          failure_reason?: string | null
+          id?: string
+          next_attempt_date?: string | null
+          notes?: string | null
+          order_id: string
+          status?: string
+        }
+        Update: {
+          attempt_date?: string | null
+          attempt_number?: number
+          created_at?: string | null
+          driver_id?: string | null
+          failure_code?: string | null
+          failure_reason?: string | null
+          id?: string
+          next_attempt_date?: string | null
+          notes?: string | null
+          order_id?: string
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "delivery_attempts_driver_id_fkey"
+            columns: ["driver_id"]
+            isOneToOne: false
+            referencedRelation: "drivers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "delivery_attempts_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      delivery_zones: {
+        Row: {
+          base_fee_lbp: number | null
+          base_fee_usd: number | null
+          code: string
+          created_at: string | null
+          estimated_delivery_hours: number | null
+          id: string
+          is_active: boolean | null
+          name: string
+        }
+        Insert: {
+          base_fee_lbp?: number | null
+          base_fee_usd?: number | null
+          code: string
+          created_at?: string | null
+          estimated_delivery_hours?: number | null
+          id?: string
+          is_active?: boolean | null
+          name: string
+        }
+        Update: {
+          base_fee_lbp?: number | null
+          base_fee_usd?: number | null
+          code?: string
+          created_at?: string | null
+          estimated_delivery_hours?: number | null
+          id?: string
+          is_active?: boolean | null
+          name?: string
+        }
+        Relationships: []
+      }
+      driver_manifests: {
+        Row: {
+          completed_at: string | null
+          created_at: string | null
+          created_by: string | null
+          dispatched_at: string | null
+          driver_id: string
+          id: string
+          manifest_date: string
+          manifest_number: string
+          notes: string | null
+          status: string
+          total_cod_lbp: number | null
+          total_cod_usd: number | null
+          total_orders: number | null
+        }
+        Insert: {
+          completed_at?: string | null
+          created_at?: string | null
+          created_by?: string | null
+          dispatched_at?: string | null
+          driver_id: string
+          id?: string
+          manifest_date?: string
+          manifest_number: string
+          notes?: string | null
+          status?: string
+          total_cod_lbp?: number | null
+          total_cod_usd?: number | null
+          total_orders?: number | null
+        }
+        Update: {
+          completed_at?: string | null
+          created_at?: string | null
+          created_by?: string | null
+          dispatched_at?: string | null
+          driver_id?: string
+          id?: string
+          manifest_date?: string
+          manifest_number?: string
+          notes?: string | null
+          status?: string
+          total_cod_lbp?: number | null
+          total_cod_usd?: number | null
+          total_orders?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "driver_manifests_driver_id_fkey"
+            columns: ["driver_id"]
+            isOneToOne: false
+            referencedRelation: "drivers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       driver_statements: {
         Row: {
           created_by: string | null
@@ -602,6 +748,92 @@ export type Database = {
         }
         Relationships: []
       }
+      manifest_orders: {
+        Row: {
+          created_at: string | null
+          id: string
+          manifest_id: string
+          order_id: string
+          pickup_or_delivery: string | null
+          sequence_number: number | null
+          status: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          manifest_id: string
+          order_id: string
+          pickup_or_delivery?: string | null
+          sequence_number?: number | null
+          status?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          manifest_id?: string
+          order_id?: string
+          pickup_or_delivery?: string | null
+          sequence_number?: number | null
+          status?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "manifest_orders_manifest_id_fkey"
+            columns: ["manifest_id"]
+            isOneToOne: false
+            referencedRelation: "driver_manifests"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "manifest_orders_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      order_tracking_events: {
+        Row: {
+          created_at: string | null
+          event_code: string
+          event_description: string
+          id: string
+          location: string | null
+          notes: string | null
+          order_id: string
+          scanned_by: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          event_code: string
+          event_description: string
+          id?: string
+          location?: string | null
+          notes?: string | null
+          order_id: string
+          scanned_by?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          event_code?: string
+          event_description?: string
+          id?: string
+          location?: string | null
+          notes?: string | null
+          order_id?: string
+          scanned_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "order_tracking_events_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       order_transactions: {
         Row: {
           amount_usd: number
@@ -668,6 +900,7 @@ export type Database = {
           created_at: string | null
           customer_id: string | null
           delivered_at: string | null
+          delivery_attempts: number | null
           delivery_fee_lbp: number | null
           delivery_fee_usd: number | null
           driver_id: string | null
@@ -680,8 +913,11 @@ export type Database = {
             | Database["public"]["Enums"]["remit_status"]
             | null
           entered_by: string | null
+          failure_reason: string | null
           fulfillment: Database["public"]["Enums"]["fulfillment_type"]
           id: string
+          last_attempt_date: string | null
+          manifest_id: string | null
           notes: string | null
           order_amount_lbp: number | null
           order_amount_usd: number | null
@@ -691,13 +927,16 @@ export type Database = {
           prepaid_by_runners: boolean | null
           prepay_amount_lbp: number | null
           prepay_amount_usd: number | null
+          promised_date: string | null
           status: Database["public"]["Enums"]["order_status"] | null
           third_party_fee_usd: number | null
           third_party_id: string | null
           third_party_settlement_status:
             | Database["public"]["Enums"]["third_party_settlement_status"]
             | null
+          tracking_number: string | null
           voucher_no: string | null
+          zone_id: string | null
         }
         Insert: {
           address: string
@@ -714,6 +953,7 @@ export type Database = {
           created_at?: string | null
           customer_id?: string | null
           delivered_at?: string | null
+          delivery_attempts?: number | null
           delivery_fee_lbp?: number | null
           delivery_fee_usd?: number | null
           driver_id?: string | null
@@ -726,8 +966,11 @@ export type Database = {
             | Database["public"]["Enums"]["remit_status"]
             | null
           entered_by?: string | null
+          failure_reason?: string | null
           fulfillment: Database["public"]["Enums"]["fulfillment_type"]
           id?: string
+          last_attempt_date?: string | null
+          manifest_id?: string | null
           notes?: string | null
           order_amount_lbp?: number | null
           order_amount_usd?: number | null
@@ -737,13 +980,16 @@ export type Database = {
           prepaid_by_runners?: boolean | null
           prepay_amount_lbp?: number | null
           prepay_amount_usd?: number | null
+          promised_date?: string | null
           status?: Database["public"]["Enums"]["order_status"] | null
           third_party_fee_usd?: number | null
           third_party_id?: string | null
           third_party_settlement_status?:
             | Database["public"]["Enums"]["third_party_settlement_status"]
             | null
+          tracking_number?: string | null
           voucher_no?: string | null
+          zone_id?: string | null
         }
         Update: {
           address?: string
@@ -760,6 +1006,7 @@ export type Database = {
           created_at?: string | null
           customer_id?: string | null
           delivered_at?: string | null
+          delivery_attempts?: number | null
           delivery_fee_lbp?: number | null
           delivery_fee_usd?: number | null
           driver_id?: string | null
@@ -772,8 +1019,11 @@ export type Database = {
             | Database["public"]["Enums"]["remit_status"]
             | null
           entered_by?: string | null
+          failure_reason?: string | null
           fulfillment?: Database["public"]["Enums"]["fulfillment_type"]
           id?: string
+          last_attempt_date?: string | null
+          manifest_id?: string | null
           notes?: string | null
           order_amount_lbp?: number | null
           order_amount_usd?: number | null
@@ -783,13 +1033,16 @@ export type Database = {
           prepaid_by_runners?: boolean | null
           prepay_amount_lbp?: number | null
           prepay_amount_usd?: number | null
+          promised_date?: string | null
           status?: Database["public"]["Enums"]["order_status"] | null
           third_party_fee_usd?: number | null
           third_party_id?: string | null
           third_party_settlement_status?:
             | Database["public"]["Enums"]["third_party_settlement_status"]
             | null
+          tracking_number?: string | null
           voucher_no?: string | null
+          zone_id?: string | null
         }
         Relationships: [
           {
@@ -814,10 +1067,24 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "orders_manifest_id_fkey"
+            columns: ["manifest_id"]
+            isOneToOne: false
+            referencedRelation: "driver_manifests"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "orders_third_party_id_fkey"
             columns: ["third_party_id"]
             isOneToOne: false
             referencedRelation: "third_parties"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "orders_zone_id_fkey"
+            columns: ["zone_id"]
+            isOneToOne: false
+            referencedRelation: "delivery_zones"
             referencedColumns: ["id"]
           },
         ]
@@ -921,7 +1188,9 @@ export type Database = {
     Functions: {
       generate_client_statement_id: { Args: never; Returns: string }
       generate_driver_statement_id: { Args: never; Returns: string }
+      generate_manifest_number: { Args: never; Returns: string }
       generate_statement_id: { Args: never; Returns: string }
+      generate_tracking_number: { Args: never; Returns: string }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
