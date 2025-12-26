@@ -1,5 +1,5 @@
 import { Button } from "@/components/ui/button";
-import { Trash2, UserPlus, CheckCircle, Wallet, Truck } from "lucide-react";
+import { Trash2, UserPlus, CheckCircle, Wallet, Truck, FileText, AlertTriangle } from "lucide-react";
 import { useState, useMemo } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -17,6 +17,8 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { PrepaidStatementDialog } from "./PrepaidStatementDialog";
+import { ManifestDialog } from "./ManifestDialog";
+import { DeliveryAttemptDialog } from "./DeliveryAttemptDialog";
 
 interface BulkActionsBarProps {
   selectedIds: string[];
@@ -30,6 +32,8 @@ export function BulkActionsBar({ selectedIds, onClearSelection }: BulkActionsBar
   const [statusOpen, setStatusOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [prepaidDialogOpen, setPrepaidDialogOpen] = useState(false);
+  const [manifestDialogOpen, setManifestDialogOpen] = useState(false);
+  const [attemptDialogOpen, setAttemptDialogOpen] = useState(false);
 
   const { data: drivers = [] } = useQuery({
     queryKey: ["drivers-active"],
@@ -320,6 +324,11 @@ export function BulkActionsBar({ selectedIds, onClearSelection }: BulkActionsBar
           </PopoverContent>
         </Popover>
 
+        <Button size="sm" variant="secondary" onClick={() => setManifestDialogOpen(true)}>
+          <FileText className="h-4 w-4 mr-2" />
+          Create Manifest
+        </Button>
+
         <Button size="sm" variant="destructive" onClick={() => setDeleteDialogOpen(true)}>
           <Trash2 className="h-4 w-4 mr-2" />
           Delete
@@ -357,6 +366,13 @@ export function BulkActionsBar({ selectedIds, onClearSelection }: BulkActionsBar
           selectedOrderIds={selectedIds}
         />
       )}
+
+      <ManifestDialog
+        open={manifestDialogOpen}
+        onOpenChange={setManifestDialogOpen}
+        selectedOrderIds={selectedIds}
+        onSuccess={onClearSelection}
+      />
     </>
   );
 }
