@@ -376,9 +376,16 @@ export function DriverStatementsTab() {
                 <Wallet className="h-4 w-4 text-muted-foreground" />
                 <span className="text-xs text-muted-foreground">Wallet Balance</span>
               </div>
-              <p className={`text-lg font-bold font-mono mt-1 ${Number(selectedDriverData?.wallet_usd || 0) < 0 ? 'text-status-error' : 'text-status-success'}`}>
-                ${Number(selectedDriverData?.wallet_usd || 0).toFixed(2)}
-              </p>
+              <div className="mt-1">
+                <p className={`text-lg font-bold font-mono ${Number(selectedDriverData?.wallet_usd || 0) < 0 ? 'text-status-error' : 'text-status-success'}`}>
+                  ${Number(selectedDriverData?.wallet_usd || 0).toFixed(2)}
+                </p>
+                {Number(selectedDriverData?.wallet_lbp || 0) !== 0 && (
+                  <p className={`text-sm font-mono ${Number(selectedDriverData?.wallet_lbp || 0) < 0 ? 'text-status-error' : 'text-status-success'}`}>
+                    {Number(selectedDriverData?.wallet_lbp || 0).toLocaleString()} LL
+                  </p>
+                )}
+              </div>
             </CardContent>
           </Card>
           <Card className="border-sidebar-border">
