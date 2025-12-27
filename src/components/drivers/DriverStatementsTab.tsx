@@ -18,6 +18,7 @@ import { toast } from 'sonner';
 import { useAuth } from '@/hooks/useAuth';
 import { StatusBadge } from '@/components/ui/status-badge';
 import { DriverStatementPreview } from './DriverStatementPreview';
+import { DriverStatementInlineDetail } from './DriverStatementInlineDetail';
 import { cn } from '@/lib/utils';
 
 export function DriverStatementsTab() {
@@ -37,6 +38,7 @@ export function DriverStatementsTab() {
   const [pendingExpanded, setPendingExpanded] = useState(true);
   const [previewDialogOpen, setPreviewDialogOpen] = useState(false);
   const [previewStatement, setPreviewStatement] = useState<any>(null);
+  const [expandedStatementId, setExpandedStatementId] = useState<string | null>(null);
 
   const { data: drivers } = useQuery({
     queryKey: ['drivers-for-statement'],
@@ -564,6 +566,7 @@ export function DriverStatementsTab() {
               <Table>
                 <TableHeader>
                   <TableRow className="text-xs">
+                    <TableHead className="py-2 w-8"></TableHead>
                     <TableHead className="py-2">ID</TableHead>
                     {!selectedDriver && <TableHead className="py-2">Driver</TableHead>}
                     <TableHead className="py-2">Period</TableHead>
@@ -576,55 +579,69 @@ export function DriverStatementsTab() {
                 </TableHeader>
                 <TableBody>
                   {statementHistory.map((statement) => (
-                    <TableRow key={statement.id} className="h-9 text-xs">
-                      <TableCell className="py-1 font-mono">{statement.statement_id}</TableCell>
-                      {!selectedDriver && <TableCell className="py-1">{statement.drivers?.name}</TableCell>}
-                      <TableCell className="py-1 text-muted-foreground">
-                        {format(new Date(statement.period_from), 'MMM dd')} - {format(new Date(statement.period_to), 'MMM dd')}
-                      </TableCell>
-                      <TableCell className="py-1 text-right font-mono font-semibold">
-                        <div>${Number(statement.net_due_usd).toFixed(2)}</div>
-                        {Number(statement.net_due_lbp || 0) !== 0 && (
-                          <div className="text-muted-foreground text-[10px]">{Number(statement.net_due_lbp || 0).toLocaleString()} LL</div>
+                    <>
+                      <TableRow 
+                        key={statement.id} 
+                        className={cn(
+                          "h-9 text-xs cursor-pointer hover:bg-muted/50",
+                          expandedStatementId === statement.id && "bg-muted/50"
                         )}
-                      </TableCell>
-                      <TableCell className="py-1 text-center">{statement.order_refs?.length || 0}</TableCell>
-                      <TableCell className="py-1 text-center">
-                        <StatusBadge status={statement.status} type="statement" />
-                      </TableCell>
-                      <TableCell className="py-1 text-muted-foreground">
-                        {format(new Date(statement.issued_date), 'MMM dd, yyyy')}
-                      </TableCell>
-                      <TableCell className="py-1 text-right">
-                        <div className="flex justify-end gap-1">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="h-7 w-7 p-0"
-                            onClick={() => {
-                              setPreviewStatement(statement);
-                              setPreviewDialogOpen(true);
-                            }}
-                          >
-                            <Eye className="h-3 w-3" />
-                          </Button>
-                          {statement.status === 'unpaid' && (
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              className="h-7 text-xs"
-                              onClick={() => {
-                                setSelectedStatement(statement);
-                                setPaymentDialogOpen(true);
-                              }}
-                            >
-                              <DollarSign className="mr-1 h-3 w-3" />
-                              Collect
-                            </Button>
+                        onClick={() => setExpandedStatementId(
+                          expandedStatementId === statement.id ? null : statement.id
+                        )}
+                      >
+                        <TableCell className="py-1">
+                          {expandedStatementId === statement.id ? (
+                            <ChevronUp className="h-3 w-3 text-muted-foreground" />
+                          ) : (
+                            <ChevronDown className="h-3 w-3 text-muted-foreground" />
                           )}
-                        </div>
-                      </TableCell>
-                    </TableRow>
+                        </TableCell>
+                        <TableCell className="py-1 font-mono">{statement.statement_id}</TableCell>
+                        {!selectedDriver && <TableCell className="py-1">{statement.drivers?.name}</TableCell>}
+                        <TableCell className="py-1 text-muted-foreground">
+                          {format(new Date(statement.period_from), 'MMM dd')} - {format(new Date(statement.period_to), 'MMM dd')}
+                        </TableCell>
+                        <TableCell className="py-1 text-right font-mono font-semibold">
+                          <div>${Number(statement.net_due_usd).toFixed(2)}</div>
+                          {Number(statement.net_due_lbp || 0) !== 0 && (
+                            <div className="text-muted-foreground text-[10px]">{Number(statement.net_due_lbp || 0).toLocaleString()} LL</div>
+                          )}
+                        </TableCell>
+                        <TableCell className="py-1 text-center">{statement.order_refs?.length || 0}</TableCell>
+                        <TableCell className="py-1 text-center">
+                          <StatusBadge status={statement.status} type="statement" />
+                        </TableCell>
+                        <TableCell className="py-1 text-muted-foreground">
+                          {format(new Date(statement.issued_date), 'MMM dd, yyyy')}
+                        </TableCell>
+                        <TableCell className="py-1 text-right" onClick={(e) => e.stopPropagation()}>
+                          <div className="flex justify-end gap-1">
+                            {statement.status === 'unpaid' && (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="h-7 text-xs"
+                                onClick={() => {
+                                  setSelectedStatement(statement);
+                                  setPaymentDialogOpen(true);
+                                }}
+                              >
+                                <DollarSign className="mr-1 h-3 w-3" />
+                                Collect
+                              </Button>
+                            )}
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                      {expandedStatementId === statement.id && (
+                        <TableRow key={`${statement.id}-detail`}>
+                          <TableCell colSpan={selectedDriver ? 8 : 9} className="p-0">
+                            <DriverStatementInlineDetail statement={statement} />
+                          </TableCell>
+                        </TableRow>
+                      )}
+                    </>
                   ))}
                 </TableBody>
               </Table>
