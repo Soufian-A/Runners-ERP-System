@@ -71,25 +71,34 @@ const DriverRemittanceDialog = ({ driver, open, onOpenChange }: DriverRemittance
       let totalDriverPaidRefundLBP = 0;
 
       for (const order of ordersToRemit) {
-        // Total collected from customer by driver = order amount + delivery fee
-        const collectedUSD = Number(order.order_amount_usd) + Number(order.delivery_fee_usd);
-        const collectedLBP = Number(order.order_amount_lbp) + Number(order.delivery_fee_lbp);
-        
-        totalCollectedUSD += collectedUSD;
-        totalCollectedLBP += collectedLBP;
-        
-        // Order amount only (for client credit)
-        totalOrderAmountUSD += Number(order.order_amount_usd);
-        totalOrderAmountLBP += Number(order.order_amount_lbp);
-        
-        // Delivery fees (for income)
-        totalDeliveryFeeUSD += Number(order.delivery_fee_usd);
-        totalDeliveryFeeLBP += Number(order.delivery_fee_lbp);
-        
-        // Driver paid amount (to refund back to driver)
         if (order.driver_paid_for_client) {
+          // For driver_paid_for_client orders:
+          // - Driver did NOT collect cash from customer
+          // - Driver PAID money on behalf of company to the client
+          // - At remittance, we refund the driver what they paid
           totalDriverPaidRefundUSD += Number(order.driver_paid_amount_usd || 0);
           totalDriverPaidRefundLBP += Number(order.driver_paid_amount_lbp || 0);
+          
+          // Delivery fees are still income (paid by client, not customer)
+          totalDeliveryFeeUSD += Number(order.delivery_fee_usd);
+          totalDeliveryFeeLBP += Number(order.delivery_fee_lbp);
+          
+          // No order amount to credit to client (already handled when driver paid)
+        } else {
+          // Normal orders: driver collected cash from customer
+          const collectedUSD = Number(order.order_amount_usd) + Number(order.delivery_fee_usd);
+          const collectedLBP = Number(order.order_amount_lbp) + Number(order.delivery_fee_lbp);
+          
+          totalCollectedUSD += collectedUSD;
+          totalCollectedLBP += collectedLBP;
+          
+          // Order amount only (for client credit)
+          totalOrderAmountUSD += Number(order.order_amount_usd);
+          totalOrderAmountLBP += Number(order.order_amount_lbp);
+          
+          // Delivery fees (for income)
+          totalDeliveryFeeUSD += Number(order.delivery_fee_usd);
+          totalDeliveryFeeLBP += Number(order.delivery_fee_lbp);
         }
       }
 
@@ -274,16 +283,29 @@ const DriverRemittanceDialog = ({ driver, open, onOpenChange }: DriverRemittance
     const selected = pendingOrders?.filter((o: any) => selectedOrders.includes(o.id)) || [];
     
     return selected.reduce(
-      (acc: any, o: any) => ({
-        totalCollectionUsd: acc.totalCollectionUsd + Number(o.order_amount_usd) + Number(o.driver_paid_amount_usd),
-        totalCollectionLbp: acc.totalCollectionLbp + Number(o.order_amount_lbp) + Number(o.driver_paid_amount_lbp),
-        orderAmountsUsd: acc.orderAmountsUsd + Number(o.order_amount_usd),
-        orderAmountsLbp: acc.orderAmountsLbp + Number(o.order_amount_lbp),
-        deliveryFeesUsd: acc.deliveryFeesUsd + Number(o.delivery_fee_usd),
-        deliveryFeesLbp: acc.deliveryFeesLbp + Number(o.delivery_fee_lbp),
-        driverPaidUsd: acc.driverPaidUsd + Number(o.driver_paid_amount_usd || 0),
-        driverPaidLbp: acc.driverPaidLbp + Number(o.driver_paid_amount_lbp || 0),
-      }),
+      (acc: any, o: any) => {
+        if (o.driver_paid_for_client) {
+          // For driver_paid orders: no collection, only refund to driver
+          return {
+            ...acc,
+            deliveryFeesUsd: acc.deliveryFeesUsd + Number(o.delivery_fee_usd),
+            deliveryFeesLbp: acc.deliveryFeesLbp + Number(o.delivery_fee_lbp),
+            driverPaidUsd: acc.driverPaidUsd + Number(o.driver_paid_amount_usd || 0),
+            driverPaidLbp: acc.driverPaidLbp + Number(o.driver_paid_amount_lbp || 0),
+          };
+        } else {
+          // Normal orders: driver collected cash
+          return {
+            ...acc,
+            totalCollectionUsd: acc.totalCollectionUsd + Number(o.order_amount_usd) + Number(o.delivery_fee_usd),
+            totalCollectionLbp: acc.totalCollectionLbp + Number(o.order_amount_lbp) + Number(o.delivery_fee_lbp),
+            orderAmountsUsd: acc.orderAmountsUsd + Number(o.order_amount_usd),
+            orderAmountsLbp: acc.orderAmountsLbp + Number(o.order_amount_lbp),
+            deliveryFeesUsd: acc.deliveryFeesUsd + Number(o.delivery_fee_usd),
+            deliveryFeesLbp: acc.deliveryFeesLbp + Number(o.delivery_fee_lbp),
+          };
+        }
+      },
       { 
         totalCollectionUsd: 0, 
         totalCollectionLbp: 0,
@@ -378,8 +400,13 @@ const DriverRemittanceDialog = ({ driver, open, onOpenChange }: DriverRemittance
                   </TableHeader>
                   <TableBody>
                     {filteredOrders?.map((order: any) => {
-                      const totalUsd = Number(order.order_amount_usd) + Number(order.delivery_fee_usd);
-                      const totalLbp = Number(order.order_amount_lbp) + Number(order.delivery_fee_lbp);
+                      const isDriverPaid = order.driver_paid_for_client;
+                      // For driver_paid orders: show refund amount (negative collection)
+                      // For normal orders: show total to collect
+                      const collectUsd = isDriverPaid ? 0 : Number(order.order_amount_usd) + Number(order.delivery_fee_usd);
+                      const collectLbp = isDriverPaid ? 0 : Number(order.order_amount_lbp) + Number(order.delivery_fee_lbp);
+                      const refundUsd = isDriverPaid ? Number(order.driver_paid_amount_usd || 0) : 0;
+                      const refundLbp = isDriverPaid ? Number(order.driver_paid_amount_lbp || 0) : 0;
                       
                       return (
                         <TableRow 
@@ -409,12 +436,21 @@ const DriverRemittanceDialog = ({ driver, open, onOpenChange }: DriverRemittance
                             ${Number(order.delivery_fee_usd).toFixed(2)} / {Number(order.delivery_fee_lbp).toLocaleString()} LL
                           </TableCell>
                           <TableCell className="font-semibold text-sm">
-                            <div>${totalUsd.toFixed(2)}</div>
-                            <div className="text-muted-foreground">{totalLbp.toLocaleString()} LL</div>
+                            {isDriverPaid ? (
+                              <div className="text-orange-600">
+                                <div>Refund: ${refundUsd.toFixed(2)}</div>
+                                {refundLbp > 0 && <div>{refundLbp.toLocaleString()} LL</div>}
+                              </div>
+                            ) : (
+                              <>
+                                <div>${collectUsd.toFixed(2)}</div>
+                                <div className="text-muted-foreground">{collectLbp.toLocaleString()} LL</div>
+                              </>
+                            )}
                           </TableCell>
                           <TableCell>
                             {order.driver_paid_for_client && (
-                              <Badge variant="outline" className="text-orange-600">
+                              <Badge variant="outline" className="text-orange-600 border-orange-600">
                                 Driver Paid
                               </Badge>
                             )}
@@ -429,13 +465,13 @@ const DriverRemittanceDialog = ({ driver, open, onOpenChange }: DriverRemittance
 
             {selectedOrders.length > 0 && (
               <div className="rounded-md bg-muted p-4 space-y-3">
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
                   <div>
                     <p className="text-xs text-muted-foreground">Orders Selected</p>
                     <p className="text-xl font-bold">{selectedOrders.length}</p>
                   </div>
                   <div>
-                    <p className="text-xs text-muted-foreground">Total Collection</p>
+                    <p className="text-xs text-muted-foreground">Cash to Collect</p>
                     <p className="text-lg font-bold text-primary">${totals.totalCollectionUsd.toFixed(2)}</p>
                     <p className="text-sm text-muted-foreground">{totals.totalCollectionLbp.toLocaleString()} LL</p>
                   </div>
@@ -449,12 +485,19 @@ const DriverRemittanceDialog = ({ driver, open, onOpenChange }: DriverRemittance
                     <p className="text-lg font-bold">${totals.orderAmountsUsd.toFixed(2)}</p>
                     <p className="text-sm text-muted-foreground">{totals.orderAmountsLbp.toLocaleString()} LL</p>
                   </div>
+                  {(totals.driverPaidUsd > 0 || totals.driverPaidLbp > 0) && (
+                    <div>
+                      <p className="text-xs text-muted-foreground">Refund to Driver</p>
+                      <p className="text-lg font-bold text-orange-600">-${totals.driverPaidUsd.toFixed(2)}</p>
+                      <p className="text-sm text-muted-foreground">-{totals.driverPaidLbp.toLocaleString()} LL</p>
+                    </div>
+                  )}
                 </div>
                 {(totals.driverPaidUsd > 0 || totals.driverPaidLbp > 0) && (
                   <div className="border-t pt-2">
-                    <p className="text-xs text-muted-foreground">Driver Paid Refund (will be credited back to driver)</p>
-                    <p className="text-base font-semibold text-orange-600">
-                      ${totals.driverPaidUsd.toFixed(2)} / {totals.driverPaidLbp.toLocaleString()} LL
+                    <p className="text-xs text-muted-foreground">Net to Cashbox (Collection - Refund)</p>
+                    <p className="text-base font-semibold">
+                      ${(totals.totalCollectionUsd - totals.driverPaidUsd).toFixed(2)} / {(totals.totalCollectionLbp - totals.driverPaidLbp).toLocaleString()} LL
                     </p>
                   </div>
                 )}
