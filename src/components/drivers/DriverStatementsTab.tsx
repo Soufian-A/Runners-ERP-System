@@ -19,6 +19,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { StatusBadge } from '@/components/ui/status-badge';
 import { DriverStatementPreview } from './DriverStatementPreview';
 import { DriverStatementInlineDetail } from './DriverStatementInlineDetail';
+import DriverCashSettlementDialog from './DriverCashSettlementDialog';
 import { cn } from '@/lib/utils';
 
 export function DriverStatementsTab() {
@@ -26,7 +27,11 @@ export function DriverStatementsTab() {
   const queryClient = useQueryClient();
   const [selectedDriver, setSelectedDriver] = useState('');
   const [driverSearchOpen, setDriverSearchOpen] = useState(false);
-  const [dateFrom, setDateFrom] = useState(new Date().toISOString().split('T')[0]);
+  const [dateFrom, setDateFrom] = useState(() => {
+    const d = new Date();
+    d.setDate(d.getDate() - 30);
+    return d.toISOString().split('T')[0];
+  });
   const [dateTo, setDateTo] = useState(new Date().toISOString().split('T')[0]);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedOrders, setSelectedOrders] = useState<string[]>([]);
@@ -39,6 +44,7 @@ export function DriverStatementsTab() {
   const [previewDialogOpen, setPreviewDialogOpen] = useState(false);
   const [previewStatement, setPreviewStatement] = useState<any>(null);
   const [expandedStatementId, setExpandedStatementId] = useState<string | null>(null);
+  const [settleCashOpen, setSettleCashOpen] = useState(false);
 
   const { data: drivers } = useQuery({
     queryKey: ['drivers-for-statement'],
@@ -372,9 +378,19 @@ export function DriverStatementsTab() {
         <div className="grid grid-cols-4 gap-3">
           <Card className="border-sidebar-border">
             <CardContent className="p-3">
-              <div className="flex items-center gap-2">
-                <Wallet className="h-4 w-4 text-muted-foreground" />
-                <span className="text-xs text-muted-foreground">Wallet Balance</span>
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <Wallet className="h-4 w-4 text-muted-foreground" />
+                  <span className="text-xs text-muted-foreground">Wallet Balance</span>
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-7 px-2 text-xs"
+                  onClick={() => setSettleCashOpen(true)}
+                >
+                  Settle
+                </Button>
               </div>
               <div className="mt-1">
                 <p className={`text-lg font-bold font-mono ${Number(selectedDriverData?.wallet_usd || 0) < 0 ? 'text-status-error' : 'text-status-success'}`}>
@@ -724,6 +740,14 @@ export function DriverStatementsTab() {
           }}
           netDueUsd={Number(previewStatement.net_due_usd || 0)}
           netDueLbp={Number(previewStatement.net_due_lbp || 0)}
+        />
+      )}
+
+      {selectedDriverData && (
+        <DriverCashSettlementDialog
+          open={settleCashOpen}
+          onOpenChange={setSettleCashOpen}
+          driver={selectedDriverData}
         />
       )}
     </div>
