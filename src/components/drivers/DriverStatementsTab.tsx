@@ -19,7 +19,6 @@ import { useAuth } from '@/hooks/useAuth';
 import { StatusBadge } from '@/components/ui/status-badge';
 import { DriverStatementPreview } from './DriverStatementPreview';
 import { DriverStatementInlineDetail } from './DriverStatementInlineDetail';
-import DriverCashSettlementDialog from './DriverCashSettlementDialog';
 import { cn } from '@/lib/utils';
 
 export function DriverStatementsTab() {
@@ -39,12 +38,11 @@ export function DriverStatementsTab() {
   const [selectedStatement, setSelectedStatement] = useState<any>(null);
   const [paymentMethod, setPaymentMethod] = useState('cash');
   const [paymentNotes, setPaymentNotes] = useState('');
-  const [collectCash, setCollectCash] = useState(true);
   const [pendingExpanded, setPendingExpanded] = useState(true);
   const [previewDialogOpen, setPreviewDialogOpen] = useState(false);
   const [previewStatement, setPreviewStatement] = useState<any>(null);
   const [expandedStatementId, setExpandedStatementId] = useState<string | null>(null);
-  const [settleCashOpen, setSettleCashOpen] = useState(false);
+  const [issuePreviewOpen, setIssuePreviewOpen] = useState(false);
 
   const { data: drivers } = useQuery({
     queryKey: ['drivers-for-statement'],
@@ -194,69 +192,70 @@ export function DriverStatementsTab() {
         net_due_usd: netDueUsd,
         net_due_lbp: netDueLbp,
         order_refs: orderRefs,
-        status: collectCash ? 'paid' : 'unpaid',
-        paid_date: collectCash ? new Date().toISOString() : null,
-        payment_method: collectCash ? 'cash' : null,
+        status: 'paid',
+        paid_date: new Date().toISOString(),
+        payment_method: 'cash',
         created_by: user?.id,
       });
 
       if (insertError) throw insertError;
 
-      if (collectCash) {
-        for (const order of selectedOrdersData) {
-          await supabase.from('orders').update({
-            driver_remit_status: 'Collected',
-            driver_remit_date: new Date().toISOString(),
-          }).eq('id', order.id);
-        }
+      // Always collect cash when issuing statement
+      for (const order of selectedOrdersData) {
+        await supabase.from('orders').update({
+          driver_remit_status: 'Collected',
+          driver_remit_date: new Date().toISOString(),
+        }).eq('id', order.id);
+      }
 
-        const today = new Date().toISOString().split('T')[0];
-        const { data: existingCashbox } = await supabase
-          .from('cashbox_daily')
-          .select('*')
-          .eq('date', today)
-          .maybeSingle();
+      const today = new Date().toISOString().split('T')[0];
+      const { data: existingCashbox } = await supabase
+        .from('cashbox_daily')
+        .select('*')
+        .eq('date', today)
+        .maybeSingle();
 
-        if (existingCashbox) {
-          await supabase.from('cashbox_daily').update({
-            cash_in_usd: Number(existingCashbox.cash_in_usd || 0) + netDueUsd,
-            cash_in_lbp: Number(existingCashbox.cash_in_lbp || 0) + netDueLbp,
-          }).eq('id', existingCashbox.id);
-        } else {
-          await supabase.from('cashbox_daily').insert({
-            date: today,
-            cash_in_usd: netDueUsd,
-            cash_in_lbp: netDueLbp,
-          });
-        }
+      if (existingCashbox) {
+        await supabase.from('cashbox_daily').update({
+          cash_in_usd: Number(existingCashbox.cash_in_usd || 0) + netDueUsd,
+          cash_in_lbp: Number(existingCashbox.cash_in_lbp || 0) + netDueLbp,
+        }).eq('id', existingCashbox.id);
+      } else {
+        await supabase.from('cashbox_daily').insert({
+          date: today,
+          cash_in_usd: netDueUsd,
+          cash_in_lbp: netDueLbp,
+        });
+      }
 
-        const driver = drivers?.find(d => d.id === selectedDriver);
-        if (driver) {
-          await supabase.from('drivers').update({
-            wallet_usd: Number(driver.wallet_usd || 0) - netDueUsd,
-            wallet_lbp: Number(driver.wallet_lbp || 0) - netDueLbp,
-          }).eq('id', selectedDriver);
+      const driver = drivers?.find(d => d.id === selectedDriver);
+      if (driver) {
+        await supabase.from('drivers').update({
+          wallet_usd: Number(driver.wallet_usd || 0) - netDueUsd,
+          wallet_lbp: Number(driver.wallet_lbp || 0) - netDueLbp,
+        }).eq('id', selectedDriver);
 
-          await supabase.from('driver_transactions').insert({
-            driver_id: selectedDriver,
-            type: 'Debit',
-            amount_usd: netDueUsd,
-            amount_lbp: netDueLbp,
-            note: `Statement ${statementIdData} - Cash Collected`,
-          });
-        }
+        await supabase.from('driver_transactions').insert({
+          driver_id: selectedDriver,
+          type: 'Debit',
+          amount_usd: netDueUsd,
+          amount_lbp: netDueLbp,
+          note: `Statement ${statementIdData} - Cash Collected`,
+        });
       }
 
       return statementIdData;
     },
     onSuccess: (statementId) => {
-      toast.success(`Statement ${statementId} issued${collectCash ? ' and cash collected' : ''}`);
+      toast.success(`Statement ${statementId} issued and cash collected`);
       queryClient.invalidateQueries({ queryKey: ['driver-pending-orders'] });
       queryClient.invalidateQueries({ queryKey: ['driver-statements-history'] });
       queryClient.invalidateQueries({ queryKey: ['drivers'] });
+      queryClient.invalidateQueries({ queryKey: ['drivers-for-statement'] });
       queryClient.invalidateQueries({ queryKey: ['cashbox'] });
       queryClient.invalidateQueries({ queryKey: ['driver-transactions'] });
       setSelectedOrders([]);
+      setIssuePreviewOpen(false);
     },
     onError: (error) => {
       toast.error(`Failed: ${error.message}`);
@@ -378,19 +377,9 @@ export function DriverStatementsTab() {
         <div className="grid grid-cols-4 gap-3">
           <Card className="border-sidebar-border">
             <CardContent className="p-3">
-              <div className="flex items-center justify-between gap-2">
-                <div className="flex items-center gap-2">
-                  <Wallet className="h-4 w-4 text-muted-foreground" />
-                  <span className="text-xs text-muted-foreground">Wallet Balance</span>
-                </div>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="h-7 px-2 text-xs"
-                  onClick={() => setSettleCashOpen(true)}
-                >
-                  Settle
-                </Button>
+              <div className="flex items-center gap-2">
+                <Wallet className="h-4 w-4 text-muted-foreground" />
+                <span className="text-xs text-muted-foreground">Wallet Balance</span>
               </div>
               <div className="mt-1">
                 <p className={`text-lg font-bold font-mono ${Number(selectedDriverData?.wallet_usd || 0) < 0 ? 'text-status-error' : 'text-status-success'}`}>
@@ -558,16 +547,10 @@ export function DriverStatementsTab() {
                         )}
                       </div>
                     </div>
-                    <div className="flex items-center gap-3">
-                      <label className="flex items-center gap-2 text-xs">
-                        <Checkbox checked={collectCash} onCheckedChange={(v) => setCollectCash(!!v)} />
-                        Collect Cash Now
-                      </label>
-                      <Button size="sm" onClick={() => issueStatementMutation.mutate()} disabled={issueStatementMutation.isPending}>
-                        <FileText className="mr-1.5 h-3.5 w-3.5" />
-                        {issueStatementMutation.isPending ? 'Processing...' : 'Issue Statement'}
-                      </Button>
-                    </div>
+                    <Button size="sm" onClick={() => setIssuePreviewOpen(true)}>
+                      <Eye className="mr-1.5 h-3.5 w-3.5" />
+                      Preview & Issue
+                    </Button>
                   </div>
                 )}
               </CardContent>
@@ -722,6 +705,7 @@ export function DriverStatementsTab() {
       </Dialog>
 
       {/* Statement Preview Dialog */}
+      {/* Statement Preview for existing statements */}
       {previewStatement && (
         <DriverStatementPreview
           open={previewDialogOpen}
@@ -743,12 +727,126 @@ export function DriverStatementsTab() {
         />
       )}
 
-      {selectedDriverData && (
-        <DriverCashSettlementDialog
-          open={settleCashOpen}
-          onOpenChange={setSettleCashOpen}
-          driver={selectedDriverData}
-        />
+      {/* Issue Statement Preview Dialog */}
+      {selectedDriver && selectedDriverData && (
+        <Dialog open={issuePreviewOpen} onOpenChange={setIssuePreviewOpen}>
+          <DialogContent className="max-w-3xl max-h-[85vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>Statement Preview - {selectedDriverData.name}</DialogTitle>
+              <DialogDescription>
+                Review the statement before issuing. You can copy for WhatsApp and then confirm to collect payment.
+              </DialogDescription>
+            </DialogHeader>
+            
+            <div className="space-y-4">
+              <div className="text-sm text-muted-foreground">
+                Period: {format(new Date(dateFrom), 'MMM dd, yyyy')} - {format(new Date(dateTo), 'MMM dd, yyyy')}
+              </div>
+
+              {/* Orders Table */}
+              <div className="border rounded-lg overflow-hidden">
+                <Table>
+                  <TableHeader>
+                    <TableRow className="text-xs bg-muted/50">
+                      <TableHead className="py-2">Date</TableHead>
+                      <TableHead className="py-2">Order</TableHead>
+                      <TableHead className="py-2">Client</TableHead>
+                      <TableHead className="py-2 text-right">Collected</TableHead>
+                      <TableHead className="py-2 text-right">Fee</TableHead>
+                      <TableHead className="py-2 text-right">Driver Paid</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {orders?.filter(o => selectedOrders.includes(o.id)).map((order) => (
+                      <TableRow key={order.id} className="text-xs">
+                        <TableCell className="py-1.5">
+                          {order.delivered_at ? format(new Date(order.delivered_at), 'MMM dd') : '-'}
+                        </TableCell>
+                        <TableCell className="py-1.5 font-mono">{order.order_id}</TableCell>
+                        <TableCell className="py-1.5">{order.clients?.name}</TableCell>
+                        <TableCell className="py-1.5 text-right font-mono">
+                          ${Number(order.collected_amount_usd || 0).toFixed(2)}
+                        </TableCell>
+                        <TableCell className="py-1.5 text-right font-mono text-status-success">
+                          ${Number(order.delivery_fee_usd || 0).toFixed(2)}
+                        </TableCell>
+                        <TableCell className="py-1.5 text-right font-mono text-status-info">
+                          {order.driver_paid_for_client ? `$${Number(order.driver_paid_amount_usd || 0).toFixed(2)}` : '-'}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+
+              {/* Summary */}
+              <div className="bg-muted/30 rounded-lg p-4 space-y-2">
+                <div className="flex justify-between text-sm">
+                  <span className="text-muted-foreground">Total Collected:</span>
+                  <span className="font-mono font-semibold">${totals.totalCollectedUsd.toFixed(2)}</span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-muted-foreground">Delivery Fees (Driver Keeps):</span>
+                  <span className="font-mono font-semibold text-status-success">-${totals.totalDeliveryFeesUsd.toFixed(2)}</span>
+                </div>
+                {totals.totalDriverPaidUsd > 0 && (
+                  <div className="flex justify-between text-sm">
+                    <span className="text-muted-foreground">Driver Paid (Refund):</span>
+                    <span className="font-mono font-semibold text-status-info">-${totals.totalDriverPaidUsd.toFixed(2)}</span>
+                  </div>
+                )}
+                <div className="border-t pt-2 flex justify-between text-base font-bold">
+                  <span>Net Due to Company:</span>
+                  <span className="font-mono">${netDueUsd.toFixed(2)}</span>
+                </div>
+              </div>
+
+              {/* WhatsApp Copy */}
+              <Button 
+                variant="outline" 
+                className="w-full"
+                onClick={() => {
+                  const selectedOrdersData = orders?.filter(o => selectedOrders.includes(o.id)) || [];
+                  const lines = [
+                    `📋 *Driver Statement*`,
+                    `Driver: ${selectedDriverData.name}`,
+                    `Period: ${format(new Date(dateFrom), 'MMM dd')} - ${format(new Date(dateTo), 'MMM dd, yyyy')}`,
+                    ``,
+                    `*Orders (${selectedOrdersData.length}):*`,
+                    ...selectedOrdersData.map(o => 
+                      `• ${o.order_id} - $${Number(o.collected_amount_usd || 0).toFixed(2)}`
+                    ),
+                    ``,
+                    `*Summary:*`,
+                    `Collected: $${totals.totalCollectedUsd.toFixed(2)}`,
+                    `Your Fees: -$${totals.totalDeliveryFeesUsd.toFixed(2)}`,
+                    totals.totalDriverPaidUsd > 0 ? `Refund: -$${totals.totalDriverPaidUsd.toFixed(2)}` : '',
+                    ``,
+                    `💰 *Net Due: $${netDueUsd.toFixed(2)}*`
+                  ].filter(Boolean).join('\n');
+                  
+                  navigator.clipboard.writeText(lines);
+                  toast.success('Copied to clipboard!');
+                }}
+              >
+                📋 Copy for WhatsApp
+              </Button>
+            </div>
+
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setIssuePreviewOpen(false)}>
+                Cancel
+              </Button>
+              <Button 
+                onClick={() => issueStatementMutation.mutate()} 
+                disabled={issueStatementMutation.isPending}
+              >
+                <CheckCircle className="mr-1.5 h-4 w-4" />
+                {issueStatementMutation.isPending ? 'Processing...' : 'Issue & Collect Payment'}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       )}
     </div>
   );
