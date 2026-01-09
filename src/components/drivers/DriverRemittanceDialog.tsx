@@ -102,35 +102,17 @@ const DriverRemittanceDialog = ({ driver, open, onOpenChange }: DriverRemittance
         }
       }
 
-      // Record cashbox in (total collected from driver)
+      // Use atomic cashbox update
       const today = new Date().toISOString().split('T')[0];
-      const { data: cashbox } = await supabase
-        .from('cashbox_daily')
-        .select('*')
-        .eq('date', today)
-        .maybeSingle();
+      const { error: cashboxError } = await (supabase.rpc as any)('update_cashbox_atomic', {
+        p_date: today,
+        p_cash_in_usd: totalCollectedUSD,
+        p_cash_in_lbp: totalCollectedLBP,
+        p_cash_out_usd: 0,
+        p_cash_out_lbp: 0,
+      });
 
-      if (cashbox) {
-        await supabase
-          .from('cashbox_daily')
-          .update({
-            cash_in_usd: Number(cashbox.cash_in_usd) + totalCollectedUSD,
-            cash_in_lbp: Number(cashbox.cash_in_lbp) + totalCollectedLBP,
-          })
-          .eq('id', cashbox.id);
-      } else {
-        await supabase.from('cashbox_daily').insert({
-          date: today,
-          opening_usd: 0,
-          opening_lbp: 0,
-          cash_in_usd: totalCollectedUSD,
-          cash_in_lbp: totalCollectedLBP,
-          cash_out_usd: 0,
-          cash_out_lbp: 0,
-          closing_usd: totalCollectedUSD,
-          closing_lbp: totalCollectedLBP,
-        });
-      }
+      if (cashboxError) throw cashboxError;
 
       // Debit driver wallet for total collected
       await supabase.from('driver_transactions').insert({
@@ -152,24 +134,17 @@ const DriverRemittanceDialog = ({ driver, open, onOpenChange }: DriverRemittance
         });
       }
 
-      const { data: currentDriver } = await supabase
-        .from('drivers')
-        .select('wallet_usd, wallet_lbp')
-        .eq('id', driver.id)
-        .single();
+      // Use atomic wallet update (net debit = negative of collected - refund)
+      const netDebitUSD = totalCollectedUSD - totalDriverPaidRefundUSD;
+      const netDebitLBP = totalCollectedLBP - totalDriverPaidRefundLBP;
+      
+      const { error: walletError } = await (supabase.rpc as any)('update_driver_wallet_atomic', {
+        p_driver_id: driver.id,
+        p_amount_usd: -netDebitUSD,
+        p_amount_lbp: -netDebitLBP,
+      });
 
-      if (currentDriver) {
-        const netDebitUSD = totalCollectedUSD - totalDriverPaidRefundUSD;
-        const netDebitLBP = totalCollectedLBP - totalDriverPaidRefundLBP;
-        
-        await supabase
-          .from('drivers')
-          .update({
-            wallet_usd: Number(currentDriver.wallet_usd) - netDebitUSD,
-            wallet_lbp: Number(currentDriver.wallet_lbp) - netDebitLBP,
-          })
-          .eq('id', driver.id);
-      }
+      if (walletError) throw walletError;
 
       // Credit client accounts for order amounts (they've been paid)
       // Group orders by client

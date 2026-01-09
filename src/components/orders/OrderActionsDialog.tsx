@@ -120,37 +120,17 @@ const OrderActionsDialog = ({ order, open, onOpenChange }: OrderActionsDialogPro
       const amountUSD = data.currency === 'USD' ? data.amount : 0;
       const amountLBP = data.currency === 'LBP' ? data.amount : 0;
 
-      // 1. Cashbox: Cash Out
+      // 1. Cashbox: Cash Out (atomic)
       const today = new Date().toISOString().split('T')[0];
-      const { data: cashbox } = await supabase
-        .from('cashbox_daily')
-        .select('*')
-        .eq('date', today)
-        .maybeSingle();
+      const { error: cashboxError } = await (supabase.rpc as any)('update_cashbox_atomic', {
+        p_date: today,
+        p_cash_in_usd: 0,
+        p_cash_in_lbp: 0,
+        p_cash_out_usd: amountUSD,
+        p_cash_out_lbp: amountLBP,
+      });
 
-      if (cashbox) {
-        await supabase
-          .from('cashbox_daily')
-          .update({
-            cash_out_usd: Number(cashbox.cash_out_usd) + amountUSD,
-            cash_out_lbp: Number(cashbox.cash_out_lbp) + amountLBP,
-            closing_usd: Number(cashbox.opening_usd) + Number(cashbox.cash_in_usd) - (Number(cashbox.cash_out_usd) + amountUSD),
-            closing_lbp: Number(cashbox.opening_lbp) + Number(cashbox.cash_in_lbp) - (Number(cashbox.cash_out_lbp) + amountLBP),
-          })
-          .eq('id', cashbox.id);
-      } else {
-        await supabase.from('cashbox_daily').insert({
-          date: today,
-          opening_usd: 0,
-          opening_lbp: 0,
-          cash_in_usd: 0,
-          cash_in_lbp: 0,
-          cash_out_usd: amountUSD,
-          cash_out_lbp: amountLBP,
-          closing_usd: -amountUSD,
-          closing_lbp: -amountLBP,
-        });
-      }
+      if (cashboxError) throw cashboxError;
 
       // 2. Accounting: Expense → PrepaidFloat
       await supabase.from('accounting_entries').insert({
@@ -185,6 +165,7 @@ const OrderActionsDialog = ({ order, open, onOpenChange }: OrderActionsDialogPro
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['orders'] });
+      queryClient.invalidateQueries({ queryKey: ['cashbox'] });
       toast({
         title: "Prepayment Recorded",
         description: "Prepayment has been recorded in cashbox, accounting, and client transactions.",
@@ -219,22 +200,14 @@ const OrderActionsDialog = ({ order, open, onOpenChange }: OrderActionsDialogPro
         note: `Driver paid for client: ${data.reason}`,
       });
 
-      // Update driver wallet
-      const { data: driver } = await supabase
-        .from('drivers')
-        .select('wallet_usd, wallet_lbp')
-        .eq('id', order.driver_id)
-        .single();
+      // Use atomic wallet update (negative = debit)
+      const { error: walletError } = await (supabase.rpc as any)('update_driver_wallet_atomic', {
+        p_driver_id: order.driver_id,
+        p_amount_usd: -amountUSD,
+        p_amount_lbp: -amountLBP,
+      });
 
-      if (driver) {
-        await supabase
-          .from('drivers')
-          .update({
-            wallet_usd: Number(driver.wallet_usd) - amountUSD,
-            wallet_lbp: Number(driver.wallet_lbp) - amountLBP,
-          })
-          .eq('id', order.driver_id);
-      }
+      if (walletError) throw walletError;
 
       // 2. Client transaction: Debit (you're owed)
       await supabase.from('client_transactions').insert({
@@ -261,6 +234,7 @@ const OrderActionsDialog = ({ order, open, onOpenChange }: OrderActionsDialogPro
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['orders'] });
+      queryClient.invalidateQueries({ queryKey: ['drivers'] });
       toast({
         title: "Driver Payment Recorded",
         description: "Driver wallet debited and client transaction recorded.",

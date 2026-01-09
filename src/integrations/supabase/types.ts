@@ -1198,6 +1198,24 @@ export type Database = {
         }
         Returns: boolean
       }
+      update_cashbox_atomic: {
+        Args: {
+          p_cash_in_lbp?: number
+          p_cash_in_usd?: number
+          p_cash_out_lbp?: number
+          p_cash_out_usd?: number
+          p_date: string
+        }
+        Returns: undefined
+      }
+      update_driver_wallet_atomic: {
+        Args: {
+          p_amount_lbp: number
+          p_amount_usd: number
+          p_driver_id: string
+        }
+        Returns: undefined
+      }
     }
     Enums: {
       accounting_category:
