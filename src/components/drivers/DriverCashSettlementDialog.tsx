@@ -84,56 +84,32 @@ export default function DriverCashSettlementDialog({ open, onOpenChange, driver 
 
         if (transactionError) throw transactionError;
 
-        // Update driver wallet
-        const { error: driverError } = await supabase
-          .from('drivers')
-          .update({
-            wallet_usd: Number(driver.wallet_usd) + amountUsdNum,
-            wallet_lbp: Number(driver.wallet_lbp) + amountLbpNum,
-          })
-          .eq('id', driver.id);
+        // Use atomic wallet update
+        const { error: walletError } = await (supabase.rpc as any)('update_driver_wallet_atomic', {
+          p_driver_id: driver.id,
+          p_amount_usd: amountUsdNum,
+          p_amount_lbp: amountLbpNum,
+        });
 
-        if (driverError) throw driverError;
+        if (walletError) throw walletError;
 
-        // Update cashbox (cash out)
-        const { data: existing } = await supabase
-          .from('cashbox_daily')
-          .select('*')
-          .eq('date', today)
-          .maybeSingle();
+        // Use atomic cashbox update (cash out)
+        const { error: cashboxError } = await (supabase.rpc as any)('update_cashbox_atomic', {
+          p_date: today,
+          p_cash_in_usd: 0,
+          p_cash_in_lbp: 0,
+          p_cash_out_usd: amountUsdNum,
+          p_cash_out_lbp: amountLbpNum,
+        });
 
-        const updateData: any = {
-          cash_out_usd: (existing?.cash_out_usd || 0) + amountUsdNum,
-          cash_out_lbp: (existing?.cash_out_lbp || 0) + amountLbpNum,
-          closing_usd: (existing?.opening_usd || 0) + (existing?.cash_in_usd || 0) - (existing?.cash_out_usd || 0) - amountUsdNum,
-          closing_lbp: (existing?.opening_lbp || 0) + (existing?.cash_in_lbp || 0) - (existing?.cash_out_lbp || 0) - amountLbpNum,
-        };
-
-        updateData.notes = existing?.notes 
-          ? `${existing.notes}\n${new Date().toLocaleString()}: Gave ${amountUsdNum > 0 ? `$${amountUsdNum}` : ''}${amountLbpNum > 0 ? ` ${amountLbpNum} LBP` : ''} to ${driver.name} - ${notes}`
-          : `${new Date().toLocaleString()}: Gave ${amountUsdNum > 0 ? `$${amountUsdNum}` : ''}${amountLbpNum > 0 ? ` ${amountLbpNum} LBP` : ''} to ${driver.name} - ${notes}`;
-
-        if (existing) {
-          const { error } = await supabase
-            .from('cashbox_daily')
-            .update(updateData)
-            .eq('id', existing.id);
-          if (error) throw error;
-        } else {
-          const { error } = await supabase
-            .from('cashbox_daily')
-            .insert({
-              date: today,
-              opening_usd: 0,
-              opening_lbp: 0,
-              ...updateData,
-            });
-          if (error) throw error;
-        }
+        if (cashboxError) throw cashboxError;
       } else {
         // Take cash from driver (Debit from driver, Cash in to cashbox)
         // Check if driver has enough balance
-        if (amountUsdNum > Number(driver.wallet_usd) || amountLbpNum > Number(driver.wallet_lbp)) {
+        const currentWalletUsd = Number(driver.wallet_usd || 0);
+        const currentWalletLbp = Number(driver.wallet_lbp || 0);
+        
+        if (amountUsdNum > currentWalletUsd || amountLbpNum > currentWalletLbp) {
           throw new Error('Insufficient driver balance');
         }
 
@@ -149,52 +125,25 @@ export default function DriverCashSettlementDialog({ open, onOpenChange, driver 
 
         if (transactionError) throw transactionError;
 
-        // Update driver wallet
-        const { error: driverError } = await supabase
-          .from('drivers')
-          .update({
-            wallet_usd: Number(driver.wallet_usd) - amountUsdNum,
-            wallet_lbp: Number(driver.wallet_lbp) - amountLbpNum,
-          })
-          .eq('id', driver.id);
+        // Use atomic wallet update (negative = debit)
+        const { error: walletError } = await (supabase.rpc as any)('update_driver_wallet_atomic', {
+          p_driver_id: driver.id,
+          p_amount_usd: -amountUsdNum,
+          p_amount_lbp: -amountLbpNum,
+        });
 
-        if (driverError) throw driverError;
+        if (walletError) throw walletError;
 
-        // Update cashbox (cash in)
-        const { data: existing } = await supabase
-          .from('cashbox_daily')
-          .select('*')
-          .eq('date', today)
-          .maybeSingle();
+        // Use atomic cashbox update (cash in)
+        const { error: cashboxError } = await (supabase.rpc as any)('update_cashbox_atomic', {
+          p_date: today,
+          p_cash_in_usd: amountUsdNum,
+          p_cash_in_lbp: amountLbpNum,
+          p_cash_out_usd: 0,
+          p_cash_out_lbp: 0,
+        });
 
-        const updateData: any = {
-          cash_in_usd: (existing?.cash_in_usd || 0) + amountUsdNum,
-          cash_in_lbp: (existing?.cash_in_lbp || 0) + amountLbpNum,
-          closing_usd: (existing?.opening_usd || 0) + (existing?.cash_in_usd || 0) + amountUsdNum - (existing?.cash_out_usd || 0),
-          closing_lbp: (existing?.opening_lbp || 0) + (existing?.cash_in_lbp || 0) + amountLbpNum - (existing?.cash_out_lbp || 0),
-        };
-
-        updateData.notes = existing?.notes 
-          ? `${existing.notes}\n${new Date().toLocaleString()}: Took ${amountUsdNum > 0 ? `$${amountUsdNum}` : ''}${amountLbpNum > 0 ? ` ${amountLbpNum} LBP` : ''} from ${driver.name} - ${notes}`
-          : `${new Date().toLocaleString()}: Took ${amountUsdNum > 0 ? `$${amountUsdNum}` : ''}${amountLbpNum > 0 ? ` ${amountLbpNum} LBP` : ''} from ${driver.name} - ${notes}`;
-
-        if (existing) {
-          const { error } = await supabase
-            .from('cashbox_daily')
-            .update(updateData)
-            .eq('id', existing.id);
-          if (error) throw error;
-        } else {
-          const { error } = await supabase
-            .from('cashbox_daily')
-            .insert({
-              date: today,
-              opening_usd: 0,
-              opening_lbp: 0,
-              ...updateData,
-            });
-          if (error) throw error;
-        }
+        if (cashboxError) throw cashboxError;
       }
     },
     onSuccess: () => {

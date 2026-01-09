@@ -173,7 +173,19 @@ export function DriverStatementsTab() {
       if (selectedOrders.length === 0) throw new Error('No orders selected');
       
       const selectedOrdersData = orders?.filter(o => selectedOrders.includes(o.id)) || [];
+      
+      // Validate all orders have delivered_at date
+      const ordersWithoutDeliveryDate = selectedOrdersData.filter(o => !o.delivered_at);
+      if (ordersWithoutDeliveryDate.length > 0) {
+        throw new Error(`${ordersWithoutDeliveryDate.length} order(s) have no delivery date`);
+      }
+      
       const orderRefs = selectedOrdersData.map(o => o.order_id);
+      
+      // Calculate period from actual delivery dates
+      const deliveryDates = selectedOrdersData.map(o => new Date(o.delivered_at).getTime());
+      const periodFrom = new Date(Math.min(...deliveryDates)).toISOString().split('T')[0];
+      const periodTo = new Date(Math.max(...deliveryDates)).toISOString().split('T')[0];
 
       const { data: statementIdData, error: idError } = await supabase.rpc('generate_driver_statement_id');
       if (idError) throw idError;
@@ -181,8 +193,8 @@ export function DriverStatementsTab() {
       const { error: insertError } = await supabase.from('driver_statements').insert({
         driver_id: selectedDriver,
         statement_id: statementIdData,
-        period_from: dateFrom,
-        period_to: dateTo,
+        period_from: periodFrom,
+        period_to: periodTo,
         total_collected_usd: totals.totalCollectedUsd,
         total_collected_lbp: totals.totalCollectedLbp,
         total_delivery_fees_usd: totals.totalDeliveryFeesUsd,
@@ -200,49 +212,42 @@ export function DriverStatementsTab() {
 
       if (insertError) throw insertError;
 
-      // Always collect cash when issuing statement
-      for (const order of selectedOrdersData) {
-        await supabase.from('orders').update({
-          driver_remit_status: 'Collected',
-          driver_remit_date: new Date().toISOString(),
-        }).eq('id', order.id);
-      }
+      // Batch update all orders
+      const orderIds = selectedOrdersData.map(o => o.id);
+      await supabase.from('orders').update({
+        driver_remit_status: 'Collected',
+        driver_remit_date: new Date().toISOString(),
+      }).in('id', orderIds);
 
+      // Use atomic cashbox update
       const today = new Date().toISOString().split('T')[0];
-      const { data: existingCashbox } = await supabase
-        .from('cashbox_daily')
-        .select('*')
-        .eq('date', today)
-        .maybeSingle();
+      const { error: cashboxError } = await (supabase.rpc as any)('update_cashbox_atomic', {
+        p_date: today,
+        p_cash_in_usd: netDueUsd,
+        p_cash_in_lbp: netDueLbp,
+        p_cash_out_usd: 0,
+        p_cash_out_lbp: 0,
+      });
+      
+      if (cashboxError) throw cashboxError;
 
-      if (existingCashbox) {
-        await supabase.from('cashbox_daily').update({
-          cash_in_usd: Number(existingCashbox.cash_in_usd || 0) + netDueUsd,
-          cash_in_lbp: Number(existingCashbox.cash_in_lbp || 0) + netDueLbp,
-        }).eq('id', existingCashbox.id);
-      } else {
-        await supabase.from('cashbox_daily').insert({
-          date: today,
-          cash_in_usd: netDueUsd,
-          cash_in_lbp: netDueLbp,
-        });
-      }
+      // Use atomic wallet update (debit = negative amount)
+      const { error: walletError } = await (supabase.rpc as any)('update_driver_wallet_atomic', {
+        p_driver_id: selectedDriver,
+        p_amount_usd: -netDueUsd,
+        p_amount_lbp: -netDueLbp,
+      });
+      
+      if (walletError) throw walletError;
 
-      const driver = drivers?.find(d => d.id === selectedDriver);
-      if (driver) {
-        await supabase.from('drivers').update({
-          wallet_usd: Number(driver.wallet_usd || 0) - netDueUsd,
-          wallet_lbp: Number(driver.wallet_lbp || 0) - netDueLbp,
-        }).eq('id', selectedDriver);
-
-        await supabase.from('driver_transactions').insert({
-          driver_id: selectedDriver,
-          type: 'Debit',
-          amount_usd: netDueUsd,
-          amount_lbp: netDueLbp,
-          note: `Statement ${statementIdData} - Cash Collected`,
-        });
-      }
+      // Create transaction record
+      await supabase.from('driver_transactions').insert({
+        driver_id: selectedDriver,
+        type: 'Debit',
+        amount_usd: netDueUsd,
+        amount_lbp: netDueLbp,
+        note: `Statement ${statementIdData} - Cash Collected`,
+      });
 
       return statementIdData;
     },

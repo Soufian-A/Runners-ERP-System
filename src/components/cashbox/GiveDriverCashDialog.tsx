@@ -54,77 +54,50 @@ export default function GiveDriverCashDialog({ open, onOpenChange, date, presele
         throw new Error('Please select a driver');
       }
 
-      // Get driver info
+      // Get driver info for the notes
       const { data: driver } = await supabase
         .from('drivers')
-        .select('*')
+        .select('name')
         .eq('id', driverId)
         .single();
 
       if (!driver) throw new Error('Driver not found');
 
-      // Add to driver wallet (Credit transaction)
+      const amountUsd = currency === 'USD' ? amountNum : 0;
+      const amountLbp = currency === 'LBP' ? amountNum : 0;
+
+      // Add to driver wallet (Credit transaction) and update wallet atomically
       const { error: transactionError } = await supabase
         .from('driver_transactions')
         .insert({
           driver_id: driverId,
           type: 'Credit',
-          amount_usd: currency === 'USD' ? amountNum : 0,
-          amount_lbp: currency === 'LBP' ? amountNum : 0,
+          amount_usd: amountUsd,
+          amount_lbp: amountLbp,
           note: notes || 'Cash given from cashbox',
         });
 
       if (transactionError) throw transactionError;
 
-      // Update driver wallet
-      const { error: driverError } = await supabase
-        .from('drivers')
-        .update({
-          wallet_usd: currency === 'USD' ? driver.wallet_usd + amountNum : driver.wallet_usd,
-          wallet_lbp: currency === 'LBP' ? driver.wallet_lbp + amountNum : driver.wallet_lbp,
-        })
-        .eq('id', driverId);
+      // Use atomic wallet update to prevent race conditions
+      const { error: walletError } = await (supabase.rpc as any)('update_driver_wallet_atomic', {
+        p_driver_id: driverId,
+        p_amount_usd: amountUsd,
+        p_amount_lbp: amountLbp,
+      });
 
-      if (driverError) throw driverError;
+      if (walletError) throw walletError;
 
-      // Update cashbox (cash out)
-      const { data: existing } = await supabase
-        .from('cashbox_daily')
-        .select('*')
-        .eq('date', date)
-        .maybeSingle();
+      // Use atomic cashbox update
+      const { error: cashboxError } = await (supabase.rpc as any)('update_cashbox_atomic', {
+        p_date: date,
+        p_cash_in_usd: 0,
+        p_cash_in_lbp: 0,
+        p_cash_out_usd: amountUsd,
+        p_cash_out_lbp: amountLbp,
+      });
 
-      const updateData: any = {};
-      
-      if (currency === 'USD') {
-        updateData.cash_out_usd = (existing?.cash_out_usd || 0) + amountNum;
-        updateData.closing_usd = (existing?.opening_usd || 0) + (existing?.cash_in_usd || 0) - (existing?.cash_out_usd || 0) - amountNum;
-      } else {
-        updateData.cash_out_lbp = (existing?.cash_out_lbp || 0) + amountNum;
-        updateData.closing_lbp = (existing?.opening_lbp || 0) + (existing?.cash_in_lbp || 0) - (existing?.cash_out_lbp || 0) - amountNum;
-      }
-
-      updateData.notes = existing?.notes 
-        ? `${existing.notes}\n${new Date().toLocaleString()}: Gave ${amountNum} ${currency} to ${driver.name} - ${notes}`
-        : `${new Date().toLocaleString()}: Gave ${amountNum} ${currency} to ${driver.name} - ${notes}`;
-
-      if (existing) {
-        const { error } = await supabase
-          .from('cashbox_daily')
-          .update(updateData)
-          .eq('id', existing.id);
-        if (error) throw error;
-      } else {
-        const { error } = await supabase
-          .from('cashbox_daily')
-          .insert({
-            date,
-            opening_usd: 0,
-            opening_lbp: 0,
-            ...updateData,
-          });
-        if (error) throw error;
-      }
+      if (cashboxError) throw cashboxError;
     },
     onSuccess: () => {
       toast({

@@ -12,7 +12,9 @@ export async function updateDriverWallet(
 ): Promise<{ success: boolean; error?: string }> {
   const multiplier = operation === 'credit' ? 1 : -1;
   
-  const { error } = await supabase.rpc('update_driver_wallet_atomic', {
+  // Use raw SQL via rpc to atomically update wallet
+  // This prevents race conditions from fetch-calculate-write patterns
+  const { error } = await (supabase.rpc as any)('update_driver_wallet_atomic', {
     p_driver_id: driverId,
     p_amount_usd: amountUsd * multiplier,
     p_amount_lbp: amountLbp * multiplier,
