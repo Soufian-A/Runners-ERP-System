@@ -417,10 +417,14 @@ Deno.serve(async (req) => {
             }
           }
 
-          // Set driver_remit_status to Pending so it shows up for remittance
+          // Set driver_remit_status to Pending and update collected amounts
           const { error: remitError } = await supabaseClient
             .from('orders')
-            .update({ driver_remit_status: 'Pending' })
+            .update({ 
+              driver_remit_status: 'Pending',
+              collected_amount_usd: driverCreditUsd,
+              collected_amount_lbp: driverCreditLbp
+            })
             .eq('id', orderId)
 
           if (remitError) {
@@ -428,7 +432,7 @@ Deno.serve(async (req) => {
             throw remitError
           }
           
-          console.log('Driver wallet and remit status updated successfully')
+          console.log('Driver wallet, collected amounts and remit status updated successfully')
         } else {
           console.log('Skipping driver transaction - no amounts to credit')
         }
