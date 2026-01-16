@@ -207,24 +207,17 @@ export function ThirdPartyStatementsTab() {
         .in('id', selectedOrders);
       if (orderError) throw orderError;
 
-      // Update cashbox
+      // Update cashbox atomically
       const today = new Date().toISOString().split('T')[0];
-      const { data: existingCashbox } = await supabase
-        .from('cashbox_daily')
-        .select('*')
-        .eq('date', today)
-        .maybeSingle();
+      const { error: cashboxError } = await (supabase.rpc as any)('update_cashbox_atomic', {
+        p_date: today,
+        p_cash_in_usd: amountUsd,
+        p_cash_in_lbp: 0,
+        p_cash_out_usd: 0,
+        p_cash_out_lbp: 0,
+      });
 
-      if (existingCashbox) {
-        await supabase.from('cashbox_daily').update({
-          cash_in_usd: Number(existingCashbox.cash_in_usd || 0) + amountUsd,
-        }).eq('id', existingCashbox.id);
-      } else {
-        await supabase.from('cashbox_daily').insert({
-          date: today,
-          cash_in_usd: amountUsd,
-        });
-      }
+      if (cashboxError) throw cashboxError;
     },
     onSuccess: () => {
       toast.success('Remittance recorded successfully');
@@ -261,24 +254,17 @@ export function ThirdPartyStatementsTab() {
       });
       if (txError) throw txError;
 
-      // Update cashbox - cash out
+      // Update cashbox atomically - cash out
       const today = new Date().toISOString().split('T')[0];
-      const { data: existingCashbox } = await supabase
-        .from('cashbox_daily')
-        .select('*')
-        .eq('date', today)
-        .maybeSingle();
+      const { error: cashboxError } = await (supabase.rpc as any)('update_cashbox_atomic', {
+        p_date: today,
+        p_cash_in_usd: 0,
+        p_cash_in_lbp: 0,
+        p_cash_out_usd: amountUsd,
+        p_cash_out_lbp: 0,
+      });
 
-      if (existingCashbox) {
-        await supabase.from('cashbox_daily').update({
-          cash_out_usd: Number(existingCashbox.cash_out_usd || 0) + amountUsd,
-        }).eq('id', existingCashbox.id);
-      } else {
-        await supabase.from('cashbox_daily').insert({
-          date: today,
-          cash_out_usd: amountUsd,
-        });
-      }
+      if (cashboxError) throw cashboxError;
     },
     onSuccess: () => {
       toast.success('Payment to third party recorded');
@@ -308,25 +294,19 @@ export function ThirdPartyStatementsTab() {
       const { error } = await supabase.from('order_transactions').delete().eq('id', transaction.id);
       if (error) throw error;
 
-      // Reverse cashbox entry
+      // Reverse cashbox entry using atomic update with negative values
       const txDate = new Date(transaction.tx_date).toISOString().split('T')[0];
-      const { data: cashbox } = await supabase
-        .from('cashbox_daily')
-        .select('*')
-        .eq('date', txDate)
-        .maybeSingle();
+      const amountUsd = Number(transaction.amount_usd || 0);
+      
+      const { error: cashboxError } = await (supabase.rpc as any)('update_cashbox_atomic', {
+        p_date: txDate,
+        p_cash_in_usd: transaction.direction === 'IN' ? -amountUsd : 0,
+        p_cash_in_lbp: 0,
+        p_cash_out_usd: transaction.direction === 'OUT' ? -amountUsd : 0,
+        p_cash_out_lbp: 0,
+      });
 
-      if (cashbox) {
-        if (transaction.direction === 'IN') {
-          await supabase.from('cashbox_daily').update({
-            cash_in_usd: Math.max(0, Number(cashbox.cash_in_usd || 0) - Number(transaction.amount_usd || 0)),
-          }).eq('id', cashbox.id);
-        } else {
-          await supabase.from('cashbox_daily').update({
-            cash_out_usd: Math.max(0, Number(cashbox.cash_out_usd || 0) - Number(transaction.amount_usd || 0)),
-          }).eq('id', cashbox.id);
-        }
-      }
+      if (cashboxError) throw cashboxError;
     },
     onSuccess: () => {
       toast.success('Transaction deleted and reversed');

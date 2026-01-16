@@ -107,36 +107,16 @@ export function PrepaidStatementDialog({
 
       const today = new Date().toISOString().split('T')[0];
       
-      // 1. Update cashbox - cash out (net amount = order - fee)
-      const { data: cashbox } = await supabase
-        .from('cashbox_daily')
-        .select('*')
-        .eq('date', today)
-        .maybeSingle();
+      // 1. Update cashbox atomically - cash out (net amount = order - fee)
+      const { error: cashboxError } = await (supabase.rpc as any)('update_cashbox_atomic', {
+        p_date: today,
+        p_cash_in_usd: 0,
+        p_cash_in_lbp: 0,
+        p_cash_out_usd: totals.netUsd,
+        p_cash_out_lbp: totals.netLbp,
+      });
 
-      if (cashbox) {
-        await supabase
-          .from('cashbox_daily')
-          .update({
-            cash_out_usd: Number(cashbox.cash_out_usd) + totals.netUsd,
-            cash_out_lbp: Number(cashbox.cash_out_lbp) + totals.netLbp,
-            closing_usd: Number(cashbox.opening_usd) + Number(cashbox.cash_in_usd) - (Number(cashbox.cash_out_usd) + totals.netUsd),
-            closing_lbp: Number(cashbox.opening_lbp) + Number(cashbox.cash_in_lbp) - (Number(cashbox.cash_out_lbp) + totals.netLbp),
-          })
-          .eq('id', cashbox.id);
-      } else {
-        await supabase.from('cashbox_daily').insert({
-          date: today,
-          opening_usd: 0,
-          opening_lbp: 0,
-          cash_in_usd: 0,
-          cash_in_lbp: 0,
-          cash_out_usd: totals.netUsd,
-          cash_out_lbp: totals.netLbp,
-          closing_usd: -totals.netUsd,
-          closing_lbp: -totals.netLbp,
-        });
-      }
+      if (cashboxError) throw cashboxError;
 
       // 2. Create accounting entry for each order
       for (const order of orders) {

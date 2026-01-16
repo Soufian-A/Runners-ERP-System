@@ -59,45 +59,20 @@ export default function TakeBackCashDialog({ open, onOpenChange, driver }: TakeB
 
       if (driverError) throw driverError;
 
-      // Update cashbox for today (cash in)
+      // Update cashbox atomically (cash in)
       const today = new Date().toISOString().split('T')[0];
-      const { data: existing } = await supabase
-        .from('cashbox_daily')
-        .select('*')
-        .eq('date', today)
-        .maybeSingle();
-
-      const updateData: any = {};
+      const amountUsd = currency === 'USD' ? amountNum : 0;
+      const amountLbp = currency === 'LBP' ? amountNum : 0;
       
-      if (currency === 'USD') {
-        updateData.cash_in_usd = (existing?.cash_in_usd || 0) + amountNum;
-        updateData.closing_usd = (existing?.opening_usd || 0) + (existing?.cash_in_usd || 0) + amountNum - (existing?.cash_out_usd || 0);
-      } else {
-        updateData.cash_in_lbp = (existing?.cash_in_lbp || 0) + amountNum;
-        updateData.closing_lbp = (existing?.opening_lbp || 0) + (existing?.cash_in_lbp || 0) + amountNum - (existing?.cash_out_lbp || 0);
-      }
+      const { error: cashboxError } = await (supabase.rpc as any)('update_cashbox_atomic', {
+        p_date: today,
+        p_cash_in_usd: amountUsd,
+        p_cash_in_lbp: amountLbp,
+        p_cash_out_usd: 0,
+        p_cash_out_lbp: 0,
+      });
 
-      updateData.notes = existing?.notes 
-        ? `${existing.notes}\n${new Date().toLocaleString()}: Took back ${amountNum} ${currency} from ${driver.name} - ${notes}`
-        : `${new Date().toLocaleString()}: Took back ${amountNum} ${currency} from ${driver.name} - ${notes}`;
-
-      if (existing) {
-        const { error } = await supabase
-          .from('cashbox_daily')
-          .update(updateData)
-          .eq('id', existing.id);
-        if (error) throw error;
-      } else {
-        const { error } = await supabase
-          .from('cashbox_daily')
-          .insert({
-            date: today,
-            opening_usd: 0,
-            opening_lbp: 0,
-            ...updateData,
-          });
-        if (error) throw error;
-      }
+      if (cashboxError) throw cashboxError;
     },
     onSuccess: () => {
       toast({

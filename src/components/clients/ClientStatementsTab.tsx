@@ -296,33 +296,17 @@ export function ClientStatementsTab() {
       const isPayingClient = currentNetBalance > 0 || (clientBalance.usd === 0 && clientBalance.lbp > 0);
 
       const today = new Date().toISOString().split('T')[0];
-      const { data: existingCashbox } = await supabase
-        .from('cashbox_daily')
-        .select('*')
-        .eq('date', today)
-        .maybeSingle();
+      
+      // Use atomic cashbox update
+      const { error: cashboxError } = await (supabase.rpc as any)('update_cashbox_atomic', {
+        p_date: today,
+        p_cash_in_usd: isPayingClient ? 0 : amountUsd,
+        p_cash_in_lbp: isPayingClient ? 0 : amountLbp,
+        p_cash_out_usd: isPayingClient ? amountUsd : 0,
+        p_cash_out_lbp: isPayingClient ? amountLbp : 0,
+      });
 
-      if (existingCashbox) {
-        if (isPayingClient) {
-          await supabase.from('cashbox_daily').update({
-            cash_out_usd: Number(existingCashbox.cash_out_usd || 0) + amountUsd,
-            cash_out_lbp: Number(existingCashbox.cash_out_lbp || 0) + amountLbp,
-          }).eq('id', existingCashbox.id);
-        } else {
-          await supabase.from('cashbox_daily').update({
-            cash_in_usd: Number(existingCashbox.cash_in_usd || 0) + amountUsd,
-            cash_in_lbp: Number(existingCashbox.cash_in_lbp || 0) + amountLbp,
-          }).eq('id', existingCashbox.id);
-        }
-      } else {
-        await supabase.from('cashbox_daily').insert({
-          date: today,
-          cash_in_usd: isPayingClient ? 0 : amountUsd,
-          cash_in_lbp: isPayingClient ? 0 : amountLbp,
-          cash_out_usd: isPayingClient ? amountUsd : 0,
-          cash_out_lbp: isPayingClient ? amountLbp : 0,
-        });
-      }
+      if (cashboxError) throw cashboxError;
 
       // Record transaction: 
       // When we pay client (reduce our debt to them), we Debit their account
