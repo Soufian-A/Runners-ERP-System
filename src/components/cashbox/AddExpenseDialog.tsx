@@ -39,11 +39,14 @@ const AddExpenseDialog = ({ open, onOpenChange, date }: AddExpenseDialogProps) =
 
   const mutation = useMutation({
     mutationFn: async () => {
+      const amountUsd = currency === 'USD' ? Number(amount) : 0;
+      const amountLbp = currency === 'LBP' ? Number(amount) : 0;
+      
       const expenseData = {
         date: expenseDate,
         category_id: categoryId,
-        amount_usd: currency === 'USD' ? Number(amount) : 0,
-        amount_lbp: currency === 'LBP' ? Number(amount) : 0,
+        amount_usd: amountUsd,
+        amount_lbp: amountLbp,
         notes: notes || null,
       };
 
@@ -52,11 +55,23 @@ const AddExpenseDialog = ({ open, onOpenChange, date }: AddExpenseDialogProps) =
         .insert(expenseData);
 
       if (error) throw error;
+
+      // Update cashbox atomically - expenses are cash out
+      const { error: cashboxError } = await (supabase.rpc as any)('update_cashbox_atomic', {
+        p_date: expenseDate,
+        p_cash_in_usd: 0,
+        p_cash_in_lbp: 0,
+        p_cash_out_usd: amountUsd,
+        p_cash_out_lbp: amountLbp,
+      });
+
+      if (cashboxError) throw cashboxError;
     },
     onSuccess: () => {
       toast.success('Expense added successfully');
       queryClient.invalidateQueries({ queryKey: ['daily-expenses'] });
       queryClient.invalidateQueries({ queryKey: ['all-expenses'] });
+      queryClient.invalidateQueries({ queryKey: ['cashbox'] });
       setCategoryId('');
       setAmount('');
       setNotes('');

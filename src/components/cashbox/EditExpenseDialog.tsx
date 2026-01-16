@@ -70,11 +70,22 @@ export default function EditExpenseDialog({ open, onOpenChange, expense }: EditE
     mutationFn: async () => {
       if (!expense) return;
       
+      const newAmountUsd = currency === 'USD' ? Number(amount) : 0;
+      const newAmountLbp = currency === 'LBP' ? Number(amount) : 0;
+      const oldAmountUsd = Number(expense.amount_usd || 0);
+      const oldAmountLbp = Number(expense.amount_lbp || 0);
+      
+      // Calculate the difference (new - old)
+      // If new > old, we need more cash out (positive diff)
+      // If new < old, we need less cash out (negative diff)
+      const diffUsd = newAmountUsd - oldAmountUsd;
+      const diffLbp = newAmountLbp - oldAmountLbp;
+      
       const expenseData = {
         date,
         category_id: categoryId,
-        amount_usd: currency === 'USD' ? Number(amount) : 0,
-        amount_lbp: currency === 'LBP' ? Number(amount) : 0,
+        amount_usd: newAmountUsd,
+        amount_lbp: newAmountLbp,
         notes: notes || null,
       };
 
@@ -84,11 +95,67 @@ export default function EditExpenseDialog({ open, onOpenChange, expense }: EditE
         .eq('id', expense.id);
 
       if (error) throw error;
+
+      // Update cashbox with the difference (if any change in amount)
+      if (diffUsd !== 0 || diffLbp !== 0) {
+        // If date changed, we need to reverse old date and add to new date
+        if (date !== expense.date) {
+          // Reverse old expense from old date
+          const { error: oldCashboxError } = await (supabase.rpc as any)('update_cashbox_atomic', {
+            p_date: expense.date,
+            p_cash_in_usd: 0,
+            p_cash_in_lbp: 0,
+            p_cash_out_usd: -oldAmountUsd,
+            p_cash_out_lbp: -oldAmountLbp,
+          });
+          if (oldCashboxError) throw oldCashboxError;
+
+          // Add new expense to new date
+          const { error: newCashboxError } = await (supabase.rpc as any)('update_cashbox_atomic', {
+            p_date: date,
+            p_cash_in_usd: 0,
+            p_cash_in_lbp: 0,
+            p_cash_out_usd: newAmountUsd,
+            p_cash_out_lbp: newAmountLbp,
+          });
+          if (newCashboxError) throw newCashboxError;
+        } else {
+          // Same date, just apply the difference
+          const { error: cashboxError } = await (supabase.rpc as any)('update_cashbox_atomic', {
+            p_date: date,
+            p_cash_in_usd: 0,
+            p_cash_in_lbp: 0,
+            p_cash_out_usd: diffUsd,
+            p_cash_out_lbp: diffLbp,
+          });
+          if (cashboxError) throw cashboxError;
+        }
+      } else if (date !== expense.date) {
+        // Amount same but date changed
+        const { error: oldCashboxError } = await (supabase.rpc as any)('update_cashbox_atomic', {
+          p_date: expense.date,
+          p_cash_in_usd: 0,
+          p_cash_in_lbp: 0,
+          p_cash_out_usd: -oldAmountUsd,
+          p_cash_out_lbp: -oldAmountLbp,
+        });
+        if (oldCashboxError) throw oldCashboxError;
+
+        const { error: newCashboxError } = await (supabase.rpc as any)('update_cashbox_atomic', {
+          p_date: date,
+          p_cash_in_usd: 0,
+          p_cash_in_lbp: 0,
+          p_cash_out_usd: newAmountUsd,
+          p_cash_out_lbp: newAmountLbp,
+        });
+        if (newCashboxError) throw newCashboxError;
+      }
     },
     onSuccess: () => {
       toast.success('Expense updated successfully');
       queryClient.invalidateQueries({ queryKey: ['daily-expenses'] });
       queryClient.invalidateQueries({ queryKey: ['all-expenses'] });
+      queryClient.invalidateQueries({ queryKey: ['cashbox'] });
       onOpenChange(false);
     },
     onError: (error: Error) => {

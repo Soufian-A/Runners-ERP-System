@@ -51,17 +51,30 @@ export default function ExpensesTable({ expenses, showDate = false }: ExpensesTa
   const [deleteExpense, setDeleteExpense] = useState<Expense | null>(null);
 
   const deleteMutation = useMutation({
-    mutationFn: async (id: string) => {
+    mutationFn: async (expense: Expense) => {
+      // First reverse the cashbox entry (expenses were cash out, so we need to reduce cash out)
+      const { error: cashboxError } = await (supabase.rpc as any)('update_cashbox_atomic', {
+        p_date: expense.date,
+        p_cash_in_usd: 0,
+        p_cash_in_lbp: 0,
+        p_cash_out_usd: -Number(expense.amount_usd || 0),
+        p_cash_out_lbp: -Number(expense.amount_lbp || 0),
+      });
+
+      if (cashboxError) throw cashboxError;
+
+      // Then delete the expense
       const { error } = await supabase
         .from('daily_expenses')
         .delete()
-        .eq('id', id);
+        .eq('id', expense.id);
       if (error) throw error;
     },
     onSuccess: () => {
-      toast.success('Expense deleted successfully');
+      toast.success('Expense deleted and cashbox reversed');
       queryClient.invalidateQueries({ queryKey: ['daily-expenses'] });
       queryClient.invalidateQueries({ queryKey: ['all-expenses'] });
+      queryClient.invalidateQueries({ queryKey: ['cashbox'] });
       setDeleteExpense(null);
     },
     onError: (error: Error) => {
@@ -160,7 +173,7 @@ export default function ExpensesTable({ expenses, showDate = false }: ExpensesTa
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction
-              onClick={() => deleteExpense && deleteMutation.mutate(deleteExpense.id)}
+              onClick={() => deleteExpense && deleteMutation.mutate(deleteExpense)}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
               Delete

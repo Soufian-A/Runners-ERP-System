@@ -135,56 +135,18 @@ export function ClientPaymentDialog({
 
       if (transactionError) throw transactionError;
 
-      // 6. Update cashbox based on payment direction
+      // 6. Update cashbox atomically based on payment direction
       const today = new Date().toISOString().split('T')[0];
       
-      const { data: existingCashbox } = await supabase
-        .from('cashbox_daily')
-        .select('*')
-        .eq('date', today)
-        .single();
+      const { error: cashboxError } = await (supabase.rpc as any)('update_cashbox_atomic', {
+        p_date: today,
+        p_cash_in_usd: isCashIn ? Number(amountUsd) : 0,
+        p_cash_in_lbp: isCashIn ? Number(amountLbp) : 0,
+        p_cash_out_usd: isCashIn ? 0 : Number(amountUsd),
+        p_cash_out_lbp: isCashIn ? 0 : Number(amountLbp),
+      });
 
-      if (existingCashbox) {
-        const updates = isCashIn 
-          ? {
-              cash_in_usd: Number(existingCashbox.cash_in_usd) + Number(amountUsd),
-              cash_in_lbp: Number(existingCashbox.cash_in_lbp) + Number(amountLbp),
-              closing_usd: Number(existingCashbox.opening_usd) + Number(existingCashbox.cash_in_usd) + Number(amountUsd) - Number(existingCashbox.cash_out_usd),
-              closing_lbp: Number(existingCashbox.opening_lbp) + Number(existingCashbox.cash_in_lbp) + Number(amountLbp) - Number(existingCashbox.cash_out_lbp),
-            }
-          : {
-              cash_out_usd: Number(existingCashbox.cash_out_usd) + Number(amountUsd),
-              cash_out_lbp: Number(existingCashbox.cash_out_lbp) + Number(amountLbp),
-              closing_usd: Number(existingCashbox.opening_usd) + Number(existingCashbox.cash_in_usd) - Number(existingCashbox.cash_out_usd) - Number(amountUsd),
-              closing_lbp: Number(existingCashbox.opening_lbp) + Number(existingCashbox.cash_in_lbp) - Number(existingCashbox.cash_out_lbp) - Number(amountLbp),
-            };
-
-        const { error: cashboxError } = await supabase
-          .from('cashbox_daily')
-          .update(updates)
-          .eq('date', today);
-
-        if (cashboxError) throw cashboxError;
-      } else {
-        const { error: cashboxError } = await supabase
-          .from('cashbox_daily')
-          .insert({
-            date: today,
-            opening_usd: 0,
-            opening_lbp: 0,
-            cash_in_usd: isCashIn ? Number(amountUsd) : 0,
-            cash_in_lbp: isCashIn ? Number(amountLbp) : 0,
-            cash_out_usd: isCashIn ? 0 : Number(amountUsd),
-            cash_out_lbp: isCashIn ? 0 : Number(amountLbp),
-            closing_usd: isCashIn ? Number(amountUsd) : -Number(amountUsd),
-            closing_lbp: isCashIn ? Number(amountLbp) : -Number(amountLbp),
-            notes: isCashIn 
-              ? `Client payment from ${clientName}` 
-              : `Payment to client ${clientName}`,
-          });
-
-        if (cashboxError) throw cashboxError;
-      }
+      if (cashboxError) throw cashboxError;
 
       return statementId;
     },
