@@ -102,26 +102,39 @@ const DriverRemittanceDialog = ({ driver, open, onOpenChange }: DriverRemittance
         }
       }
 
+      // Calculate net amounts for cashbox
+      // If netDebit is positive: driver owes us (cash in)
+      // If netDebit is negative: we owe driver (cash out)
+      const netDebitUSD = totalCollectedUSD - totalDriverPaidRefundUSD;
+      const netDebitLBP = totalCollectedLBP - totalDriverPaidRefundLBP;
+      
+      const cashInUsd = netDebitUSD > 0 ? netDebitUSD : 0;
+      const cashInLbp = netDebitLBP > 0 ? netDebitLBP : 0;
+      const cashOutUsd = netDebitUSD < 0 ? Math.abs(netDebitUSD) : 0;
+      const cashOutLbp = netDebitLBP < 0 ? Math.abs(netDebitLBP) : 0;
+
       // Use atomic cashbox update
       const today = new Date().toISOString().split('T')[0];
       const { error: cashboxError } = await (supabase.rpc as any)('update_cashbox_atomic', {
         p_date: today,
-        p_cash_in_usd: totalCollectedUSD,
-        p_cash_in_lbp: totalCollectedLBP,
-        p_cash_out_usd: 0,
-        p_cash_out_lbp: 0,
+        p_cash_in_usd: cashInUsd,
+        p_cash_in_lbp: cashInLbp,
+        p_cash_out_usd: cashOutUsd,
+        p_cash_out_lbp: cashOutLbp,
       });
 
       if (cashboxError) throw cashboxError;
 
-      // Debit driver wallet for total collected
-      await supabase.from('driver_transactions').insert({
-        driver_id: driver.id,
-        type: 'Debit',
-        amount_usd: totalCollectedUSD,
-        amount_lbp: totalCollectedLBP,
-        note: `Collected from driver for ${ordersToRemit.length} orders`,
-      });
+      // Debit driver wallet for total collected (if any)
+      if (totalCollectedUSD > 0 || totalCollectedLBP > 0) {
+        await supabase.from('driver_transactions').insert({
+          driver_id: driver.id,
+          type: 'Debit',
+          amount_usd: totalCollectedUSD,
+          amount_lbp: totalCollectedLBP,
+          note: `Collected from driver for ${ordersToRemit.length} orders`,
+        });
+      }
 
       // Credit driver wallet back for amounts they paid out of pocket
       if (totalDriverPaidRefundUSD > 0 || totalDriverPaidRefundLBP > 0) {
@@ -134,10 +147,7 @@ const DriverRemittanceDialog = ({ driver, open, onOpenChange }: DriverRemittance
         });
       }
 
-      // Use atomic wallet update (net debit = negative of collected - refund)
-      const netDebitUSD = totalCollectedUSD - totalDriverPaidRefundUSD;
-      const netDebitLBP = totalCollectedLBP - totalDriverPaidRefundLBP;
-      
+      // Use atomic wallet update (net debit = collected - refund)
       const { error: walletError } = await (supabase.rpc as any)('update_driver_wallet_atomic', {
         p_driver_id: driver.id,
         p_amount_usd: -netDebitUSD,
