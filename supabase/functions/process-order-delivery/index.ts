@@ -228,10 +228,15 @@ Deno.serve(async (req) => {
         }
       }
 
-      // Set driver_remit_status to Pending for driver-paid orders too
+      // Set driver_remit_status to Pending for driver-paid orders
+      // IMPORTANT: collected_amount should be 0 for driver-paid orders since driver did NOT collect from customer
       const { error: remitError } = await supabaseClient
         .from('orders')
-        .update({ driver_remit_status: 'Pending' })
+        .update({ 
+          driver_remit_status: 'Pending',
+          collected_amount_usd: 0,
+          collected_amount_lbp: 0
+        })
         .eq('id', orderId)
 
       if (remitError) {

@@ -147,14 +147,35 @@ export function DriverStatementsTab() {
   const calculateTotals = () => {
     const selectedOrdersData = orders?.filter(o => selectedOrders.includes(o.id)) || [];
     
-    return selectedOrdersData.reduce((acc, order) => ({
-      totalCollectedUsd: acc.totalCollectedUsd + Number(order.collected_amount_usd || 0),
-      totalCollectedLbp: acc.totalCollectedLbp + Number(order.collected_amount_lbp || 0),
-      totalDeliveryFeesUsd: acc.totalDeliveryFeesUsd + Number(order.delivery_fee_usd || 0),
-      totalDeliveryFeesLbp: acc.totalDeliveryFeesLbp + Number(order.delivery_fee_lbp || 0),
-      totalDriverPaidUsd: acc.totalDriverPaidUsd + (order.driver_paid_for_client ? Number(order.driver_paid_amount_usd || 0) : 0),
-      totalDriverPaidLbp: acc.totalDriverPaidLbp + (order.driver_paid_for_client ? Number(order.driver_paid_amount_lbp || 0) : 0),
-    }), {
+    return selectedOrdersData.reduce((acc, order) => {
+      const isDriverPaid = order.driver_paid_for_client === true;
+      
+      if (isDriverPaid) {
+        // Driver-paid-for-client: Driver paid supplier, did NOT collect from customer
+        // Driver wallet is negative (we owe them), we need to refund them
+        // Delivery fee is due from client (not collected by driver)
+        return {
+          ...acc,
+          totalDeliveryFeesUsd: acc.totalDeliveryFeesUsd + Number(order.delivery_fee_usd || 0),
+          totalDeliveryFeesLbp: acc.totalDeliveryFeesLbp + Number(order.delivery_fee_lbp || 0),
+          totalDriverPaidUsd: acc.totalDriverPaidUsd + Number(order.driver_paid_amount_usd || 0),
+          totalDriverPaidLbp: acc.totalDriverPaidLbp + Number(order.driver_paid_amount_lbp || 0),
+          // No collection for driver-paid orders
+        };
+      } else {
+        // Normal orders: driver collected order amount + delivery fee from customer
+        const collectedUsd = Number(order.order_amount_usd || 0) + Number(order.delivery_fee_usd || 0);
+        const collectedLbp = Number(order.order_amount_lbp || 0) + Number(order.delivery_fee_lbp || 0);
+        
+        return {
+          ...acc,
+          totalCollectedUsd: acc.totalCollectedUsd + collectedUsd,
+          totalCollectedLbp: acc.totalCollectedLbp + collectedLbp,
+          totalDeliveryFeesUsd: acc.totalDeliveryFeesUsd + Number(order.delivery_fee_usd || 0),
+          totalDeliveryFeesLbp: acc.totalDeliveryFeesLbp + Number(order.delivery_fee_lbp || 0),
+        };
+      }
+    }, {
       totalCollectedUsd: 0,
       totalCollectedLbp: 0,
       totalDeliveryFeesUsd: 0,
@@ -165,6 +186,8 @@ export function DriverStatementsTab() {
   };
 
   const totals = calculateTotals();
+  // Net due FROM driver = what driver collected MINUS what we owe driver (refunds)
+  // If negative, we owe the driver money (cash out from cashbox)
   const netDueUsd = totals.totalCollectedUsd - totals.totalDriverPaidUsd;
   const netDueLbp = totals.totalCollectedLbp - totals.totalDriverPaidLbp;
 
@@ -220,18 +243,26 @@ export function DriverStatementsTab() {
       }).in('id', orderIds);
 
       // Use atomic cashbox update
+      // If netDue is positive: driver owes us money (cash in)
+      // If netDue is negative: we owe driver money (cash out)
       const today = new Date().toISOString().split('T')[0];
+      const cashInUsd = netDueUsd > 0 ? netDueUsd : 0;
+      const cashInLbp = netDueLbp > 0 ? netDueLbp : 0;
+      const cashOutUsd = netDueUsd < 0 ? Math.abs(netDueUsd) : 0;
+      const cashOutLbp = netDueLbp < 0 ? Math.abs(netDueLbp) : 0;
+      
       const { error: cashboxError } = await (supabase.rpc as any)('update_cashbox_atomic', {
         p_date: today,
-        p_cash_in_usd: netDueUsd,
-        p_cash_in_lbp: netDueLbp,
-        p_cash_out_usd: 0,
-        p_cash_out_lbp: 0,
+        p_cash_in_usd: cashInUsd,
+        p_cash_in_lbp: cashInLbp,
+        p_cash_out_usd: cashOutUsd,
+        p_cash_out_lbp: cashOutLbp,
       });
       
       if (cashboxError) throw cashboxError;
 
-      // Use atomic wallet update (debit = negative amount)
+      // Use atomic wallet update
+      // This zeros out the driver's wallet by subtracting what we collected and adding back refunds
       const { error: walletError } = await (supabase.rpc as any)('update_driver_wallet_atomic', {
         p_driver_id: selectedDriver,
         p_amount_usd: -netDueUsd,
@@ -240,14 +271,26 @@ export function DriverStatementsTab() {
       
       if (walletError) throw walletError;
 
-      // Create transaction record
-      await supabase.from('driver_transactions').insert({
-        driver_id: selectedDriver,
-        type: 'Debit',
-        amount_usd: netDueUsd,
-        amount_lbp: netDueLbp,
-        note: `Statement ${statementIdData} - Cash Collected`,
-      });
+      // Create transaction record(s)
+      if (totals.totalCollectedUsd > 0 || totals.totalCollectedLbp > 0) {
+        await supabase.from('driver_transactions').insert({
+          driver_id: selectedDriver,
+          type: 'Debit',
+          amount_usd: totals.totalCollectedUsd,
+          amount_lbp: totals.totalCollectedLbp,
+          note: `Statement ${statementIdData} - Cash Collected`,
+        });
+      }
+      
+      if (totals.totalDriverPaidUsd > 0 || totals.totalDriverPaidLbp > 0) {
+        await supabase.from('driver_transactions').insert({
+          driver_id: selectedDriver,
+          type: 'Credit',
+          amount_usd: totals.totalDriverPaidUsd,
+          amount_lbp: totals.totalDriverPaidLbp,
+          note: `Statement ${statementIdData} - Refund for amounts paid`,
+        });
+      }
 
       return statementIdData;
     },
