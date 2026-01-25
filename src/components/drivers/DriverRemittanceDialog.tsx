@@ -269,7 +269,17 @@ const DriverRemittanceDialog = ({ driver, open, onOpenChange }: DriverRemittance
     
     return selected.reduce(
       (acc: any, o: any) => {
-        if (o.driver_paid_for_client) {
+        const isCompanyPaid = o.company_paid_for_order === true;
+        const isDriverPaid = o.driver_paid_for_client === true;
+        
+        if (isCompanyPaid) {
+          // Company-paid orders: no collection, no refund - just track delivery fees
+          return {
+            ...acc,
+            deliveryFeesUsd: acc.deliveryFeesUsd + Number(o.delivery_fee_usd),
+            deliveryFeesLbp: acc.deliveryFeesLbp + Number(o.delivery_fee_lbp),
+          };
+        } else if (isDriverPaid) {
           // For driver_paid orders: no collection, only refund to driver
           return {
             ...acc,

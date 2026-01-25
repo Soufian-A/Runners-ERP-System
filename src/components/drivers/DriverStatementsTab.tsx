@@ -149,8 +149,18 @@ export function DriverStatementsTab() {
     
     return selectedOrdersData.reduce((acc, order) => {
       const isDriverPaid = order.driver_paid_for_client === true;
+      const isCompanyPaid = order.company_paid_for_order === true;
       
-      if (isDriverPaid) {
+      if (isCompanyPaid) {
+        // Company-paid: Company paid from cashbox, driver has no financial impact
+        // Just track delivery fees (due from client)
+        return {
+          ...acc,
+          totalDeliveryFeesUsd: acc.totalDeliveryFeesUsd + Number(order.delivery_fee_usd || 0),
+          totalDeliveryFeesLbp: acc.totalDeliveryFeesLbp + Number(order.delivery_fee_lbp || 0),
+          // No collection or refund for company-paid orders
+        };
+      } else if (isDriverPaid) {
         // Driver-paid-for-client: Driver paid supplier, did NOT collect from customer
         // Driver wallet is negative (we owe them), we need to refund them
         // Delivery fee is due from client (not collected by driver)

@@ -897,6 +897,7 @@ export type Database = {
           client_type: Database["public"]["Enums"]["client_type"]
           collected_amount_lbp: number | null
           collected_amount_usd: number | null
+          company_paid_for_order: boolean | null
           created_at: string | null
           customer_id: string | null
           delivered_at: string | null
@@ -950,6 +951,7 @@ export type Database = {
           client_type: Database["public"]["Enums"]["client_type"]
           collected_amount_lbp?: number | null
           collected_amount_usd?: number | null
+          company_paid_for_order?: boolean | null
           created_at?: string | null
           customer_id?: string | null
           delivered_at?: string | null
@@ -1003,6 +1005,7 @@ export type Database = {
           client_type?: Database["public"]["Enums"]["client_type"]
           collected_amount_lbp?: number | null
           collected_amount_usd?: number | null
+          company_paid_for_order?: boolean | null
           created_at?: string | null
           customer_id?: string | null
           delivered_at?: string | null
