@@ -24,6 +24,7 @@ const instantOrderSchema = z.object({
   delivery_fee_lbp: z.number().min(0, "Fee must be non-negative"),
   notes: z.string().max(1000, "Notes are too long").optional(),
   driver_paid_for_client: z.boolean(),
+  company_paid_for_order: z.boolean(),
 });
 type NewOrderRow = {
   id: string;
@@ -36,6 +37,7 @@ type NewOrderRow = {
   delivery_fee_lbp: string;
   notes: string;
   driver_paid_for_client: boolean;
+  company_paid_for_order: boolean;
 };
 
 // Separate component to properly use hooks (refs) for each row
@@ -328,8 +330,27 @@ function OrderRow({
         <div className="flex justify-center">
           <Checkbox 
             checked={row.driver_paid_for_client}
-            onCheckedChange={(checked) => updateRow(row.id, "driver_paid_for_client", checked)}
+            onCheckedChange={(checked) => {
+              updateRow(row.id, "driver_paid_for_client", checked);
+              if (checked) updateRow(row.id, "company_paid_for_order", false);
+            }}
             title="Driver paid for client"
+            disabled={row.company_paid_for_order}
+          />
+        </div>
+      </TableCell>
+
+      {/* Company Paid */}
+      <TableCell>
+        <div className="flex justify-center">
+          <Checkbox 
+            checked={row.company_paid_for_order}
+            onCheckedChange={(checked) => {
+              updateRow(row.id, "company_paid_for_order", checked);
+              if (checked) updateRow(row.id, "driver_paid_for_client", false);
+            }}
+            title="Company paid from cashbox"
+            disabled={row.driver_paid_for_client}
           />
         </div>
       </TableCell>
@@ -374,6 +395,7 @@ export function InstantOrderForm() {
       delivery_fee_lbp: "",
       notes: "",
       driver_paid_for_client: false,
+      company_paid_for_order: false,
     },
   ]);
 
@@ -423,6 +445,7 @@ export function InstantOrderForm() {
       delivery_fee_lbp: lastRow.delivery_fee_lbp,
       notes: "",
       driver_paid_for_client: lastRow.driver_paid_for_client,
+      company_paid_for_order: lastRow.company_paid_for_order,
     } : {
       id: `new-${Date.now()}`,
       client_id: lastRow?.client_id || "",
@@ -434,6 +457,7 @@ export function InstantOrderForm() {
       delivery_fee_lbp: lastRow?.delivery_fee_lbp || "",
       notes: "",
       driver_paid_for_client: false,
+      company_paid_for_order: false,
     };
     
     setNewRows([...newRows, newRow]);
@@ -460,6 +484,7 @@ export function InstantOrderForm() {
         delivery_fee_lbp: parseFloat(rowData.delivery_fee_lbp) || 0,
         notes: rowData.notes?.trim() || "",
         driver_paid_for_client: rowData.driver_paid_for_client,
+        company_paid_for_order: rowData.company_paid_for_order,
       };
 
       const validationResult = instantOrderSchema.safeParse(validationData);
@@ -495,6 +520,7 @@ export function InstantOrderForm() {
         address: validatedData.address,
         notes: validatedData.notes || null,
         driver_paid_for_client: validatedData.driver_paid_for_client,
+        company_paid_for_order: validatedData.company_paid_for_order,
       };
 
       // If driver paid for client, set the paid amounts based on order amounts
@@ -504,6 +530,12 @@ export function InstantOrderForm() {
         if (validatedData.notes) {
           orderData.driver_paid_reason = validatedData.notes;
         }
+      }
+      
+      // If company paid from cashbox, also set the paid amounts
+      if (validatedData.company_paid_for_order) {
+        orderData.driver_paid_amount_usd = validatedData.order_amount_usd;
+        orderData.driver_paid_amount_lbp = validatedData.order_amount_lbp;
       }
 
       const { error } = await supabase.from("orders").insert(orderData);
@@ -531,6 +563,7 @@ export function InstantOrderForm() {
             delivery_fee_lbp: savedRow?.delivery_fee_lbp || "",
             notes: "",
             driver_paid_for_client: false,
+            company_paid_for_order: false,
           }];
         }
         return filtered;
@@ -564,7 +597,8 @@ export function InstantOrderForm() {
               <TableHead className="w-[130px] bg-muted/50 text-primary">Fee LBP</TableHead>
               <TableHead className="w-[100px] bg-muted/50 text-primary border-r border-border">Fee USD</TableHead>
               <TableHead className="w-[120px]">Notes</TableHead>
-              <TableHead className="w-[70px]">Driver Paid</TableHead>
+              <TableHead className="w-[60px]" title="Driver paid for client">DRV</TableHead>
+              <TableHead className="w-[60px]" title="Company paid from cashbox">CO</TableHead>
               <TableHead className="w-[120px]">Actions</TableHead>
             </TableRow>
           </TableHeader>

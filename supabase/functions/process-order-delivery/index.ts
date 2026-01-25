@@ -130,10 +130,62 @@ Deno.serve(async (req) => {
 
     // Check if driver paid for client
     const driverPaidForClient = order.driver_paid_for_client === true
+    // Check if company paid from cashbox (not driver)
+    const companyPaidForOrder = order.company_paid_for_order === true
     // Check if this is a prepaid (cash) e-commerce order
     const isPrepaidEcom = order.order_type === 'ecom' && (order.prepaid_by_company === true || order.prepaid_by_runners === true)
 
-    if (driverPaidForClient) {
+    if (companyPaidForOrder) {
+      console.log('Processing company-paid-for-order scenario (company paid from cashbox)')
+      
+      // 1. Debit client account with order amount + delivery fee
+      if (order.client_id) {
+        const clientDebitUsd = Number(order.order_amount_usd) + Number(order.delivery_fee_usd)
+        const clientDebitLbp = Number(order.order_amount_lbp) + Number(order.delivery_fee_lbp)
+        
+        if (clientDebitUsd > 0 || clientDebitLbp > 0) {
+          console.log('Creating client debit transaction (order + delivery fee):', {
+            client_id: order.client_id,
+            amount_usd: clientDebitUsd,
+            amount_lbp: clientDebitLbp
+          })
+          
+          const { error: clientTxError } = await supabaseClient
+            .from('client_transactions')
+            .insert({
+              client_id: order.client_id,
+              type: 'Debit',
+              amount_usd: clientDebitUsd,
+              amount_lbp: clientDebitLbp,
+              order_ref: order.order_id,
+              note: `Order ${order.order_id} delivered (company paid)`,
+            })
+
+          if (clientTxError) {
+            console.error('Error creating client transaction:', clientTxError)
+            throw clientTxError
+          }
+        }
+      }
+
+      // 2. No driver wallet transaction needed - company paid, not driver
+      // Just set driver_remit_status to Pending with collected_amount = 0
+      const { error: remitError } = await supabaseClient
+        .from('orders')
+        .update({ 
+          driver_remit_status: 'Pending',
+          collected_amount_usd: 0,
+          collected_amount_lbp: 0
+        })
+        .eq('id', orderId)
+
+      if (remitError) {
+        console.error('Error updating remit status:', remitError)
+        throw remitError
+      }
+      
+      console.log('Company-paid-for-order scenario processed successfully')
+    } else if (driverPaidForClient) {
       console.log('Processing driver-paid-for-client scenario')
       
       // 1. Debit client account with order amount + delivery fee
