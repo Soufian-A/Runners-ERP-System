@@ -153,43 +153,29 @@ export function DriverStatementsTab() {
       
       if (isCompanyPaid) {
         // Company-paid: Company paid from cashbox, driver has no financial impact
-        // Just track delivery fees (due from client)
-        return {
-          ...acc,
-          totalDeliveryFeesUsd: acc.totalDeliveryFeesUsd + Number(order.delivery_fee_usd || 0),
-          totalDeliveryFeesLbp: acc.totalDeliveryFeesLbp + Number(order.delivery_fee_lbp || 0),
-          // No collection or refund for company-paid orders
-        };
+        // No collection or refund for company-paid orders
+        return acc;
       } else if (isDriverPaid) {
         // Driver-paid-for-client: Driver paid supplier, did NOT collect from customer
-        // Driver wallet is negative (we owe them), we need to refund them
-        // Delivery fee is due from client (not collected by driver)
+        // We need to refund the driver what they paid (only the order amount, not fees)
+        // Delivery fee is due from client later, not relevant to driver settlement
         return {
           ...acc,
-          totalDeliveryFeesUsd: acc.totalDeliveryFeesUsd + Number(order.delivery_fee_usd || 0),
-          totalDeliveryFeesLbp: acc.totalDeliveryFeesLbp + Number(order.delivery_fee_lbp || 0),
           totalDriverPaidUsd: acc.totalDriverPaidUsd + Number(order.driver_paid_amount_usd || 0),
           totalDriverPaidLbp: acc.totalDriverPaidLbp + Number(order.driver_paid_amount_lbp || 0),
-          // No collection for driver-paid orders
         };
       } else {
-        // Normal orders: driver collected order amount + delivery fee from customer
-        const collectedUsd = Number(order.order_amount_usd || 0) + Number(order.delivery_fee_usd || 0);
-        const collectedLbp = Number(order.order_amount_lbp || 0) + Number(order.delivery_fee_lbp || 0);
-        
+        // Normal orders: driver collected from customer (use actual collected_amount from DB)
+        // collected_amount includes order amount + delivery fee
         return {
           ...acc,
-          totalCollectedUsd: acc.totalCollectedUsd + collectedUsd,
-          totalCollectedLbp: acc.totalCollectedLbp + collectedLbp,
-          totalDeliveryFeesUsd: acc.totalDeliveryFeesUsd + Number(order.delivery_fee_usd || 0),
-          totalDeliveryFeesLbp: acc.totalDeliveryFeesLbp + Number(order.delivery_fee_lbp || 0),
+          totalCollectedUsd: acc.totalCollectedUsd + Number(order.collected_amount_usd || 0),
+          totalCollectedLbp: acc.totalCollectedLbp + Number(order.collected_amount_lbp || 0),
         };
       }
     }, {
       totalCollectedUsd: 0,
       totalCollectedLbp: 0,
-      totalDeliveryFeesUsd: 0,
-      totalDeliveryFeesLbp: 0,
       totalDriverPaidUsd: 0,
       totalDriverPaidLbp: 0,
     });
@@ -230,8 +216,8 @@ export function DriverStatementsTab() {
         period_to: periodTo,
         total_collected_usd: totals.totalCollectedUsd,
         total_collected_lbp: totals.totalCollectedLbp,
-        total_delivery_fees_usd: totals.totalDeliveryFeesUsd,
-        total_delivery_fees_lbp: totals.totalDeliveryFeesLbp,
+        total_delivery_fees_usd: 0,
+        total_delivery_fees_lbp: 0,
         total_driver_paid_refund_usd: totals.totalDriverPaidUsd,
         total_driver_paid_refund_lbp: totals.totalDriverPaidLbp,
         net_due_usd: netDueUsd,
@@ -584,14 +570,7 @@ export function DriverStatementsTab() {
                         )}
                       </div>
                       <div>
-                        <span className="text-muted-foreground">Fees: </span>
-                        <span className="font-mono font-semibold text-status-success">${totals.totalDeliveryFeesUsd.toFixed(2)}</span>
-                        {totals.totalDeliveryFeesLbp > 0 && (
-                          <span className="text-muted-foreground ml-1">/ {totals.totalDeliveryFeesLbp.toLocaleString()} LL</span>
-                        )}
-                      </div>
-                      <div>
-                        <span className="text-muted-foreground">Driver Paid: </span>
+                        <span className="text-muted-foreground">Refund to Driver: </span>
                         <span className="font-mono font-semibold text-status-info">-${totals.totalDriverPaidUsd.toFixed(2)}</span>
                         {totals.totalDriverPaidLbp > 0 && (
                           <span className="text-muted-foreground ml-1">/ -{totals.totalDriverPaidLbp.toLocaleString()} LL</span>
