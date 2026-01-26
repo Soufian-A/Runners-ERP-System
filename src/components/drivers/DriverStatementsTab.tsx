@@ -860,22 +860,15 @@ export function DriverStatementsTab() {
               {/* Summary */}
               <div className="bg-muted/30 rounded-lg p-4 space-y-2">
                 <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">Total Collected:</span>
+                  <span className="text-muted-foreground">Total Collected by Driver:</span>
                   <span className="font-mono font-semibold">
                     ${totals.totalCollectedUsd.toFixed(2)}
                     {totals.totalCollectedLbp > 0 && <span className="text-muted-foreground ml-1">/ {totals.totalCollectedLbp.toLocaleString()} LL</span>}
                   </span>
                 </div>
-                <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">Delivery Fees (Driver Keeps):</span>
-                  <span className="font-mono font-semibold text-status-success">
-                    -${totals.totalDeliveryFeesUsd.toFixed(2)}
-                    {totals.totalDeliveryFeesLbp > 0 && <span className="text-muted-foreground ml-1">/ -{totals.totalDeliveryFeesLbp.toLocaleString()} LL</span>}
-                  </span>
-                </div>
                 {(totals.totalDriverPaidUsd > 0 || totals.totalDriverPaidLbp > 0) && (
                   <div className="flex justify-between text-sm">
-                    <span className="text-muted-foreground">Driver Paid (Refund):</span>
+                    <span className="text-muted-foreground">Driver Paid (Refund to Driver):</span>
                     <span className="font-mono font-semibold text-status-info">
                       -${totals.totalDriverPaidUsd.toFixed(2)}
                       {totals.totalDriverPaidLbp > 0 && <span className="text-muted-foreground ml-1">/ -{totals.totalDriverPaidLbp.toLocaleString()} LL</span>}
@@ -883,10 +876,10 @@ export function DriverStatementsTab() {
                   </div>
                 )}
                 <div className="border-t pt-2 flex justify-between text-base font-bold">
-                  <span>Net Due to Company:</span>
-                  <span className="font-mono">
-                    ${netDueUsd.toFixed(2)}
-                    {netDueLbp !== 0 && <span className="ml-1">/ {netDueLbp.toLocaleString()} LL</span>}
+                  <span>{netDueUsd >= 0 ? 'Net Due to Company:' : 'Net Refund to Driver:'}</span>
+                  <span className={`font-mono ${netDueUsd < 0 ? 'text-destructive' : ''}`}>
+                    ${Math.abs(netDueUsd).toFixed(2)}
+                    {netDueLbp !== 0 && <span className="ml-1">/ {Math.abs(netDueLbp).toLocaleString()} LL</span>}
                   </span>
                 </div>
               </div>
@@ -910,14 +903,17 @@ export function DriverStatementsTab() {
                     `Period: ${format(new Date(dateFrom), 'MMM dd')} - ${format(new Date(dateTo), 'MMM dd, yyyy')}`,
                     ``,
                     `*Orders (${selectedOrdersData.length}):*`,
-                    ...selectedOrdersData.map(o => 
-                      `• ${o.order_id} - ${formatAmount(Number(o.collected_amount_usd || 0), Number(o.collected_amount_lbp || 0))}`
-                    ),
+                    ...selectedOrdersData.map(o => {
+                      const isDriverPaid = o.driver_paid_for_client === true;
+                      if (isDriverPaid) {
+                        return `• ${o.order_id} - Paid: ${formatAmount(Number(o.driver_paid_amount_usd || 0), Number(o.driver_paid_amount_lbp || 0))} (Refund)`;
+                      }
+                      return `• ${o.order_id} - Collected: ${formatAmount(Number(o.collected_amount_usd || 0), Number(o.collected_amount_lbp || 0))}`;
+                    }),
                     ``,
                     `*Summary:*`,
-                    `Collected: ${formatAmount(totals.totalCollectedUsd, totals.totalCollectedLbp)}`,
-                    `Your Fees: -${formatAmount(totals.totalDeliveryFeesUsd, totals.totalDeliveryFeesLbp)}`,
-                    (totals.totalDriverPaidUsd > 0 || totals.totalDriverPaidLbp > 0) ? `Refund: -${formatAmount(totals.totalDriverPaidUsd, totals.totalDriverPaidLbp)}` : '',
+                    `Total Collected: ${formatAmount(totals.totalCollectedUsd, totals.totalCollectedLbp)}`,
+                    (totals.totalDriverPaidUsd > 0 || totals.totalDriverPaidLbp > 0) ? `Refund to Driver: -${formatAmount(totals.totalDriverPaidUsd, totals.totalDriverPaidLbp)}` : '',
                     ``,
                     `💰 *Net Due: ${formatAmount(netDueUsd, netDueLbp)}*`
                   ].filter(Boolean).join('\n');
