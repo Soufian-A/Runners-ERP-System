@@ -331,11 +331,14 @@ function OrderRow({
           <Checkbox 
             checked={row.driver_paid_for_client}
             onCheckedChange={(checked) => {
-              updateRow(row.id, "driver_paid_for_client", checked);
-              if (checked) updateRow(row.id, "company_paid_for_order", false);
+              if (checked) {
+                updateRow(row.id, "driver_paid_for_client", true);
+                updateRow(row.id, "company_paid_for_order", false);
+              } else {
+                updateRow(row.id, "driver_paid_for_client", false);
+              }
             }}
             title="Driver paid for client"
-            disabled={row.company_paid_for_order}
           />
         </div>
       </TableCell>
@@ -346,11 +349,14 @@ function OrderRow({
           <Checkbox 
             checked={row.company_paid_for_order}
             onCheckedChange={(checked) => {
-              updateRow(row.id, "company_paid_for_order", checked);
-              if (checked) updateRow(row.id, "driver_paid_for_client", false);
+              if (checked) {
+                updateRow(row.id, "company_paid_for_order", true);
+                updateRow(row.id, "driver_paid_for_client", false);
+              } else {
+                updateRow(row.id, "company_paid_for_order", false);
+              }
             }}
             title="Company paid from cashbox"
-            disabled={row.driver_paid_for_client}
           />
         </div>
       </TableCell>
