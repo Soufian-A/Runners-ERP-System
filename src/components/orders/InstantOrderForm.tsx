@@ -331,7 +331,8 @@ function OrderRow({
           <Checkbox 
             checked={row.driver_paid_for_client}
             onCheckedChange={(checked) => {
-              if (checked) {
+              const next = checked === true;
+              if (next) {
                 updateRow(row.id, "driver_paid_for_client", true);
                 updateRow(row.id, "company_paid_for_order", false);
               } else {
@@ -349,7 +350,8 @@ function OrderRow({
           <Checkbox 
             checked={row.company_paid_for_order}
             onCheckedChange={(checked) => {
-              if (checked) {
+              const next = checked === true;
+              if (next) {
                 updateRow(row.id, "company_paid_for_order", true);
                 updateRow(row.id, "driver_paid_for_client", false);
               } else {
@@ -466,15 +468,15 @@ export function InstantOrderForm() {
       company_paid_for_order: false,
     };
     
-    setNewRows([...newRows, newRow]);
+    setNewRows((prev) => [...prev, newRow]);
   };
 
   const updateRow = (id: string, field: keyof NewOrderRow, value: any) => {
-    setNewRows(newRows.map((row) => (row.id === id ? { ...row, [field]: value } : row)));
+    setNewRows((prev) => prev.map((row) => (row.id === id ? { ...row, [field]: value } : row)));
   };
 
   const removeRow = (id: string) => {
-    setNewRows(newRows.filter(row => row.id !== id));
+    setNewRows((prev) => prev.filter((row) => row.id !== id));
   };
 
   const createOrderMutation = useMutation({
