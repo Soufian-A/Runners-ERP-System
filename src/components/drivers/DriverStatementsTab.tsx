@@ -508,9 +508,8 @@ export function DriverStatementsTab() {
                           <TableHead className="py-2">Date</TableHead>
                           <TableHead className="py-2">Order</TableHead>
                           <TableHead className="py-2">Client</TableHead>
-                          <TableHead className="py-2 text-right">Collected</TableHead>
-                          <TableHead className="py-2 text-right">Fee</TableHead>
-                          <TableHead className="py-2 text-right">Driver Paid</TableHead>
+                          <TableHead className="py-2 text-right">Collected (incl. Fee)</TableHead>
+                          <TableHead className="py-2 text-right">Refund to Driver</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
@@ -528,23 +527,21 @@ export function DriverStatementsTab() {
                             <TableCell className="py-1 font-mono">{order.order_id}</TableCell>
                             <TableCell className="py-1">{order.clients?.name}</TableCell>
                             <TableCell className="py-1 text-right font-mono">
-                              <div>${Number(order.collected_amount_usd || 0).toFixed(2)}</div>
-                              {Number(order.collected_amount_lbp || 0) > 0 && (
-                                <div className="text-muted-foreground text-[10px]">{Number(order.collected_amount_lbp || 0).toLocaleString()} LL</div>
-                              )}
-                            </TableCell>
-                            <TableCell className="py-1 text-right font-mono text-status-success">
-                              <div>${Number(order.delivery_fee_usd || 0).toFixed(2)}</div>
-                              {Number(order.delivery_fee_lbp || 0) > 0 && (
-                                <div className="text-muted-foreground text-[10px]">{Number(order.delivery_fee_lbp || 0).toLocaleString()} LL</div>
-                              )}
+                              {Number(order.collected_amount_usd || 0) > 0 || Number(order.collected_amount_lbp || 0) > 0 ? (
+                                <div>
+                                  {Number(order.collected_amount_usd || 0) > 0 && <div>${Number(order.collected_amount_usd || 0).toFixed(2)}</div>}
+                                  {Number(order.collected_amount_lbp || 0) > 0 && (
+                                    <div className={Number(order.collected_amount_usd || 0) > 0 ? "text-muted-foreground text-[10px]" : ""}>{Number(order.collected_amount_lbp || 0).toLocaleString()} LL</div>
+                                  )}
+                                </div>
+                              ) : '-'}
                             </TableCell>
                             <TableCell className="py-1 text-right font-mono">
                               {order.driver_paid_for_client ? (
-                                <div>
-                                  <div className="text-status-info">${Number(order.driver_paid_amount_usd || 0).toFixed(2)}</div>
+                                <div className="text-status-info">
+                                  {Number(order.driver_paid_amount_usd || 0) > 0 && <div>${Number(order.driver_paid_amount_usd || 0).toFixed(2)}</div>}
                                   {Number(order.driver_paid_amount_lbp || 0) > 0 && (
-                                    <div className="text-muted-foreground text-[10px]">{Number(order.driver_paid_amount_lbp || 0).toLocaleString()} LL</div>
+                                    <div className={Number(order.driver_paid_amount_usd || 0) > 0 ? "text-muted-foreground text-[10px]" : ""}>{Number(order.driver_paid_amount_lbp || 0).toLocaleString()} LL</div>
                                   )}
                                 </div>
                               ) : '-'}
