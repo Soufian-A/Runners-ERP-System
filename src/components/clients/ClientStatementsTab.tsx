@@ -42,6 +42,7 @@ export function ClientStatementsTab() {
   const [previewStatement, setPreviewStatement] = useState<any>(null);
   const [pendingExpanded, setPendingExpanded] = useState(true);
   const [expandedStatementId, setExpandedStatementId] = useState<string | null>(null);
+  const [balanceBreakdownExpanded, setBalanceBreakdownExpanded] = useState(true);
 
   const { data: clients } = useQuery({
     queryKey: ['clients-for-statement'],
@@ -125,6 +126,24 @@ export function ClientStatementsTab() {
         const hasOrderAmount = Number(order.order_amount_usd || 0) > 0 || Number(order.order_amount_lbp || 0) > 0;
         return hasOrderAmount;
       }) || [];
+    },
+    enabled: !!selectedClient,
+  });
+
+  // Balance breakdown: show transactions that make up the current balance
+  const { data: balanceBreakdown } = useQuery({
+    queryKey: ['client-balance-breakdown', selectedClient],
+    queryFn: async () => {
+      if (!selectedClient) return [];
+      
+      const { data, error } = await supabase
+        .from('client_transactions')
+        .select('*')
+        .eq('client_id', selectedClient)
+        .order('ts', { ascending: false });
+      
+      if (error) throw error;
+      return data || [];
     },
     enabled: !!selectedClient,
   });
@@ -564,6 +583,76 @@ export function ClientStatementsTab() {
             </CardContent>
           </Card>
         </div>
+      )}
+
+      {/* Balance Breakdown Section - shows what makes up the current balance */}
+      {selectedClient && (clientBalance.usd !== 0 || clientBalance.lbp !== 0) && (
+        <Collapsible open={balanceBreakdownExpanded} onOpenChange={setBalanceBreakdownExpanded}>
+          <Card className="border-sidebar-border border-dashed">
+            <CollapsibleTrigger asChild>
+              <CardHeader className="py-2 px-4 cursor-pointer hover:bg-muted/50 transition-colors">
+                <div className="flex items-center justify-between">
+                  <CardTitle className="text-sm font-medium flex items-center gap-2">
+                    {balanceBreakdownExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                    <Wallet className="h-4 w-4 text-muted-foreground" />
+                    Balance Breakdown ({balanceBreakdown?.length || 0} transactions)
+                  </CardTitle>
+                  <span className="text-xs text-muted-foreground">Shows what makes up the current balance</span>
+                </div>
+              </CardHeader>
+            </CollapsibleTrigger>
+            <CollapsibleContent>
+              <CardContent className="p-0">
+                {balanceBreakdown && balanceBreakdown.length > 0 ? (
+                  <div className="overflow-x-auto max-h-[200px] overflow-y-auto">
+                    <Table>
+                      <TableHeader className="sticky top-0 bg-background">
+                        <TableRow className="text-xs">
+                          <TableHead className="py-2">Date</TableHead>
+                          <TableHead className="py-2">Type</TableHead>
+                          <TableHead className="py-2">Description</TableHead>
+                          <TableHead className="py-2">Order Ref</TableHead>
+                          <TableHead className="py-2 text-right">Amount</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {balanceBreakdown.map((tx: any) => (
+                          <TableRow key={tx.id} className="text-sm">
+                            <TableCell className="py-1.5">
+                              {format(new Date(tx.ts), 'MMM dd, yyyy')}
+                            </TableCell>
+                            <TableCell className="py-1.5">
+                              <Badge 
+                                variant="outline" 
+                                className={tx.type === 'Credit' ? 'text-status-success border-status-success' : 'text-status-error border-status-error'}
+                              >
+                                {tx.type === 'Credit' ? 'We Owe' : 'Paid'}
+                              </Badge>
+                            </TableCell>
+                            <TableCell className="py-1.5 text-muted-foreground max-w-[200px] truncate">
+                              {tx.note || '-'}
+                            </TableCell>
+                            <TableCell className="py-1.5 font-mono text-xs">
+                              {tx.order_ref || '-'}
+                            </TableCell>
+                            <TableCell className={`py-1.5 text-right font-mono ${tx.type === 'Credit' ? 'text-status-success' : 'text-status-error'}`}>
+                              {tx.type === 'Credit' ? '+' : '-'}
+                              {Number(tx.amount_usd || 0) > 0 && `$${Number(tx.amount_usd).toFixed(2)}`}
+                              {Number(tx.amount_usd || 0) > 0 && Number(tx.amount_lbp || 0) > 0 && ' / '}
+                              {Number(tx.amount_lbp || 0) > 0 && `${Number(tx.amount_lbp).toLocaleString()} LL`}
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                ) : (
+                  <p className="text-center py-4 text-muted-foreground text-sm">No transactions found.</p>
+                )}
+              </CardContent>
+            </CollapsibleContent>
+          </Card>
+        </Collapsible>
       )}
 
       {/* Pending Orders Section */}
