@@ -38,6 +38,7 @@ interface Order {
   driver_paid_amount_usd?: number;
   driver_paid_amount_lbp?: number;
   driver_remit_status?: string;
+  company_paid_for_order?: boolean;
   clients?: { name: string };
   drivers?: { name: string };
   third_parties?: { name: string };
@@ -53,8 +54,16 @@ const getPaymentStatus = (order: Order) => {
     return { label: "Paid", variant: "default" as const, className: "bg-green-600" };
   }
 
+  // Driver paid for client - client owes us
   if (order.driver_paid_for_client) {
-    // Driver paid for client - client owes us
+    if (order.driver_remit_status === 'Collected') {
+      return { label: "Settled", variant: "default" as const, className: "bg-green-600" };
+    }
+    return { label: "Due", variant: "destructive" as const };
+  }
+
+  // Company paid for order - customer owes us (same logic as driver-paid)
+  if ((order as any).company_paid_for_order) {
     if (order.driver_remit_status === 'Collected') {
       return { label: "Settled", variant: "default" as const, className: "bg-green-600" };
     }
