@@ -2,6 +2,7 @@ import { useState, useRef, useCallback } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { updateCashbox } from "@/lib/wallet-operations";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { CurrencyInput } from "@/components/ui/currency-input";
@@ -540,10 +541,24 @@ export function InstantOrderForm() {
         }
       }
       
-      // If company paid from cashbox, also set the paid amounts
+      // If company paid from cashbox, also set the paid amounts and debit cashbox
       if (validatedData.company_paid_for_order) {
         orderData.driver_paid_amount_usd = validatedData.order_amount_usd;
         orderData.driver_paid_amount_lbp = validatedData.order_amount_lbp;
+        
+        // Debit cashbox immediately when company pays for the order
+        const today = new Date().toISOString().split('T')[0];
+        const cashboxResult = await updateCashbox(
+          today,
+          0, // cashInUsd
+          0, // cashInLbp
+          validatedData.order_amount_usd, // cashOutUsd
+          validatedData.order_amount_lbp  // cashOutLbp
+        );
+        
+        if (!cashboxResult.success) {
+          throw new Error('Failed to update cashbox: ' + cashboxResult.error);
+        }
       }
 
       const { error } = await supabase.from("orders").insert(orderData);
@@ -551,9 +566,12 @@ export function InstantOrderForm() {
       if (error) throw error;
       return rowData.id;
     },
-    onSuccess: (rowId) => {
+    onSuccess: (rowId, variables) => {
       queryClient.invalidateQueries({ queryKey: ["orders"] });
       queryClient.invalidateQueries({ queryKey: ["instant-orders"] });
+      if (variables.company_paid_for_order) {
+        queryClient.invalidateQueries({ queryKey: ["cashbox"] });
+      }
       toast.success("Order created");
       setNewRows((currentRows) => {
         const filtered = currentRows.filter((r) => r.id !== rowId);
