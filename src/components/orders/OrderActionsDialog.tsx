@@ -60,6 +60,7 @@ const OrderActionsDialog = ({ order, open, onOpenChange }: OrderActionsDialogPro
   const updateStatusMutation = useMutation({
     mutationFn: async (data: any) => {
       const previousStatus = order.status;
+      const isDeliveryTransition = previousStatus !== 'Delivered' && data.status === 'Delivered';
       
       // Validate: Cannot mark as Delivered without a driver
       if (data.status === 'Delivered' && !order.driver_id) {
@@ -71,7 +72,7 @@ const OrderActionsDialog = ({ order, open, onOpenChange }: OrderActionsDialogPro
       };
 
       // Set delivered_at timestamp when status changes to Delivered
-      if (previousStatus !== 'Delivered' && data.status === 'Delivered') {
+      if (isDeliveryTransition) {
         updateData.delivered_at = new Date().toISOString();
       }
 
@@ -83,15 +84,52 @@ const OrderActionsDialog = ({ order, open, onOpenChange }: OrderActionsDialogPro
       if (error) throw error;
 
       // If status changed to Delivered, process the accounting via edge function
-      if (previousStatus !== 'Delivered' && data.status === 'Delivered') {
+      // CRITICAL: Wrap in try-catch to rollback order status if accounting fails
+      if (isDeliveryTransition) {
         console.log('Order marked as delivered, processing accounting...');
-        const { error: functionError } = await supabase.functions.invoke('process-order-delivery', {
-          body: { orderId: order.id }
-        });
         
-        if (functionError) {
-          console.error('Error processing delivery:', functionError);
-          throw new Error('Order updated but accounting failed: ' + functionError.message);
+        try {
+          const { data: responseData, error: functionError } = await supabase.functions.invoke('process-order-delivery', {
+            body: { orderId: order.id }
+          });
+          
+          // Check for HTTP-level errors
+          if (functionError) {
+            throw new Error(functionError.message || 'Edge function invocation failed');
+          }
+          
+          // Check for application-level errors in the response
+          if (responseData?.error) {
+            throw new Error(responseData.error);
+          }
+          
+          console.log('Accounting processed successfully:', responseData);
+        } catch (accountingError) {
+          console.error('Accounting failed, rolling back order status:', accountingError);
+          
+          // Rollback: Revert order status to previous state
+          const { error: rollbackError } = await supabase
+            .from('orders')
+            .update({ 
+              status: previousStatus,
+              delivered_at: null 
+            })
+            .eq('id', order.id);
+          
+          if (rollbackError) {
+            console.error('CRITICAL: Failed to rollback order status:', rollbackError);
+            throw new Error(
+              `Accounting failed AND rollback failed. Order ${order.order_id} may be in inconsistent state. ` +
+              `Original error: ${accountingError instanceof Error ? accountingError.message : 'Unknown'}. ` +
+              `Rollback error: ${rollbackError.message}`
+            );
+          }
+          
+          // Rollback succeeded, throw the original accounting error
+          throw new Error(
+            `Failed to process accounting entries. Order status has been reverted. ` +
+            `Error: ${accountingError instanceof Error ? accountingError.message : 'Unknown error'}`
+          );
         }
       }
     },
@@ -107,6 +145,10 @@ const OrderActionsDialog = ({ order, open, onOpenChange }: OrderActionsDialogPro
       onOpenChange(false);
     },
     onError: (error: any) => {
+      // Invalidate queries to ensure UI reflects any rollback
+      queryClient.invalidateQueries({ queryKey: ['orders'] });
+      queryClient.invalidateQueries({ queryKey: ['instant-orders'] });
+      queryClient.invalidateQueries({ queryKey: ['ecom-orders'] });
       toast({
         title: "Error",
         description: error.message,
