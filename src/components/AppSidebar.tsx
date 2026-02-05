@@ -25,18 +25,25 @@ import {
   PanelLeftClose,
   PanelLeft,
   Building2,
+  Settings,
+  Shield,
+  ClipboardList,
 } from "lucide-react";
+import { useAuth } from "@/hooks/useAuth";
+import { useUserRole } from "@/hooks/useUserRole";
 
 interface NavItem {
   icon: any;
   label: string;
   path: string;
+  adminOnly?: boolean;
 }
 
 interface NavGroup {
   label: string;
   icon: any;
   items: NavItem[];
+  adminOnly?: boolean;
 }
 
 const navGroups: NavGroup[] = [
@@ -81,6 +88,15 @@ const navGroups: NavGroup[] = [
       { icon: BarChart3, label: "Analytics", path: "/reports" },
     ],
   },
+  {
+    label: "System",
+    icon: Settings,
+    adminOnly: true,
+    items: [
+      { icon: Shield, label: "User Management", path: "/users", adminOnly: true },
+      { icon: ClipboardList, label: "Audit Log", path: "/audit-log", adminOnly: true },
+    ],
+  },
 ];
 
 interface AppSidebarProps {
@@ -91,7 +107,11 @@ interface AppSidebarProps {
 export function AppSidebar({ collapsed, onToggle }: AppSidebarProps) {
   const navigate = useNavigate();
   const location = useLocation();
+  const { user } = useAuth();
+  const { role } = useUserRole(user?.id);
   const [openGroups, setOpenGroups] = useState<string[]>(["Operations", "Finance"]);
+
+  const isAdmin = role === "admin";
 
   const isActive = (path: string) => location.pathname === path;
   const isGroupActive = (group: NavGroup) => 
@@ -104,6 +124,15 @@ export function AppSidebar({ collapsed, onToggle }: AppSidebarProps) {
         : [...prev, label]
     );
   };
+
+  // Filter groups and items based on admin status
+  const visibleGroups = navGroups
+    .filter(group => !group.adminOnly || isAdmin)
+    .map(group => ({
+      ...group,
+      items: group.items.filter(item => !item.adminOnly || isAdmin)
+    }))
+    .filter(group => group.items.length > 0);
 
   return (
     <aside
@@ -160,7 +189,7 @@ export function AppSidebar({ collapsed, onToggle }: AppSidebarProps) {
           </Button>
 
           {/* Nav Groups */}
-          {navGroups.map((group) => (
+          {visibleGroups.map((group) => (
             <div key={group.label} className="mb-1">
               {collapsed ? (
                 // Collapsed: show only icons for first item
