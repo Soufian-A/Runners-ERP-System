@@ -154,7 +154,8 @@ export function ClientPaymentDialog({
       queryClient.invalidateQueries({ queryKey: ['client-statement'] });
       queryClient.invalidateQueries({ queryKey: ['client-statement-payments'] });
       queryClient.invalidateQueries({ queryKey: ['client-payments'] });
-      queryClient.invalidateQueries({ queryKey: ['cashbox-daily'] });
+      queryClient.invalidateQueries({ queryKey: ['cashbox'] });
+      queryClient.invalidateQueries({ queryKey: ['client-balances-all'] });
       toast({
         title: 'Payment Recorded',
         description: `Statement ${statementId} created successfully. Payment added to cashbox.`,

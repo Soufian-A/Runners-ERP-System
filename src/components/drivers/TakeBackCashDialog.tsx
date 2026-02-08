@@ -48,16 +48,14 @@ export default function TakeBackCashDialog({ open, onOpenChange, driver }: TakeB
 
       if (transactionError) throw transactionError;
 
-      // Update driver wallet
-      const { error: driverError } = await supabase
-        .from('drivers')
-        .update({
-          wallet_usd: currency === 'USD' ? driver.wallet_usd - amountNum : driver.wallet_usd,
-          wallet_lbp: currency === 'LBP' ? driver.wallet_lbp - amountNum : driver.wallet_lbp,
-        })
-        .eq('id', driver.id);
+      // Use atomic wallet update
+      const { error: walletError } = await (supabase.rpc as any)('update_driver_wallet_atomic', {
+        p_driver_id: driver.id,
+        p_amount_usd: currency === 'USD' ? -amountNum : 0,
+        p_amount_lbp: currency === 'LBP' ? -amountNum : 0,
+      });
 
-      if (driverError) throw driverError;
+      if (walletError) throw walletError;
 
       // Update cashbox atomically (cash in)
       const today = new Date().toISOString().split('T')[0];
