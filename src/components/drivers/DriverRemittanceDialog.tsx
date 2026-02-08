@@ -239,6 +239,9 @@ const DriverRemittanceDialog = ({ driver, open, onOpenChange }: DriverRemittance
       queryClient.invalidateQueries({ queryKey: ['drivers'] });
       queryClient.invalidateQueries({ queryKey: ['driver-pending-orders'] });
       queryClient.invalidateQueries({ queryKey: ['driver-statements'] });
+      queryClient.invalidateQueries({ queryKey: ['cashbox'] });
+      queryClient.invalidateQueries({ queryKey: ['orders'] });
+      queryClient.invalidateQueries({ queryKey: ['client-balances-all'] });
       toast({
         title: "Remittance Recorded & Statement Issued",
         description: "Driver remittance and statement have been created successfully.",
